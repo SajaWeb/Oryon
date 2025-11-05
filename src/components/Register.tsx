@@ -1,144 +1,171 @@
-import { useState } from 'react'
-import { projectId, publicAnonKey } from '../utils/supabase/info'
-import { getSupabaseClient } from '../utils/supabase/client'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
-import { Wrench, CheckCircle, XCircle } from 'lucide-react'
+import { useState } from "react";
+import { projectId, publicAnonKey } from "../utils/supabase/info";
+import { getSupabaseClient } from "../utils/supabase/client";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "./ui/card";
+import { Wrench, CheckCircle, XCircle } from "lucide-react";
 
 interface RegisterProps {
-  onRegisterSuccess: () => void
-  onSwitchToLogin: () => void
+  onRegisterSuccess: () => void;
+  onSwitchToLogin: () => void;
+  navigate: (path: string) => void;
 }
 
-export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) {
+export function Register({
+  onRegisterSuccess,
+  onSwitchToLogin,
+  navigate,
+}: RegisterProps) {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    name: '',
-    companyName: ''
-  })
-  const [loading, setLoading] = useState(false)
-  const [googleLoading, setGoogleLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+    email: "",
+    password: "",
+    confirmPassword: "",
+    name: "",
+    companyName: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
     // Validations
     if (formData.password !== formData.confirmPassword) {
-      setError('Las contraseñas no coinciden. Por favor verifica que ambas contraseñas sean iguales.')
-      setLoading(false)
-      return
+      setError(
+        "Las contraseñas no coinciden. Por favor verifica que ambas contraseñas sean iguales."
+      );
+      setLoading(false);
+      return;
     }
 
     if (formData.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres. Por favor elige una contraseña más segura.')
-      setLoading(false)
-      return
+      setError(
+        "La contraseña debe tener al menos 6 caracteres. Por favor elige una contraseña más segura."
+      );
+      setLoading(false);
+      return;
     }
 
     if (!formData.companyName.trim()) {
-      setError('El nombre de la empresa es obligatorio.')
-      setLoading(false)
-      return
+      setError("El nombre de la empresa es obligatorio.");
+      setLoading(false);
+      return;
     }
 
     if (!formData.name.trim()) {
-      setError('Tu nombre completo es obligatorio.')
-      setLoading(false)
-      return
+      setError("Tu nombre completo es obligatorio.");
+      setLoading(false);
+      return;
     }
 
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/auth/signup`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
+            Authorization: `Bearer ${publicAnonKey}`,
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             email: formData.email,
             password: formData.password,
             name: formData.name,
-            companyName: formData.companyName
-          })
+            companyName: formData.companyName,
+          }),
         }
-      )
+      );
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!data.success) {
         // Translate common errors to friendly Spanish messages
-        let friendlyError = data.error || 'Error al crear la cuenta'
-        if (data.error?.includes('User already registered')) {
-          friendlyError = 'Ya existe una cuenta con este email. ¿Deseas iniciar sesión en su lugar?'
-        } else if (data.error?.includes('Invalid email')) {
-          friendlyError = 'El formato del email no es válido. Por favor verifica tu email.'
-        } else if (data.error?.includes('Password')) {
-          friendlyError = 'La contraseña no cumple con los requisitos mínimos de seguridad.'
-        } else if (data.error?.includes('rate limit')) {
-          friendlyError = 'Demasiados intentos. Por favor espera unos minutos e intenta de nuevo.'
+        let friendlyError = data.error || "Error al crear la cuenta";
+        if (data.error?.includes("User already registered")) {
+          friendlyError =
+            "Ya existe una cuenta con este email. ¿Deseas iniciar sesión en su lugar?";
+        } else if (data.error?.includes("Invalid email")) {
+          friendlyError =
+            "El formato del email no es válido. Por favor verifica tu email.";
+        } else if (data.error?.includes("Password")) {
+          friendlyError =
+            "La contraseña no cumple con los requisitos mínimos de seguridad.";
+        } else if (data.error?.includes("rate limit")) {
+          friendlyError =
+            "Demasiados intentos. Por favor espera unos minutos e intenta de nuevo.";
         }
-        setError(friendlyError)
-        setLoading(false)
-        return
+        setError(friendlyError);
+        setLoading(false);
+        return;
       }
 
-      setSuccess(true)
+      setSuccess(true);
       setTimeout(() => {
-        onRegisterSuccess()
-      }, 2000)
+        onRegisterSuccess();
+        navigate("/login");
+      }, 2000);
     } catch (err) {
-      console.error('Register error:', err)
-      setError('Error al crear la cuenta. Por favor verifica tu conexión a internet e intenta de nuevo.')
-      setLoading(false)
+      console.error("Register error:", err);
+      setError(
+        "Error al crear la cuenta. Por favor verifica tu conexión a internet e intenta de nuevo."
+      );
+      setLoading(false);
     }
-  }
+  };
 
   const handleGoogleSignup = async () => {
-    setGoogleLoading(true)
-    setError('')
+    setGoogleLoading(true);
+    setError("");
 
     try {
-      const supabase = getSupabaseClient()
-      
+      const supabase = getSupabaseClient();
+
       // Note: You need to configure Google OAuth in Supabase dashboard
       // Follow instructions at: https://supabase.com/docs/guides/auth/social-login/auth-google
       const { error: signInError } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
+        provider: "google",
         options: {
-          redirectTo: window.location.origin
-        }
-      })
+          redirectTo: window.location.origin,
+        },
+      });
 
       if (signInError) {
-        console.error('Google sign up error:', signInError)
-        let friendlyError = 'Error al registrarse con Google.'
-        if (signInError.message.includes('not enabled')) {
-          friendlyError = 'El registro con Google no está habilitado. Por favor contacta al administrador o regístrate con email.'
-        } else if (signInError.message.includes('popup')) {
-          friendlyError = 'La ventana de Google fue bloqueada. Por favor permite ventanas emergentes e intenta de nuevo.'
-        } else if (signInError.message.includes('already')) {
-          friendlyError = 'Ya existe una cuenta con este email de Google. ¿Deseas iniciar sesión en su lugar?'
+        console.error("Google sign up error:", signInError);
+        let friendlyError = "Error al registrarse con Google.";
+        if (signInError.message.includes("not enabled")) {
+          friendlyError =
+            "El registro con Google no está habilitado. Por favor contacta al administrador o regístrate con email.";
+        } else if (signInError.message.includes("popup")) {
+          friendlyError =
+            "La ventana de Google fue bloqueada. Por favor permite ventanas emergentes e intenta de nuevo.";
+        } else if (signInError.message.includes("already")) {
+          friendlyError =
+            "Ya existe una cuenta con este email de Google. ¿Deseas iniciar sesión en su lugar?";
         }
-        setError(friendlyError)
-        setGoogleLoading(false)
+        setError(friendlyError);
+        setGoogleLoading(false);
       }
       // If successful, user will be redirected to Google
     } catch (err) {
-      console.error('Google signup error:', err)
-      setError('Error al registrarse con Google. Por favor verifica tu conexión e intenta de nuevo.')
-      setGoogleLoading(false)
+      console.error("Google signup error:", err);
+      setError(
+        "Error al registrarse con Google. Por favor verifica tu conexión e intenta de nuevo."
+      );
+      setGoogleLoading(false);
     }
-  }
+  };
 
   if (success) {
     return (
@@ -147,7 +174,10 @@ export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) 
           <CardContent className="pt-6">
             <div className="text-center space-y-4">
               <div className="mx-auto w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900 dark:to-emerald-900 rounded-full flex items-center justify-center shadow-lg">
-                <CheckCircle className="text-green-600 dark:text-green-400" size={48} />
+                <CheckCircle
+                  className="text-green-600 dark:text-green-400"
+                  size={48}
+                />
               </div>
               <div className="space-y-2">
                 <h3 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
@@ -159,8 +189,11 @@ export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) 
               </div>
               <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4">
                 <p className="text-sm text-green-900 dark:text-green-100">
-                  <strong className="block mb-1">🎉 ¡Bienvenido a Oryon App!</strong>
-                  Tienes 7 días de prueba gratis para explorar todas las funcionalidades
+                  <strong className="block mb-1">
+                    🎉 ¡Bienvenido a Oryon App!
+                  </strong>
+                  Tienes 7 días de prueba gratis para explorar todas las
+                  funcionalidades
                 </p>
               </div>
               <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -171,7 +204,7 @@ export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) 
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -203,13 +236,15 @@ export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) 
                 </div>
               </div>
             )}
-            
+
             <div>
               <Label htmlFor="companyName">Nombre de la Empresa</Label>
               <Input
                 id="companyName"
                 value={formData.companyName}
-                onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, companyName: e.target.value })
+                }
                 placeholder="Mi Empresa de Reparaciones"
                 required
                 disabled={loading}
@@ -221,33 +256,39 @@ export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) 
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 placeholder="Juan Pérez"
                 required
                 disabled={loading}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
                 placeholder="tu@email.com"
                 required
                 disabled={loading}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="password">Contraseña</Label>
               <Input
                 id="password"
                 type="password"
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
                 placeholder="••••••••"
                 required
                 disabled={loading}
@@ -260,15 +301,21 @@ export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) 
                 id="confirmPassword"
                 type="password"
                 value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, confirmPassword: e.target.value })
+                }
                 placeholder="••••••••"
                 required
                 disabled={loading}
               />
             </div>
-            
-            <Button type="submit" className="w-full" disabled={loading || googleLoading}>
-              {loading ? 'Creando cuenta...' : 'Crear Cuenta Gratis'}
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || googleLoading}
+            >
+              {loading ? "Creando cuenta..." : "Crear Cuenta Gratis"}
             </Button>
 
             <div className="relative my-4">
@@ -276,7 +323,9 @@ export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) 
                 <div className="w-full border-t border-gray-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">O regístrate con</span>
+                <span className="px-2 bg-white text-gray-500">
+                  O regístrate con
+                </span>
               </div>
             </div>
 
@@ -305,13 +354,13 @@ export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) 
                   fill="#EA4335"
                 />
               </svg>
-              {googleLoading ? 'Redirigiendo...' : 'Continuar con Google'}
+              {googleLoading ? "Redirigiendo..." : "Continuar con Google"}
             </Button>
           </form>
-          
+
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              ¿Ya tienes una cuenta?{' '}
+              ¿Ya tienes una cuenta?{" "}
               <button
                 onClick={onSwitchToLogin}
                 className="text-blue-600 hover:underline"
@@ -324,5 +373,5 @@ export function Register({ onRegisterSuccess, onSwitchToLogin }: RegisterProps) 
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
