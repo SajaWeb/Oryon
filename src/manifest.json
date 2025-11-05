@@ -1,0 +1,14 @@
+{
+  "name": "Oryon App - Gestión Integral",
+  "short_name": "Oryon App",
+  "description": "Sistema de gestión integral para ventas de productos electrónicos y centro de reparaciones",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [],
+  "categories": ["business", "productivity", "utilities"],
+  "prefer_related_applications": false
+}

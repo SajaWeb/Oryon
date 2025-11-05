@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oryon App - Generador de Iconos PWA</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #2563eb;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .icon-preview {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 20px;
+      margin: 30px 0;
+    }
+    .icon-item {
+      text-align: center;
+    }
+    .icon-item canvas {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .icon-item p {
+      font-size: 12px;
+      color: #666;
+      margin: 0;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    .instructions {
+      background: #f0f9ff;
+      border-left: 4px solid #2563eb;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .instructions h3 {
+      margin-top: 0;
+      color: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Oryon App</h1>
+    <p class="subtitle">Generador de Iconos para PWA</p>
+
+    <div class="instructions">
+      <h3>Instrucciones</h3>
+      <ol>
+        <li>Haz clic en "Generar Iconos" para crear todos los tamaños necesarios</li>
+        <li>Haz clic derecho en cada icono y selecciona "Guardar imagen como..."</li>
+        <li>Guarda cada icono con el nombre correcto (icon-72x72.png, icon-96x96.png, etc.)</li>
+        <li>Crea una carpeta llamada "icons" en la raíz de tu proyecto</li>
+        <li>Coloca todos los iconos en esa carpeta</li>
+      </ol>
+    </div>
+
+    <button onclick="generateAllIcons()">Generar Iconos</button>
+    <button onclick="downloadAll()">Descargar Todos</button>
+
+    <div id="preview" class="icon-preview"></div>
+  </div>
+
+  <script>
+    const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+
+    function drawIcon(canvas, size) {
+      const ctx = canvas.getContext('2d');
+      canvas.width = size;
+      canvas.height = size;
+
+      // Fondo degradado
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#2563eb');
+      gradient.addColorStop(1, '#1d4ed8');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+
+      // Dibujar letra "O" estilizada
+      ctx.fillStyle = 'white';
+      ctx.strokeStyle = 'white';
+      
+      // Círculo exterior
+      const centerX = size / 2;
+      const centerY = size / 2;
+      const outerRadius = size * 0.35;
+      const innerRadius = size * 0.22;
+      
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, outerRadius, 0, 2 * Math.PI);
+      ctx.arc(centerX, centerY, innerRadius, 0, 2 * Math.PI, true);
+      ctx.fill();
+
+      // Detalle de diseño (línea diagonal)
+      ctx.lineWidth = size * 0.05;
+      ctx.beginPath();
+      ctx.moveTo(centerX + outerRadius * 0.5, centerY - outerRadius * 0.5);
+      ctx.lineTo(centerX + outerRadius * 0.7, centerY - outerRadius * 0.7);
+      ctx.stroke();
+    }
+
+    function generateAllIcons() {
+      const preview = document.getElementById('preview');
+      preview.innerHTML = '';
+
+      sizes.forEach(size => {
+        const container = document.createElement('div');
+        container.className = 'icon-item';
+
+        const canvas = document.createElement('canvas');
+        drawIcon(canvas, size);
+        canvas.id = `icon-${size}`;
+
+        const label = document.createElement('p');
+        label.textContent = `${size}x${size}px`;
+
+        container.appendChild(canvas);
+        container.appendChild(label);
+        preview.appendChild(container);
+      });
+    }
+
+    function downloadAll() {
+      sizes.forEach(size => {
+        const canvas = document.getElementById(`icon-${size}`);
+        if (canvas) {
+          const link = document.createElement('a');
+          link.download = `icon-${size}x${size}.png`;
+          link.href = canvas.toDataURL();
+          link.click();
+        }
+      });
+    }
+
+    // Generar automáticamente al cargar
+    window.onload = generateAllIcons;
+  </script>
+</body>
+</html>
