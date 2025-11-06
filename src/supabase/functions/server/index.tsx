@@ -2,6 +2,8 @@ import { Hono } from 'npm:hono'
 import { cors } from 'npm:hono/cors'
 import { logger } from 'npm:hono/logger'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+
 import * as kv from './kv_store.tsx'
 
 const app = new Hono()
@@ -119,7 +121,129 @@ function filterOnlyProducts(items: string[]): any[] {
       return isProduct
     })
 }
+// Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
+// Configuración de Paddle
+const PADDLE_VENDOR_ID = Deno.env.get('PADDLE_VENDOR_ID') || ''
+const PADDLE_API_KEY = Deno.env.get('PADDLE_API_KEY') || ''
+const PADDLE_ENVIRONMENT = Deno.env.get('PADDLE_ENVIRONMENT') || 'sandbox'
+const PADDLE_BASE_URL = PADDLE_ENVIRONMENT === 'production' 
+  ? 'https://vendors.paddle.com/api/2.0'
+  : 'https://sandbox-vendors.paddle.com/api/2.0'
+
+// Bucket para almacenar documentos
+const PAYMENTS_BUCKET = 'payments'
+const COMPANIES_BUCKET = 'companies'
+
+// Middleware para autenticación
+const authMiddleware = async (c: any, next: any) => {
+  const authHeader = c.req.header('Authorization')
+  
+  if (!authHeader) {
+    return c.json({ success: false, error: 'No authorization header' }, 401)
+  }
+
+  const token = authHeader.replace('Bearer ', '')
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  
+  if (error || !user) {
+    return c.json({ success: false, error: 'Unauthorized' }, 401)
+  }
+
+  c.set('user', user)
+  c.set('supabase', supabase)
+  
+  await next()
+}
+
+// Helper: Leer documento JSON del storage
+async function readDocument(supabase: any, bucket: string, path: string) {
+  try {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .download(path)
+    
+    if (error) throw error
+    
+    const text = await data.text()
+    return JSON.parse(text)
+  } catch (error) {
+    console.error(`Error reading document ${path}:`, error)
+    return null
+  }
+}
+
+// Helper: Guardar documento JSON en storage
+async function saveDocument(supabase: any, bucket: string, path: string, data: any) {
+  try {
+    const jsonString = JSON.stringify(data, null, 2)
+    
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(path, jsonString, {
+        contentType: 'application/json',
+        upsert: true
+      })
+    
+    if (error) throw error
+    
+    return true
+  } catch (error) {
+    console.error(`Error saving document ${path}:`, error)
+    return false
+  }
+}
+
+// Helper: Obtener empresa por companyId
+async function getCompany(supabase: any, companyId: number) {
+  const path = `company-${companyId}.json`
+  return await readDocument(supabase, COMPANIES_BUCKET, path)
+}
+
+// Helper: Guardar empresa
+async function saveCompany(supabase: any, company: any) {
+  const path = `company-${company.id}.json`
+  return await saveDocument(supabase, COMPANIES_BUCKET, path, company)
+}
+
+// Helper: Obtener pago por ID
+async function getPayment(supabase: any, paymentId: string) {
+  const path = `payment-${paymentId}.json`
+  return await readDocument(supabase, PAYMENTS_BUCKET, path)
+}
+
+// Helper: Guardar pago
+async function savePayment(supabase: any, payment: any) {
+  const path = `payment-${payment.id}.json`
+  return await saveDocument(supabase, PAYMENTS_BUCKET, path, payment)
+}
+
+// Helper: Buscar pago por referencia
+async function findPaymentByReference(supabase: any, reference: string) {
+  try {
+    const { data: files } = await supabase.storage
+      .from(PAYMENTS_BUCKET)
+      .list()
+    
+    if (!files) return null
+    
+    for (const file of files) {
+      const payment = await readDocument(supabase, PAYMENTS_BUCKET, file.name)
+      if (payment && payment.reference === reference) {
+        return payment
+      }
+    }
+    
+    return null
+  } catch (error) {
+    console.error('Error finding payment by reference:', error)
+    return null
+  }
+}
 // Helper to log product transaction
 async function logProductTransaction(data: {
   productId: number
@@ -152,6 +276,382 @@ async function logProductTransaction(data: {
     // Don't fail the main operation if logging fails
   }
 }
+
+// ==================== PAGOS - WOMPI ====================
+
+// Crear registro de pago
+app.post('/license/payment/create', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user')
+    const supabase = c.get('supabase')
+    const { reference, planId, amount, currency, paymentMethod, status, companyId } = await c.req.json()
+
+    // Crear documento de pago
+    const payment = {
+      id: reference,
+      companyId: companyId,
+      planId: planId,
+      amount: amount,
+      currency: currency,
+      paymentMethod: paymentMethod,
+      status: status || 'pending',
+      reference: reference,
+      transactionId: null,
+      paymentData: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+
+    const saved = await savePayment(supabase, payment)
+
+    if (!saved) {
+      return c.json({ success: false, error: 'Error al guardar el pago' }, 500)
+    }
+
+    return c.json({ success: true, data: payment })
+  } catch (error) {
+    console.error('Error in /license/payment/create:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Actualizar pago
+app.post('/license/payment/update', authMiddleware, async (c) => {
+  try {
+    const supabase = c.get('supabase')
+    const { reference, transactionId, status, paymentData } = await c.req.json()
+
+    // Buscar el pago por referencia
+    const payment = await findPaymentByReference(supabase, reference)
+
+    if (!payment) {
+      return c.json({ success: false, error: 'Pago no encontrado' }, 404)
+    }
+
+    // Actualizar el pago
+    payment.transactionId = transactionId
+    payment.status = status
+    payment.paymentData = paymentData
+    payment.updatedAt = new Date().toISOString()
+
+    const saved = await savePayment(supabase, payment)
+
+    if (!saved) {
+      return c.json({ success: false, error: 'Error al actualizar el pago' }, 500)
+    }
+
+    return c.json({ success: true, data: payment })
+  } catch (error) {
+    console.error('Error in /license/payment/update:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Webhook de Wompi
+app.post('/license/wompi/webhook', async (c) => {
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const event = await c.req.json()
+    
+    console.log('Wompi Webhook Event:', event)
+
+    // TODO: Verificar firma del webhook en producción
+    const signature = c.req.header('x-event-checksum')
+    
+    // Procesar el evento
+    if (event.event === 'transaction.updated') {
+      const transaction = event.data.transaction
+      
+      console.log('Transaction updated:', transaction)
+
+      // Buscar el pago por referencia
+      const payment = await findPaymentByReference(supabase, transaction.reference)
+
+      if (!payment) {
+        console.error('Payment not found for reference:', transaction.reference)
+        return c.json({ success: false, error: 'Payment not found' }, 404)
+      }
+
+      // Actualizar el pago
+      payment.transactionId = transaction.id
+      payment.status = transaction.status.toLowerCase()
+      payment.paymentData = transaction
+      payment.updatedAt = new Date().toISOString()
+
+      await savePayment(supabase, payment)
+
+      console.log('Payment updated:', payment)
+
+      // Si el pago fue aprobado, actualizar el plan de la empresa
+      if (transaction.status === 'APPROVED') {
+        const company = await getCompany(supabase, payment.companyId)
+
+        if (company) {
+          const newExpiryDate = new Date()
+          newExpiryDate.setDate(newExpiryDate.getDate() + 30) // 30 días
+
+          company.planId = payment.planId
+          company.licenseExpiry = newExpiryDate.toISOString()
+          company.lastUpgrade = new Date().toISOString()
+          company.updatedAt = new Date().toISOString()
+
+          await saveCompany(supabase, company)
+
+          console.log('Company plan updated successfully via Wompi webhook')
+        }
+      }
+    }
+
+    return c.json({ success: true, message: 'Webhook processed' })
+  } catch (error) {
+    console.error('Error processing Wompi webhook:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// ==================== PAGOS - PADDLE ====================
+
+// Helper function para mapear planId a producto de Paddle
+function getPaddleProductId(planId: string): string {
+  const productMap: Record<string, string> = {
+    'basico': Deno.env.get('PADDLE_PRODUCT_BASICO') || '12345',
+    'pyme': Deno.env.get('PADDLE_PRODUCT_PYME') || '12346',
+    'enterprise': Deno.env.get('PADDLE_PRODUCT_ENTERPRISE') || '12347'
+  }
+  
+  return productMap[planId] || productMap['basico']
+}
+
+// Crear checkout de Paddle
+app.post('/license/paddle/create', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user')
+    const supabase = c.get('supabase')
+    const { planId, amount, reference, customerEmail, companyId } = await c.req.json()
+
+    // Obtener información de la empresa
+    const company = await getCompany(supabase, companyId)
+
+    if (!company) {
+      return c.json({ success: false, error: 'Company not found' }, 404)
+    }
+
+    // Obtener el origin para las URLs de retorno
+    const origin = c.req.header('origin') || c.req.header('referer')?.split('/').slice(0, 3).join('/') || ''
+
+    // Crear checkout en Paddle
+    const paddleCheckoutData = {
+      vendor_id: parseInt(PADDLE_VENDOR_ID),
+      vendor_auth_code: PADDLE_API_KEY,
+      product_id: parseInt(getPaddleProductId(planId)),
+      prices: [`USD:${amount}`],
+      customer_email: customerEmail,
+      passthrough: JSON.stringify({
+        company_id: company.id,
+        plan_id: planId,
+        reference: reference,
+        user_id: user.id
+      }),
+      return_url: `${origin}/payment-callback?method=paddle&planId=${planId}&reference=${reference}`,
+      success_url: `${origin}/payment-callback?method=paddle&planId=${planId}&reference=${reference}`,
+      quantity: 1,
+      recurring_prices: [`USD:${amount}`],
+      trial_days: 0
+    }
+
+    console.log('Creating Paddle checkout:', paddleCheckoutData)
+
+    // Hacer request a Paddle
+    const paddleResponse = await fetch(`${PADDLE_BASE_URL}/product/generate_pay_link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(paddleCheckoutData)
+    })
+
+    const paddleResult = await paddleResponse.json()
+    console.log('Paddle response:', paddleResult)
+
+    if (paddleResult.success) {
+      return c.json({ 
+        success: true, 
+        checkoutUrl: paddleResult.response.url 
+      })
+    } else {
+      return c.json({ 
+        success: false, 
+        error: paddleResult.error?.message || 'Error creating Paddle checkout' 
+      }, 500)
+    }
+  } catch (error) {
+    console.error('Error in /license/paddle/create:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Verificar transacción de Paddle
+app.post('/license/paddle/verify', authMiddleware, async (c) => {
+  try {
+    const { transactionId, reference } = await c.req.json()
+
+    console.log('Verifying Paddle transaction:', transactionId)
+
+    // Consultar el estado en Paddle
+    const paddleResponse = await fetch(
+      `${PADDLE_BASE_URL}/order/${transactionId}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          vendor_id: parseInt(PADDLE_VENDOR_ID),
+          vendor_auth_code: PADDLE_API_KEY
+        })
+      }
+    )
+
+    const paddleResult = await paddleResponse.json()
+    console.log('Paddle verification result:', paddleResult)
+
+    if (paddleResult.success) {
+      const order = paddleResult.response
+
+      return c.json({ 
+        success: true, 
+        transaction: {
+          id: order.order_id || transactionId,
+          reference: reference,
+          amount: parseFloat(order.total || '0'),
+          currency: order.currency || 'USD',
+          status: order.state || 'completed',
+          customer_email: order.customer_email || '',
+          created_at: order.created_at || new Date().toISOString()
+        }
+      })
+    } else {
+      // Si no se puede verificar aún, asumir que está pendiente
+      return c.json({ 
+        success: true, 
+        transaction: {
+          id: transactionId,
+          reference: reference,
+          amount: 0,
+          currency: 'USD',
+          status: 'pending',
+          customer_email: '',
+          created_at: new Date().toISOString()
+        }
+      })
+    }
+  } catch (error) {
+    console.error('Error in /license/paddle/verify:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Webhook de Paddle
+app.post('/license/paddle/webhook', async (c) => {
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    
+    // Paddle envía los datos como form-data
+    const formData = await c.req.formData()
+    const alertName = formData.get('alert_name')
+    
+    console.log('Paddle Webhook:', alertName)
+    console.log('Paddle Data:', Object.fromEntries(formData))
+
+    // TODO: Verificar firma del webhook en producción
+
+    // Procesar diferentes tipos de eventos
+    if (alertName === 'payment_succeeded' || alertName === 'subscription_payment_succeeded') {
+      const passthrough = JSON.parse((formData.get('passthrough') as string) || '{}')
+      const checkoutId = formData.get('checkout_id') as string || formData.get('order_id') as string
+
+      // Buscar el pago por referencia
+      const payment = await findPaymentByReference(supabase, passthrough.reference)
+
+      if (payment) {
+        // Actualizar el pago
+        payment.transactionId = checkoutId
+        payment.status = 'approved'
+        payment.paymentData = Object.fromEntries(formData)
+        payment.updatedAt = new Date().toISOString()
+
+        await savePayment(supabase, payment)
+      }
+
+      // Actualizar el plan de la empresa
+      const company = await getCompany(supabase, passthrough.company_id)
+
+      if (company) {
+        const newExpiryDate = new Date()
+        newExpiryDate.setDate(newExpiryDate.getDate() + 30)
+
+        company.planId = passthrough.plan_id
+        company.licenseExpiry = newExpiryDate.toISOString()
+        company.lastUpgrade = new Date().toISOString()
+        company.updatedAt = new Date().toISOString()
+
+        await saveCompany(supabase, company)
+
+        console.log('Payment processed successfully via Paddle webhook')
+      }
+    }
+
+    return c.json({ success: true })
+  } catch (error) {
+    console.error('Error processing Paddle webhook:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// ==================== ACTUALIZACIÓN DE PLAN ====================
+
+app.post('/license/upgrade-plan', authMiddleware, async (c) => {
+  try {
+    const supabase = c.get('supabase')
+    const { planId, transactionId, companyId } = await c.req.json()
+
+    // Obtener la empresa
+    const company = await getCompany(supabase, companyId)
+
+    if (!company) {
+      return c.json({ success: false, error: 'Company not found' }, 404)
+    }
+
+    // Calcular nueva fecha de expiración (30 días desde ahora)
+    const newExpiryDate = new Date()
+    newExpiryDate.setDate(newExpiryDate.getDate() + 30)
+
+    // Actualizar el plan de la empresa
+    company.planId = planId
+    company.licenseExpiry = newExpiryDate.toISOString()
+    company.lastUpgrade = new Date().toISOString()
+    company.updatedAt = new Date().toISOString()
+
+    const saved = await saveCompany(supabase, company)
+
+    if (!saved) {
+      return c.json({ success: false, error: 'Error al actualizar el plan' }, 500)
+    }
+
+    console.log('Plan upgraded successfully:', company)
+
+    return c.json({ 
+      success: true, 
+      data: company,
+      message: 'Plan actualizado exitosamente'
+    })
+  } catch (error) {
+    console.error('Error in /license/upgrade-plan:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+
 
 // Helper to upload image to Cloudinary
 async function uploadToCloudinary(base64Image: string, folder: string = 'repairs') {
