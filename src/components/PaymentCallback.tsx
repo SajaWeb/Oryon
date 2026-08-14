@@ -1,76 +1,97 @@
-import { useEffect } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
-import PaymentSuccess from '../components/PaymentSuccess'
+import { useEffect, useState } from 'react'
+import PaymentSuccess from './PaymentSuccess'
 import { Loader2 } from 'lucide-react'
 
 interface PaymentCallbackProps {
   accessToken: string
+  onComplete?: () => void
 }
 
-export function PaymentCallback({ accessToken }: PaymentCallbackProps) {
-  const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
-
-  // Obtener parámetros de la URL
-  const transactionId = searchParams.get('id') // Wompi usa 'id'
-  const reference = searchParams.get('reference')
-  const planId = searchParams.get('planId')
-  const paymentMethod = searchParams.get('method') as 'wompi' | 'paddle' || 'wompi'
-  
-  // Para Paddle (parámetros diferentes)
-  const paddleCheckoutId = searchParams.get('_ptxn') // Paddle Transaction ID
-  const paddleStatus = searchParams.get('checkout_status')
+export function PaymentCallback({ accessToken, onComplete }: PaymentCallbackProps) {
+  const [params, setParams] = useState<{
+    transactionId: string | null
+    reference: string | null
+    planId: string | null
+    months?: number
+    paymentMethod: 'wompi'
+  }>({
+    transactionId: null,
+    reference: null,
+    planId: null,
+    months: undefined,
+    paymentMethod: 'wompi'
+  })
 
   useEffect(() => {
-    console.log('Payment Callback - Params:', {
+    const urlParams = new URLSearchParams(window.location.search)
+    const transactionId = urlParams.get('id') || urlParams.get('transactionId') || urlParams.get('txId')
+    const reference = urlParams.get('reference') || urlParams.get('ref')
+    const planId = urlParams.get('planId')
+    const monthsStr = urlParams.get('months')
+    const months = monthsStr ? parseInt(monthsStr, 10) : undefined
+
+    console.log('Payment Callback - Detected URL Params:', {
       transactionId,
       reference,
       planId,
-      paymentMethod,
-      paddleCheckoutId,
-      paddleStatus,
-      allParams: Object.fromEntries(searchParams.entries())
+      months,
+      search: window.location.search
     })
 
-    // Validar que tenemos los datos necesarios
-    if (!transactionId && !paddleCheckoutId) {
-      console.error('No transaction ID found')
-      // Redirigir a la página de licencias después de 2 segundos
-      setTimeout(() => {
-        navigate('/license')
-      }, 2000)
-    }
-  }, [searchParams])
+    setParams({
+      transactionId,
+      reference,
+      planId,
+      months,
+      paymentMethod: 'wompi'
+    })
 
-  // Si no hay ID de transacción, mostrar cargando
-  if (!transactionId && !paddleCheckoutId) {
+    if (!transactionId && !reference) {
+      console.warn('No transactionId or reference found in URL')
+    }
+  }, [])
+
+  const handleFinish = () => {
+    if (onComplete) {
+      onComplete()
+    } else {
+      window.history.pushState({}, '', '/')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }
+  }
+
+  // Si no hay ID de transacción ni referencia, mostrar mensaje de espera o redirección
+  if (!params.transactionId && !params.reference) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-background flex items-center justify-center p-4">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">
-            No se encontró información del pago. Redirigiendo...
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center max-w-md p-6 bg-card rounded-xl border border-border">
+          <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-sm font-semibold text-foreground mb-1">
+            Procesando respuesta del pago...
           </p>
+          <p className="text-xs text-muted-foreground mb-4">
+            Estamos verificando la información de tu transacción con Wompi.
+          </p>
+          <button
+            onClick={handleFinish}
+            className="text-xs text-primary underline cursor-pointer"
+          >
+            Volver a Oryon
+          </button>
         </div>
       </div>
     )
   }
 
-  // Determinar el ID de transacción correcto
-  const finalTransactionId = transactionId || paddleCheckoutId || ''
-  const finalPaymentMethod = paddleCheckoutId ? 'paddle' : paymentMethod
-
   return (
     <PaymentSuccess
-      transactionId={finalTransactionId}
+      transactionId={params.transactionId || params.reference || ''}
       accessToken={accessToken}
-      paymentMethod={finalPaymentMethod}
-      reference={reference || undefined}
-      planId={planId || undefined}
-      onComplete={() => {
-        // Redirigir a la página de licencias
-        navigate('/license')
-      }}
+      paymentMethod="wompi"
+      reference={params.reference || undefined}
+      planId={params.planId || undefined}
+      months={params.months}
+      onComplete={handleFinish}
     />
   )
 }

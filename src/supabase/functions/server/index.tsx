@@ -12,7 +12,7 @@ const app = new Hono()
 app.use('*', cors({
   origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'apikey', 'x-client-info', 'prefer', 'X-Requested-With'],
   exposeHeaders: ['Content-Length', 'X-Request-Id'],
   maxAge: 600,
   credentials: true,
@@ -58,14 +58,22 @@ async function getUserProfile(userId: string) {
   return JSON.parse(userDataStr)
 }
 
-// Check if company license is valid (feature-based model with trial)
+// Check if company license is valid
 async function checkLicense(companyId: number) {
   const companyDataStr = await kv.get(`company:${companyId}`)
   if (!companyDataStr) {
-    return { valid: false, inTrial: false, trialExpired: false, planId: 'basico', company: null }
+    return {
+      valid: false,
+      isExpired: true,
+      inTrial: false,
+      trialExpired: true,
+      planId: 'basico',
+      company: null,
+      daysRemaining: 0
+    }
   }
   
-  const company = JSON.parse(companyDataStr)
+  const company = typeof companyDataStr === 'string' ? JSON.parse(companyDataStr) : companyDataStr
   
   // Default to basico plan if not set
   if (!company.planId) {
@@ -73,23 +81,41 @@ async function checkLicense(companyId: number) {
     await kv.set(`company:${companyId}`, JSON.stringify(company))
   }
   
-  // Check if in trial period
+  const now = new Date()
   let inTrial = false
   let trialExpired = false
   
   if (company.trialEndsAt) {
-    const now = new Date()
     const trialEnd = new Date(company.trialEndsAt)
     inTrial = now <= trialEnd
     trialExpired = now > trialEnd
   }
   
+  let isExpired = false
+  let daysRemaining = 0
+  
+  if (company.licenseExpiry) {
+    const expiryDate = new Date(company.licenseExpiry)
+    isExpired = now > expiryDate
+    const diffTime = expiryDate.getTime() - now.getTime()
+    daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
+  } else if (!inTrial) {
+    isExpired = true
+    daysRemaining = 0
+  }
+  
+  // A license is valid if it is in an active trial OR if it has a non-expired licenseExpiry
+  const valid = inTrial || (!isExpired && Boolean(company.licenseExpiry))
+  
   return {
-    valid: true, // All plans are valid, limits enforced at resource creation
+    valid: Boolean(valid),
+    isExpired: !valid,
     inTrial,
     trialExpired,
+    daysRemaining,
     planId: company.planId,
     trialEndsAt: company.trialEndsAt,
+    licenseExpiry: company.licenseExpiry,
     company
   }
 }
@@ -199,51 +225,77 @@ async function saveDocument(supabase: any, bucket: string, path: string, data: a
 }
 
 // Helper: Obtener empresa por companyId
-async function getCompany(supabase: any, companyId: number) {
-  const path = `company-${companyId}.json`
-  return await readDocument(supabase, COMPANIES_BUCKET, path)
+async function getCompany(supabase: any, companyId: number | string) {
+  const data = await kv.get(`company:${companyId}`)
+  if (!data) return null
+  return typeof data === 'string' ? JSON.parse(data) : data
 }
 
 // Helper: Guardar empresa
 async function saveCompany(supabase: any, company: any) {
-  const path = `company-${company.id}.json`
-  return await saveDocument(supabase, COMPANIES_BUCKET, path, company)
+  try {
+    await kv.set(`company:${company.id}`, JSON.stringify(company))
+    return true
+  } catch (err) {
+    console.error('Error saving company to KV:', err)
+    return false
+  }
 }
 
-// Helper: Obtener pago por ID
+// Helper: Obtener pago por ID o referencia
 async function getPayment(supabase: any, paymentId: string) {
-  const path = `payment-${paymentId}.json`
-  return await readDocument(supabase, PAYMENTS_BUCKET, path)
+  const data = await kv.get(`payment:${paymentId}`)
+  if (!data) return null
+  return typeof data === 'string' ? JSON.parse(data) : data
 }
 
-// Helper: Guardar pago
+// Helper: Guardar pago en KV store
 async function savePayment(supabase: any, payment: any) {
-  const path = `payment-${payment.id}.json`
-  return await saveDocument(supabase, PAYMENTS_BUCKET, path, payment)
+  try {
+    payment.updatedAt = new Date().toISOString()
+    if (!payment.createdAt) {
+      payment.createdAt = new Date().toISOString()
+    }
+    const ref = payment.reference || payment.id
+    await kv.set(`payment:${ref}`, JSON.stringify(payment))
+    return true
+  } catch (err) {
+    console.error('Error saving payment to KV:', err)
+    return false
+  }
 }
 
 // Helper: Buscar pago por referencia
 async function findPaymentByReference(supabase: any, reference: string) {
   try {
-    const { data: files } = await supabase.storage
-      .from(PAYMENTS_BUCKET)
-      .list()
+    const direct = await kv.get(`payment:${reference}`)
+    if (direct) {
+      return typeof direct === 'string' ? JSON.parse(direct) : direct
+    }
     
-    if (!files) return null
-    
-    for (const file of files) {
-      const payment = await readDocument(supabase, PAYMENTS_BUCKET, file.name)
-      if (payment && payment.reference === reference) {
-        return payment
+    const all = await kv.getByPrefix('payment:')
+    for (const item of all) {
+      const p = typeof item === 'string' ? JSON.parse(item) : item
+      if (p && (p.reference === reference || p.id === reference || p.transactionId === reference)) {
+        return p
       }
     }
     
+    const allTx = await kv.getByPrefix('transaction:')
+    for (const item of allTx) {
+      const tx = typeof item === 'string' ? JSON.parse(item) : item
+      if (tx && (tx.reference === reference || tx.id === reference)) {
+        return tx
+      }
+    }
+
     return null
   } catch (error) {
     console.error('Error finding payment by reference:', error)
     return null
   }
 }
+
 // Helper to log product transaction
 async function logProductTransaction(data: {
   productId: number
@@ -277,25 +329,39 @@ async function logProductTransaction(data: {
   }
 }
 
-// ==================== PAGOS - WOMPI ====================
+// ==================== PAGOS - WOMPI & SUPERADMIN ====================
 
-// Crear registro de pago
-app.post('/license/payment/create', authMiddleware, async (c) => {
+// Handler for creating payment record
+const handlePaymentCreate = async (c: any) => {
   try {
-    const user = c.get('user')
-    const supabase = c.get('supabase')
-    const { reference, planId, amount, currency, paymentMethod, status, companyId } = await c.req.json()
+    const { error, user } = await verifyAuth(c.req.header('Authorization'))
+    if (error || !user) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401)
+    }
 
-    // Crear documento de pago
+    const userProfile = await getUserProfile(user.id)
+    const { reference, planId, amount, currency, paymentMethod, status, companyId, durationMonths, customerEmail } = await c.req.json()
+
+    const targetCompanyId = companyId || userProfile?.companyId
+    let companyName = userProfile?.companyName || ''
+    
+    if (targetCompanyId) {
+      const company = await getCompany(supabase, targetCompanyId)
+      if (company?.name) companyName = company.name
+    }
+
     const payment = {
       id: reference,
-      companyId: companyId,
-      planId: planId,
-      amount: amount,
-      currency: currency,
-      paymentMethod: paymentMethod,
-      status: status || 'pending',
       reference: reference,
+      companyId: targetCompanyId,
+      companyName: companyName,
+      userEmail: customerEmail || userProfile?.email || user.email,
+      planId: planId || 'basico',
+      amount: amount || 0,
+      currency: currency || 'COP',
+      paymentMethod: paymentMethod || 'PSE',
+      durationMonths: durationMonths || 1,
+      status: status || 'pending',
       transactionId: null,
       paymentData: null,
       createdAt: new Date().toISOString(),
@@ -308,348 +374,1050 @@ app.post('/license/payment/create', authMiddleware, async (c) => {
       return c.json({ success: false, error: 'Error al guardar el pago' }, 500)
     }
 
+    console.log('✅ Payment created and saved to KV:', payment.reference)
     return c.json({ success: true, data: payment })
-  } catch (error) {
-    console.error('Error in /license/payment/create:', error)
-    return c.json({ success: false, error: error.message }, 500)
+  } catch (err: any) {
+    console.error('Error in payment create:', err)
+    return c.json({ success: false, error: err.message }, 500)
   }
-})
+}
 
-// Actualizar pago
-app.post('/license/payment/update', authMiddleware, async (c) => {
+app.post('/license/payment/create', handlePaymentCreate)
+app.post('/make-server-4d437e50/license/payment/create', handlePaymentCreate)
+
+// Handler for updating payment record
+const handlePaymentUpdate = async (c: any) => {
   try {
-    const supabase = c.get('supabase')
-    const { reference, transactionId, status, paymentData } = await c.req.json()
+    const { error, user } = await verifyAuth(c.req.header('Authorization'))
+    if (error || !user) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401)
+    }
 
-    // Buscar el pago por referencia
+    const { reference, transactionId, status, paymentData, planId } = await c.req.json()
+
     const payment = await findPaymentByReference(supabase, reference)
 
     if (!payment) {
       return c.json({ success: false, error: 'Pago no encontrado' }, 404)
     }
 
-    // Actualizar el pago
-    payment.transactionId = transactionId
-    payment.status = status
-    payment.paymentData = paymentData
+    payment.transactionId = transactionId || payment.transactionId
+    payment.status = (status || payment.status || 'pending').toLowerCase()
+    payment.paymentData = paymentData || payment.paymentData
     payment.updatedAt = new Date().toISOString()
 
     const saved = await savePayment(supabase, payment)
-
     if (!saved) {
       return c.json({ success: false, error: 'Error al actualizar el pago' }, 500)
     }
 
+    // If payment is approved, automatically update/extend company license!
+    if (payment.status === 'approved' || payment.status === 'success' || payment.status === 'completed') {
+      const company = await getCompany(supabase, payment.companyId)
+      if (company) {
+        const now = new Date()
+        let baseDate = now
+        if (company.licenseExpiry) {
+          const currentExpiry = new Date(company.licenseExpiry)
+          if (currentExpiry > now) {
+            baseDate = currentExpiry
+          }
+        }
+
+        const monthsToAdd = payment.durationMonths || 1
+        const newExpiry = new Date(baseDate)
+        newExpiry.setMonth(newExpiry.getMonth() + monthsToAdd)
+
+        company.planId = planId || payment.planId || company.planId || 'basico'
+        company.licenseExpiry = newExpiry.toISOString()
+        company.lastUpgrade = now.toISOString()
+        company.updatedAt = now.toISOString()
+        if (company.trialEndsAt) {
+          delete company.trialEndsAt
+        }
+
+        await saveCompany(supabase, company)
+        console.log(`✅ Company ${company.id} license updated to plan ${company.planId} until ${newExpiry.toISOString()}`)
+      }
+    }
+
     return c.json({ success: true, data: payment })
-  } catch (error) {
-    console.error('Error in /license/payment/update:', error)
-    return c.json({ success: false, error: error.message }, 500)
+  } catch (err: any) {
+    console.error('Error in payment update:', err)
+    return c.json({ success: false, error: err.message }, 500)
   }
-})
+}
+
+app.post('/license/payment/update', handlePaymentUpdate)
+app.post('/make-server-4d437e50/license/payment/update', handlePaymentUpdate)
 
 // Webhook de Wompi
-app.post('/license/wompi/webhook', async (c) => {
+const handleWompiWebhook = async (c: any) => {
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const event = await c.req.json()
-    
-    console.log('Wompi Webhook Event:', event)
+    console.log('🔔 Wompi Webhook Event received:', event)
 
-    // TODO: Verificar firma del webhook en producción
-    const signature = c.req.header('x-event-checksum')
-    
-    // Procesar el evento
-    if (event.event === 'transaction.updated') {
+    if (event.event === 'transaction.updated' && event.data?.transaction) {
       const transaction = event.data.transaction
-      
-      console.log('Transaction updated:', transaction)
+      const reference = transaction.reference
 
-      // Buscar el pago por referencia
-      const payment = await findPaymentByReference(supabase, transaction.reference)
+      const payment = await findPaymentByReference(supabase, reference)
+      if (payment) {
+        payment.transactionId = transaction.id
+        payment.status = (transaction.status || 'pending').toLowerCase()
+        payment.paymentData = transaction
+        payment.updatedAt = new Date().toISOString()
+        await savePayment(supabase, payment)
 
-      if (!payment) {
-        console.error('Payment not found for reference:', transaction.reference)
-        return c.json({ success: false, error: 'Payment not found' }, 404)
-      }
+        if (transaction.status === 'APPROVED') {
+          const company = await getCompany(supabase, payment.companyId)
+          if (company) {
+            const now = new Date()
+            let baseDate = now
+            if (company.licenseExpiry) {
+              const currentExpiry = new Date(company.licenseExpiry)
+              if (currentExpiry > now) {
+                baseDate = currentExpiry
+              }
+            }
 
-      // Actualizar el pago
-      payment.transactionId = transaction.id
-      payment.status = transaction.status.toLowerCase()
-      payment.paymentData = transaction
-      payment.updatedAt = new Date().toISOString()
+            const monthsToAdd = payment.durationMonths || 1
+            const newExpiry = new Date(baseDate)
+            newExpiry.setMonth(newExpiry.getMonth() + monthsToAdd)
 
-      await savePayment(supabase, payment)
+            company.planId = payment.planId || company.planId || 'basico'
+            company.licenseExpiry = newExpiry.toISOString()
+            company.lastUpgrade = now.toISOString()
+            company.updatedAt = now.toISOString()
+            if (company.trialEndsAt) {
+              delete company.trialEndsAt
+            }
 
-      console.log('Payment updated:', payment)
-
-      // Si el pago fue aprobado, actualizar el plan de la empresa
-      if (transaction.status === 'APPROVED') {
-        const company = await getCompany(supabase, payment.companyId)
-
-        if (company) {
-          const newExpiryDate = new Date()
-          newExpiryDate.setDate(newExpiryDate.getDate() + 30) // 30 días
-
-          company.planId = payment.planId
-          company.licenseExpiry = newExpiryDate.toISOString()
-          company.lastUpgrade = new Date().toISOString()
-          company.updatedAt = new Date().toISOString()
-
-          await saveCompany(supabase, company)
-
-          console.log('Company plan updated successfully via Wompi webhook')
+            await saveCompany(supabase, company)
+            console.log(`✅ Company ${company.id} license upgraded via Wompi Webhook until ${newExpiry.toISOString()}`)
+          }
         }
       }
     }
 
     return c.json({ success: true, message: 'Webhook processed' })
-  } catch (error) {
-    console.error('Error processing Wompi webhook:', error)
-    return c.json({ success: false, error: error.message }, 500)
+  } catch (err: any) {
+    console.error('Error processing Wompi webhook:', err)
+    return c.json({ success: false, error: err.message }, 500)
   }
-})
-
-// ==================== PAGOS - PADDLE ====================
-
-// Helper function para mapear planId a producto de Paddle
-function getPaddleProductId(planId: string): string {
-  const productMap: Record<string, string> = {
-    'basico': Deno.env.get('PADDLE_PRODUCT_BASICO') || '12345',
-    'pyme': Deno.env.get('PADDLE_PRODUCT_PYME') || '12346',
-    'enterprise': Deno.env.get('PADDLE_PRODUCT_ENTERPRISE') || '12347'
-  }
-  
-  return productMap[planId] || productMap['basico']
 }
 
-// Crear checkout de Paddle
-app.post('/license/paddle/create', authMiddleware, async (c) => {
-  try {
-    const user = c.get('user')
-    const supabase = c.get('supabase')
-    const { planId, amount, reference, customerEmail, companyId } = await c.req.json()
+app.post('/license/wompi/webhook', handleWompiWebhook)
+app.post('/make-server-4d437e50/license/wompi/webhook', handleWompiWebhook)
 
-    // Obtener información de la empresa
-    const company = await getCompany(supabase, companyId)
+// Plan upgrade endpoint
+const handleUpgradePlan = async (c: any) => {
+  try {
+    const { error, user } = await verifyAuth(c.req.header('Authorization'))
+    if (error || !user) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401)
+    }
+
+    const userProfile = await getUserProfile(user.id)
+    const { planId, transactionId, companyId, durationMonths, months } = await c.req.json()
+
+    const targetCompanyId = companyId || userProfile?.companyId
+    const company = await getCompany(supabase, targetCompanyId)
 
     if (!company) {
-      return c.json({ success: false, error: 'Company not found' }, 404)
+      return c.json({ success: false, error: 'Empresa no encontrada' }, 404)
     }
 
-    // Obtener el origin para las URLs de retorno
-    const origin = c.req.header('origin') || c.req.header('referer')?.split('/').slice(0, 3).join('/') || ''
+    company.id = targetCompanyId
 
-    // Crear checkout en Paddle
-    const paddleCheckoutData = {
-      vendor_id: parseInt(PADDLE_VENDOR_ID),
-      vendor_auth_code: PADDLE_API_KEY,
-      product_id: parseInt(getPaddleProductId(planId)),
-      prices: [`USD:${amount}`],
-      customer_email: customerEmail,
-      passthrough: JSON.stringify({
-        company_id: company.id,
-        plan_id: planId,
-        reference: reference,
-        user_id: user.id
-      }),
-      return_url: `${origin}/payment-callback?method=paddle&planId=${planId}&reference=${reference}`,
-      success_url: `${origin}/payment-callback?method=paddle&planId=${planId}&reference=${reference}`,
-      quantity: 1,
-      recurring_prices: [`USD:${amount}`],
-      trial_days: 0
-    }
-
-    console.log('Creating Paddle checkout:', paddleCheckoutData)
-
-    // Hacer request a Paddle
-    const paddleResponse = await fetch(`${PADDLE_BASE_URL}/product/generate_pay_link`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(paddleCheckoutData)
-    })
-
-    const paddleResult = await paddleResponse.json()
-    console.log('Paddle response:', paddleResult)
-
-    if (paddleResult.success) {
-      return c.json({ 
-        success: true, 
-        checkoutUrl: paddleResult.response.url 
-      })
-    } else {
-      return c.json({ 
-        success: false, 
-        error: paddleResult.error?.message || 'Error creating Paddle checkout' 
-      }, 500)
-    }
-  } catch (error) {
-    console.error('Error in /license/paddle/create:', error)
-    return c.json({ success: false, error: error.message }, 500)
-  }
-})
-
-// Verificar transacción de Paddle
-app.post('/license/paddle/verify', authMiddleware, async (c) => {
-  try {
-    const { transactionId, reference } = await c.req.json()
-
-    console.log('Verifying Paddle transaction:', transactionId)
-
-    // Consultar el estado en Paddle
-    const paddleResponse = await fetch(
-      `${PADDLE_BASE_URL}/order/${transactionId}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          vendor_id: parseInt(PADDLE_VENDOR_ID),
-          vendor_auth_code: PADDLE_API_KEY
-        })
-      }
-    )
-
-    const paddleResult = await paddleResponse.json()
-    console.log('Paddle verification result:', paddleResult)
-
-    if (paddleResult.success) {
-      const order = paddleResult.response
-
-      return c.json({ 
-        success: true, 
-        transaction: {
-          id: order.order_id || transactionId,
-          reference: reference,
-          amount: parseFloat(order.total || '0'),
-          currency: order.currency || 'USD',
-          status: order.state || 'completed',
-          customer_email: order.customer_email || '',
-          created_at: order.created_at || new Date().toISOString()
-        }
-      })
-    } else {
-      // Si no se puede verificar aún, asumir que está pendiente
-      return c.json({ 
-        success: true, 
-        transaction: {
-          id: transactionId,
-          reference: reference,
-          amount: 0,
-          currency: 'USD',
-          status: 'pending',
-          customer_email: '',
-          created_at: new Date().toISOString()
-        }
-      })
-    }
-  } catch (error) {
-    console.error('Error in /license/paddle/verify:', error)
-    return c.json({ success: false, error: error.message }, 500)
-  }
-})
-
-// Webhook de Paddle
-app.post('/license/paddle/webhook', async (c) => {
-  try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    
-    // Paddle envía los datos como form-data
-    const formData = await c.req.formData()
-    const alertName = formData.get('alert_name')
-    
-    console.log('Paddle Webhook:', alertName)
-    console.log('Paddle Data:', Object.fromEntries(formData))
-
-    // TODO: Verificar firma del webhook en producción
-
-    // Procesar diferentes tipos de eventos
-    if (alertName === 'payment_succeeded' || alertName === 'subscription_payment_succeeded') {
-      const passthrough = JSON.parse((formData.get('passthrough') as string) || '{}')
-      const checkoutId = formData.get('checkout_id') as string || formData.get('order_id') as string
-
-      // Buscar el pago por referencia
-      const payment = await findPaymentByReference(supabase, passthrough.reference)
-
-      if (payment) {
-        // Actualizar el pago
-        payment.transactionId = checkoutId
-        payment.status = 'approved'
-        payment.paymentData = Object.fromEntries(formData)
-        payment.updatedAt = new Date().toISOString()
-
-        await savePayment(supabase, payment)
-      }
-
-      // Actualizar el plan de la empresa
-      const company = await getCompany(supabase, passthrough.company_id)
-
-      if (company) {
-        const newExpiryDate = new Date()
-        newExpiryDate.setDate(newExpiryDate.getDate() + 30)
-
-        company.planId = passthrough.plan_id
-        company.licenseExpiry = newExpiryDate.toISOString()
-        company.lastUpgrade = new Date().toISOString()
-        company.updatedAt = new Date().toISOString()
-
-        await saveCompany(supabase, company)
-
-        console.log('Payment processed successfully via Paddle webhook')
+    const now = new Date()
+    let baseDate = now
+    if (company.licenseExpiry) {
+      const currentExpiry = new Date(company.licenseExpiry)
+      if (!isNaN(currentExpiry.getTime()) && currentExpiry > now) {
+        baseDate = currentExpiry
       }
     }
 
-    return c.json({ success: true })
-  } catch (error) {
-    console.error('Error processing Paddle webhook:', error)
-    return c.json({ success: false, error: error.message }, 500)
-  }
-})
+    const monthsToAdd = Math.max(1, Number(durationMonths || months || 1))
+    const newExpiry = new Date(baseDate)
+    newExpiry.setMonth(newExpiry.getMonth() + monthsToAdd)
 
-// ==================== ACTUALIZACIÓN DE PLAN ====================
-
-app.post('/license/upgrade-plan', authMiddleware, async (c) => {
-  try {
-    const supabase = c.get('supabase')
-    const { planId, transactionId, companyId } = await c.req.json()
-
-    // Obtener la empresa
-    const company = await getCompany(supabase, companyId)
-
-    if (!company) {
-      return c.json({ success: false, error: 'Company not found' }, 404)
+    company.planId = planId || company.planId || 'basico'
+    company.licenseExpiry = newExpiry.toISOString()
+    company.lastUpgrade = now.toISOString()
+    company.updatedAt = now.toISOString()
+    if (company.trialEndsAt) {
+      delete company.trialEndsAt
     }
 
-    // Calcular nueva fecha de expiración (30 días desde ahora)
-    const newExpiryDate = new Date()
-    newExpiryDate.setDate(newExpiryDate.getDate() + 30)
+    await saveCompany(supabase, company)
 
-    // Actualizar el plan de la empresa
-    company.planId = planId
-    company.licenseExpiry = newExpiryDate.toISOString()
-    company.lastUpgrade = new Date().toISOString()
-    company.updatedAt = new Date().toISOString()
-
-    const saved = await saveCompany(supabase, company)
-
-    if (!saved) {
-      return c.json({ success: false, error: 'Error al actualizar el plan' }, 500)
-    }
-
-    console.log('Plan upgraded successfully:', company)
-
-    return c.json({ 
-      success: true, 
+    return c.json({
+      success: true,
       data: company,
       message: 'Plan actualizado exitosamente'
     })
-  } catch (error) {
-    console.error('Error in /license/upgrade-plan:', error)
-    return c.json({ success: false, error: error.message }, 500)
+  } catch (err: any) {
+    console.error('Error in upgrade-plan:', err)
+    return c.json({ success: false, error: err.message }, 500)
   }
-})
+}
+
+app.post('/license/upgrade-plan', handleUpgradePlan)
+app.post('/make-server-4d437e50/license/upgrade-plan', handleUpgradePlan)
+
+// ==================== SUPER ADMIN ENDPOINTS ====================
+
+// Helper para verificar rol de super admin o admin
+async function verifySuperAdmin(authHeader: string | null) {
+  const { error, user } = await verifyAuth(authHeader)
+  if (error || !user) {
+    return { error: 'Unauthorized', user: null, userProfile: null }
+  }
+  const userProfile = await getUserProfile(user.id)
+  if (!userProfile || (userProfile.role !== 'superadmin' && userProfile.role !== 'admin' && userProfile.role !== 'administrador')) {
+    return { error: 'Super Admin access required', user, userProfile: null }
+  }
+  return { error: null, user, userProfile }
+}
+
+// 1. Estadísticas globales para Super Admin
+const handleSuperAdminStats = async (c: any) => {
+  try {
+    const { error } = await verifySuperAdmin(c.req.header('Authorization'))
+    if (error) {
+      return c.json({ success: false, error }, 403)
+    }
+
+    // Obtener todos los pagos
+    const allPaymentsRaw = await kv.getByPrefix('payment:')
+    const payments = allPaymentsRaw.map((p: any) => typeof p === 'string' ? JSON.parse(p) : p)
+
+    // Obtener todas las empresas
+    const allCompaniesRaw = await kv.getByPrefix('company:')
+    const companies = allCompaniesRaw
+      .map((c: any) => typeof c === 'string' ? JSON.parse(c) : c)
+      .filter((c: any) => c && c.id && c.name && !c.id.toString().includes(':'))
+
+    const now = new Date()
+    let totalRevenueCOP = 0
+    let approvedPaymentsCount = 0
+    let pendingPaymentsCount = 0
+    let declinedPaymentsCount = 0
+
+    payments.forEach((p: any) => {
+      const status = (p.status || '').toLowerCase()
+      if (status === 'approved' || status === 'success' || status === 'completed') {
+        approvedPaymentsCount++
+        totalRevenueCOP += Number(p.amount || 0)
+      } else if (status === 'pending' || status === 'processing') {
+        pendingPaymentsCount++
+      } else if (status === 'declined' || status === 'error' || status === 'failed') {
+        declinedPaymentsCount++
+      }
+    })
+
+    let activeLicensesCount = 0
+    let expiredLicensesCount = 0
+    let trialLicensesCount = 0
+
+    companies.forEach((comp: any) => {
+      const inTrial = comp.trialEndsAt && new Date(comp.trialEndsAt) >= now
+      if (inTrial) {
+        trialLicensesCount++
+        activeLicensesCount++
+      } else if (comp.licenseExpiry && new Date(comp.licenseExpiry) >= now) {
+        activeLicensesCount++
+      } else {
+        expiredLicensesCount++
+      }
+    })
+
+    return c.json({
+      success: true,
+      stats: {
+        totalRevenueCOP,
+        totalPaymentsCount: payments.length,
+        approvedPaymentsCount,
+        pendingPaymentsCount,
+        declinedPaymentsCount,
+        totalCompaniesCount: companies.length,
+        activeLicensesCount,
+        expiredLicensesCount,
+        trialLicensesCount
+      }
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin stats:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.get('/superadmin/stats', handleSuperAdminStats)
+app.get('/make-server-4d437e50/superadmin/stats', handleSuperAdminStats)
+
+// 2. Lista completa de pagos para Super Admin
+const handleSuperAdminPayments = async (c: any) => {
+  try {
+    const { error } = await verifySuperAdmin(c.req.header('Authorization'))
+    if (error) {
+      return c.json({ success: false, error }, 403)
+    }
+
+    const allPaymentsRaw = await kv.getByPrefix('payment:')
+    const payments = allPaymentsRaw.map((p: any) => typeof p === 'string' ? JSON.parse(p) : p)
+
+    // Ordenar de más reciente a más antiguo
+    payments.sort((a: any, b: any) => {
+      const dateA = new Date(a.createdAt || a.updatedAt || 0).getTime()
+      const dateB = new Date(b.createdAt || b.updatedAt || 0).getTime()
+      return dateB - dateA
+    })
+
+    return c.json({
+      success: true,
+      payments
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin payments:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.get('/superadmin/payments', handleSuperAdminPayments)
+app.get('/make-server-4d437e50/superadmin/payments', handleSuperAdminPayments)
+
+// 3. Lista completa de empresas y estado de licencias
+const handleSuperAdminCompanies = async (c: any) => {
+  try {
+    const { error } = await verifySuperAdmin(c.req.header('Authorization'))
+    if (error) {
+      return c.json({ success: false, error }, 403)
+    }
+
+    const allCompaniesRaw = await kv.getByPrefix('company:')
+    const rawCompanies = allCompaniesRaw
+      .map((c: any) => typeof c === 'string' ? JSON.parse(c) : c)
+      .filter((c: any) => c && c.id && c.name && !c.id.toString().includes(':'))
+
+    const allUsersRaw = await kv.getByPrefix('user:')
+    const allUsers = allUsersRaw.map((u: any) => typeof u === 'string' ? JSON.parse(u) : u)
+
+    const now = new Date()
+    const companiesWithDetails = rawCompanies.map((comp: any) => {
+      const companyUsers = allUsers.filter((u: any) => u.companyId === comp.id)
+      const inTrial = comp.trialEndsAt && new Date(comp.trialEndsAt) >= now
+      
+      let daysRemaining = 0
+      let isExpired = false
+      if (comp.licenseExpiry) {
+        const expiry = new Date(comp.licenseExpiry)
+        isExpired = now > expiry
+        daysRemaining = Math.max(0, Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+      } else if (!inTrial) {
+        isExpired = true
+      }
+
+      return {
+        ...comp,
+        userCount: companyUsers.length,
+        inTrial: Boolean(inTrial),
+        isExpired,
+        daysRemaining,
+        statusLabel: inTrial ? 'En Prueba' : isExpired ? 'Vencida' : 'Activa'
+      }
+    })
+
+    return c.json({
+      success: true,
+      companies: companiesWithDetails
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin companies:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.get('/superadmin/companies', handleSuperAdminCompanies)
+app.get('/make-server-4d437e50/superadmin/companies', handleSuperAdminCompanies)
+
+// 4. Aprobación manual de pago por Super Admin
+const handleSuperAdminManualApprove = async (c: any) => {
+  try {
+    const { error, userProfile } = await verifySuperAdmin(c.req.header('Authorization'))
+    if (error) {
+      return c.json({ success: false, error }, 403)
+    }
+
+    const reference = c.req.param('reference') || (await c.req.json()).reference
+    const { months = 1, notes } = await c.req.json().catch(() => ({ months: 1, notes: '' }))
+
+    const payment = await findPaymentByReference(supabase, reference)
+    if (!payment) {
+      return c.json({ success: false, error: 'Pago no encontrado' }, 404)
+    }
+
+    payment.status = 'approved'
+    payment.manuallyApproved = true
+    payment.manuallyApprovedBy = userProfile?.name || 'Super Admin'
+    payment.manuallyApprovedAt = new Date().toISOString()
+    payment.notes = notes || payment.notes || 'Aprobado manualmente desde Super Admin'
+    payment.updatedAt = new Date().toISOString()
+
+    await savePayment(supabase, payment)
+
+    // Extender licencia de la empresa
+    const company = await getCompany(supabase, payment.companyId)
+    if (company) {
+      const now = new Date()
+      let baseDate = now
+      if (company.licenseExpiry) {
+        const currentExpiry = new Date(company.licenseExpiry)
+        if (currentExpiry > now) {
+          baseDate = currentExpiry
+        }
+      }
+
+      const monthsToAdd = months || payment.durationMonths || 1
+      const newExpiry = new Date(baseDate)
+      newExpiry.setMonth(newExpiry.getMonth() + monthsToAdd)
+
+      company.planId = payment.planId || company.planId || 'basico'
+      company.licenseExpiry = newExpiry.toISOString()
+      company.lastUpgrade = now.toISOString()
+      company.updatedAt = now.toISOString()
+      if (company.trialEndsAt) {
+        delete company.trialEndsAt
+      }
+
+      await saveCompany(supabase, company)
+    }
+
+    return c.json({
+      success: true,
+      message: 'Pago aprobado manualmente y licencia extendida con éxito',
+      payment
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin manual approve:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.post('/superadmin/payments/:reference/manual-approve', handleSuperAdminManualApprove)
+app.post('/make-server-4d437e50/superadmin/payments/:reference/manual-approve', handleSuperAdminManualApprove)
+
+// 5. Extender licencia de empresa directamente por Super Admin
+const handleSuperAdminExtendLicense = async (c: any) => {
+  try {
+    const { error, userProfile } = await verifySuperAdmin(c.req.header('Authorization'))
+    if (error) {
+      return c.json({ success: false, error }, 403)
+    }
+
+    const companyId = c.req.param('companyId') || (await c.req.json()).companyId
+    const { months = 1, days = 0, planId } = await c.req.json()
+
+    const company = await getCompany(supabase, companyId)
+    if (!company) {
+      return c.json({ success: false, error: 'Empresa no encontrada' }, 404)
+    }
+
+    const now = new Date()
+    let baseDate = now
+    if (company.licenseExpiry) {
+      const currentExpiry = new Date(company.licenseExpiry)
+      if (currentExpiry > now) {
+        baseDate = currentExpiry
+      }
+    }
+
+    const newExpiry = new Date(baseDate)
+    if (months > 0) {
+      newExpiry.setMonth(newExpiry.getMonth() + months)
+    }
+    if (days > 0) {
+      newExpiry.setDate(newExpiry.getDate() + days)
+    }
+
+    if (planId) {
+      company.planId = planId
+    }
+
+    company.licenseExpiry = newExpiry.toISOString()
+    company.lastManualExtension = now.toISOString()
+    company.extendedBy = userProfile?.name || 'Super Admin'
+    company.updatedAt = now.toISOString()
+    if (company.trialEndsAt) {
+      delete company.trialEndsAt
+    }
+
+    await saveCompany(supabase, company)
+
+    return c.json({
+      success: true,
+      message: `Licencia de ${company.name} extendida hasta ${newExpiry.toLocaleDateString()}`,
+      company
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin extend license:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.post('/superadmin/companies/:companyId/extend-license', handleSuperAdminExtendLicense)
+app.post('/make-server-4d437e50/superadmin/companies/:companyId/extend-license', handleSuperAdminExtendLicense)
+
+// 6. Cambiar plan de empresa por Super Admin
+const handleSuperAdminUpdatePlan = async (c: any) => {
+  try {
+    const { error } = await verifySuperAdmin(c.req.header('Authorization'))
+    if (error) {
+      return c.json({ success: false, error }, 403)
+    }
+
+    const companyId = c.req.param('companyId') || (await c.req.json()).companyId
+    const { planId } = await c.req.json()
+
+    const validPlans = ['basico', 'pyme', 'enterprise']
+    if (!validPlans.includes(planId)) {
+      return c.json({ success: false, error: 'Plan inválido' }, 400)
+    }
+
+    const company = await getCompany(supabase, companyId)
+    if (!company) {
+      return c.json({ success: false, error: 'Empresa no encontrada' }, 404)
+    }
+
+    company.planId = planId
+    company.updatedAt = new Date().toISOString()
+    await saveCompany(supabase, company)
+
+    return c.json({
+      success: true,
+      message: `Plan de ${company.name} cambiado a ${planId}`,
+      company
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin update plan:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.post('/superadmin/companies/:companyId/update-plan', handleSuperAdminUpdatePlan)
+app.post('/make-server-4d437e50/superadmin/companies/:companyId/update-plan', handleSuperAdminUpdatePlan)
+
+// 7. Modificación completa de empresa, plan y límites por Super Admin
+const handleSuperAdminUpdateCompanyFull = async (c: any) => {
+  try {
+    const { error, userProfile } = await verifySuperAdmin(c.req.header('Authorization'))
+    if (error) {
+      return c.json({ success: false, error }, 403)
+    }
+
+    const companyId = c.req.param('companyId') || (await c.req.json()).companyId
+    const body = await c.req.json()
+    const { 
+      planId, 
+      licenseExpiry, 
+      trialEndsAt, 
+      branches, 
+      admins, 
+      advisors, 
+      technicians, 
+      status, 
+      name,
+      notes 
+    } = body
+
+    const company = await getCompany(supabase, companyId)
+    if (!company) {
+      return c.json({ success: false, error: 'Empresa no encontrada' }, 404)
+    }
+
+    if (name) company.name = name
+    if (planId) company.planId = planId
+    if (licenseExpiry !== undefined) company.licenseExpiry = licenseExpiry
+    if (trialEndsAt !== undefined) company.trialEndsAt = trialEndsAt
+    if (status) company.status = status
+
+    // Guardar límites personalizados de sucursales y trabajadores
+    if (branches !== undefined || admins !== undefined || advisors !== undefined || technicians !== undefined) {
+      company.customLimits = {
+        branches: branches !== undefined ? Number(branches) : (company.customLimits?.branches || 1),
+        admins: admins !== undefined ? Number(admins) : (company.customLimits?.admins || 1),
+        advisors: advisors !== undefined ? Number(advisors) : (company.customLimits?.advisors || 1),
+        technicians: technicians !== undefined ? Number(technicians) : (company.customLimits?.technicians || 2)
+      }
+    }
+
+    company.updatedAt = new Date().toISOString()
+    company.lastModifiedBySuperAdmin = {
+      by: userProfile?.name || 'Super Admin',
+      at: new Date().toISOString(),
+      notes: notes || 'Modificado manualmente desde Super Admin'
+    }
+
+    await saveCompany(supabase, company)
+
+    return c.json({
+      success: true,
+      message: `Empresa ${company.name} actualizada correctamente por Super Admin`,
+      company
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin update company full:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.post('/superadmin/companies/:companyId/update-full', handleSuperAdminUpdateCompanyFull)
+app.post('/make-server-4d437e50/superadmin/companies/:companyId/update-full', handleSuperAdminUpdateCompanyFull)
+
+// 8. Lista de Super Administradores
+const handleSuperAdminGetUsers = async (c: any) => {
+  try {
+    const { error } = await verifySuperAdmin(c.req.header('Authorization'))
+    if (error) {
+      return c.json({ success: false, error }, 403)
+    }
+
+    const allUsersRaw = await kv.getByPrefix('user:')
+    const allUsers = allUsersRaw
+      .map((u: any) => typeof u === 'string' ? JSON.parse(u) : u)
+      .filter((u: any) => u && (u.role === 'superadmin' || u.isSuperAdmin === true || u.role === 'admin'))
+
+    return c.json({
+      success: true,
+      users: allUsers
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin get users:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.get('/superadmin/users', handleSuperAdminGetUsers)
+app.get('/make-server-4d437e50/superadmin/users', handleSuperAdminGetUsers)
+
+// 9. Crear nuevo Super Administrador
+const handleSuperAdminCreateUser = async (c: any) => {
+  try {
+    const { error, userProfile } = await verifySuperAdmin(c.req.header('Authorization'))
+    if (error) {
+      return c.json({ success: false, error }, 403)
+    }
+
+    const { email, password, name } = await c.req.json()
+
+    if (!email || !password || !name) {
+      return c.json({ success: false, error: 'Nombre, correo y contraseña son obligatorios' }, 400)
+    }
+
+    // Crear usuario en Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      user_metadata: { name, role: 'superadmin' },
+      email_confirm: true
+    })
+
+    if (authError || !authData.user) {
+      return c.json({ success: false, error: authError?.message || 'Error al crear usuario en autenticación' }, 400)
+    }
+
+    const newSuperUser = {
+      id: authData.user.id,
+      email,
+      name,
+      role: 'superadmin',
+      isSuperAdmin: true,
+      active: true,
+      createdBy: userProfile?.name || 'Super Admin',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+
+    await kv.set(`user:${authData.user.id}`, JSON.stringify(newSuperUser))
+
+    // Enviar notificación de bienvenida por Resend
+    sendResendEmail({
+      to: email,
+      subject: '👑 Acceso habilitado como Superadministrador de Oryon',
+      html: `
+      <div style="font-family:sans-serif;background:#0f172a;color:#f8fafc;padding:24px;">
+        <div style="max-width:500px;margin:0 auto;background:#1e293b;border-radius:12px;border:1px solid #334155;padding:28px;">
+          <h2 style="color:#3b82f6;margin-top:0;">⚡ ORYON</h2>
+          <h3 style="color:#f8fafc;">¡Hola ${name}!</h3>
+          <p style="color:#cbd5e1;">Has sido habilitado como <strong>Superadministrador</strong> en la plataforma Oryon.</p>
+          <div style="background:#0f172a;padding:14px;border-radius:8px;margin:16px 0;border:1px solid #334155;color:#cbd5e1;">
+            <p style="margin:0 0 6px 0;"><strong>Usuario:</strong> ${email}</p>
+            <p style="margin:0;"><strong>Rol:</strong> Superadministrador Maestro</p>
+          </div>
+          <div style="text-align:center;margin:20px 0;">
+            <a href="http://localhost:3002/superadmin" style="background:#2563eb;color:#fff!important;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block;">Ingresar al Panel Super Admin</a>
+          </div>
+        </div>
+      </div>
+      `
+    }).catch(e => console.warn('Resend email error:', e))
+
+    return c.json({
+      success: true,
+      message: `Superadministrador ${name} creado con éxito`,
+      user: newSuperUser
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin create user:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.post('/superadmin/users/create', handleSuperAdminCreateUser)
+app.post('/make-server-4d437e50/superadmin/users/create', handleSuperAdminCreateUser)
+
+// 10. Consultar si ya existe al menos un Superadministrador en el sistema
+const handleSuperAdminAuthStatus = async (c: any) => {
+  try {
+    const allUsersRaw = await kv.getByPrefix('user:')
+    const superUsers = allUsersRaw
+      .map((u: any) => typeof u === 'string' ? JSON.parse(u) : u)
+      .filter((u: any) => u && (u.role === 'superadmin' || u.isSuperAdmin === true))
+
+    return c.json({
+      success: true,
+      hasSuperAdmin: superUsers.length > 0,
+      count: superUsers.length
+    })
+  } catch (err: any) {
+    console.error('Error in superadmin auth status:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.get('/superadmin/auth/status', handleSuperAdminAuthStatus)
+app.get('/make-server-4d437e50/superadmin/auth/status', handleSuperAdminAuthStatus)
+
+// 11. Creación única del Primer Superadministrador Maestro (Bootstrap)
+const handleSuperAdminInitialSetup = async (c: any) => {
+  try {
+    const { name, email, password } = await c.req.json()
+
+    if (!name || !email || !password) {
+      return c.json({ success: false, error: 'Nombre, correo y contraseña son obligatorios' }, 400)
+    }
+
+    if (password.length < 6) {
+      return c.json({ success: false, error: 'La contraseña debe tener mínimo 6 caracteres' }, 400)
+    }
+
+    // Verificar si ya existe algún superadministrador
+    const allUsersRaw = await kv.getByPrefix('user:')
+    const allUsers = allUsersRaw.map((u: any) => typeof u === 'string' ? JSON.parse(u) : u)
+    const existingSuper = allUsers.filter((u: any) => u && (u.role === 'superadmin' || u.isSuperAdmin === true))
+
+    if (existingSuper.length > 0) {
+      return c.json({ 
+        success: false, 
+        error: 'El Superadministrador maestro inicial ya fue configurado previamente. Inicia sesión con tus credenciales.' 
+      }, 403)
+    }
+
+    // Verificar si el usuario ya existe en Supabase Auth o en KV
+    const existingUser = allUsers.find((u: any) => u && u.email && u.email.toLowerCase() === email.toLowerCase())
+
+    let userId = existingUser?.id || existingUser?.userId
+
+    if (!userId) {
+      // Intentar crear en Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        user_metadata: { name, role: 'superadmin' },
+        email_confirm: true
+      })
+
+      if (authError) {
+        // Si el usuario ya existe en Supabase Auth, buscarlo
+        const { data: userList } = await supabase.auth.admin.listUsers()
+        const found = userList?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
+        if (found) {
+          userId = found.id
+          // Actualizar contraseña y metadata
+          await supabase.auth.admin.updateUserById(userId, {
+            password,
+            user_metadata: { name, role: 'superadmin' }
+          })
+        } else {
+          return c.json({ success: false, error: authError.message }, 400)
+        }
+      } else {
+        userId = authData.user.id
+      }
+    } else {
+      // Actualizar contraseña en Supabase Auth
+      try {
+        await supabase.auth.admin.updateUserById(userId, {
+          password,
+          user_metadata: { name, role: 'superadmin' }
+        })
+      } catch (pwErr) {
+        console.warn('Could not update user password in auth:', pwErr)
+      }
+    }
+
+    const masterSuperUser = {
+      id: userId,
+      userId: userId,
+      email,
+      name,
+      role: 'superadmin',
+      isSuperAdmin: true,
+      isMaster: true,
+      active: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+
+    await kv.set(`user:${userId}`, JSON.stringify(masterSuperUser))
+
+    console.log(`👑 Master Super Admin created successfully: ${email}`)
+
+    return c.json({
+      success: true,
+      message: 'Primer Superadministrador maestro configurado con éxito',
+      user: masterSuperUser
+    })
+  } catch (err: any) {
+    console.error('Error in initial superadmin setup:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.post('/superadmin/setup/initial', handleSuperAdminInitialSetup)
+app.post('/make-server-4d437e50/superadmin/setup/initial', handleSuperAdminInitialSetup)
+
+// ==================== EMAIL SERVICE (RESEND) & PASSWORD RECOVERY ====================
+
+// Helper para enviar correo con Resend desde el backend
+async function sendResendEmail(options: { to: string; subject: string; html: string; from?: string }) {
+  const apiKey = Deno.env.get('RESEND_API_KEY') || 're_123456789_tu_api_key_aqui'
+  const from = options.from || Deno.env.get('RESEND_FROM_EMAIL') || 'Oryon <onboarding@resend.dev>'
+
+  if (!apiKey || apiKey.includes('tu_api_key')) {
+    console.warn('⚠️ RESEND_API_KEY no configurada en el backend.')
+    return { success: false, error: 'RESEND_API_KEY no configurada' }
+  }
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from,
+        to: [options.to],
+        subject: options.subject,
+        html: options.html
+      })
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      console.error('Error al enviar correo con Resend:', data)
+      return { success: false, error: data.message || 'Error de Resend' }
+    }
+
+    return { success: true, id: data.id }
+  } catch (err: any) {
+    console.error('Error en llamada a Resend:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+// 12. Solicitud de Recuperación de Contraseña con Resend
+const handleForgotPassword = async (c: any) => {
+  try {
+    const { email, origin } = await c.req.json()
+    if (!email) {
+      return c.json({ success: false, error: 'El correo electrónico es requerido' }, 400)
+    }
+
+    const cleanEmail = email.trim().toLowerCase()
+
+    // Buscar usuario en KV o Supabase Auth
+    const allUsersRaw = await kv.getByPrefix('user:')
+    const allUsers = allUsersRaw.map((u: any) => typeof u === 'string' ? JSON.parse(u) : u)
+    const user = allUsers.find((u: any) => u && u.email && u.email.toLowerCase() === cleanEmail)
+
+    let targetUserId = user?.id || user?.userId
+    let targetName = user?.name || cleanEmail.split('@')[0]
+
+    if (!targetUserId) {
+      const { data: userList } = await supabase.auth.admin.listUsers()
+      const authUser = userList?.users?.find((u: any) => u.email?.toLowerCase() === cleanEmail)
+      if (authUser) {
+        targetUserId = authUser.id
+        targetName = authUser.user_metadata?.name || authUser.user_metadata?.full_name || cleanEmail.split('@')[0]
+      }
+    }
+
+    if (!targetUserId) {
+      return c.json({
+        success: true,
+        message: 'Si el correo está registrado, recibirás un enlace de recuperación en los próximos minutos.'
+      })
+    }
+
+    // Generar Token seguro y Código de 6 dígitos
+    const token = crypto.randomUUID()
+    const code = Math.floor(100000 + Math.random() * 900000).toString()
+    const expiresAt = Date.now() + (60 * 60 * 1000) // 1 hora
+
+    const resetPayload = {
+      token,
+      code,
+      email: cleanEmail,
+      userId: targetUserId,
+      name: targetName,
+      expiresAt,
+      createdAt: new Date().toISOString()
+    }
+
+    // Guardar en KV
+    await kv.set(`password_reset:${token}`, JSON.stringify(resetPayload))
+    await kv.set(`password_reset_code:${cleanEmail}`, JSON.stringify(resetPayload))
+
+    const baseUrl = origin || 'http://localhost:3002'
+    const resetLink = `${baseUrl}/reset-password?token=${token}&email=${encodeURIComponent(cleanEmail)}`
+
+    // Plantilla HTML moderna para Resend
+    const html = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 24px 12px; margin: 0; }
+        .container { max-width: 520px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; border: 1px solid #334155; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .logo { font-size: 22px; font-weight: 800; color: #3b82f6; text-align: center; margin-bottom: 20px; }
+        .title { font-size: 19px; font-weight: 700; color: #f8fafc; text-align: center; margin-bottom: 12px; }
+        .text { font-size: 14px; line-height: 1.6; color: #cbd5e1; margin-bottom: 16px; }
+        .btn-box { text-align: center; margin: 26px 0; }
+        .btn { display: inline-block; background-color: #2563eb; color: #ffffff !important; text-decoration: none; padding: 13px 26px; border-radius: 9px; font-weight: 700; font-size: 14px; }
+        .code-box { background-color: #0f172a; border: 1px dashed #475569; border-radius: 10px; padding: 14px; text-align: center; margin: 20px 0; }
+        .code { font-size: 26px; font-weight: 900; letter-spacing: 5px; color: #60a5fa; font-family: monospace; }
+        .footer { font-size: 11px; color: #64748b; text-align: center; margin-top: 28px; border-top: 1px solid #334155; padding-top: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="logo">⚡ ORYON</div>
+        <div class="title">Recuperación de Contraseña</div>
+        <p class="text">Hola <strong>${targetName}</strong>,</p>
+        <p class="text">Recibimos una solicitud para restablecer la contraseña asociada a tu cuenta de Oryon (${cleanEmail}).</p>
+        
+        <div class="btn-box">
+          <a href="${resetLink}" class="btn" target="_blank">Restablecer mi Contraseña</a>
+        </div>
+
+        <div class="code-box">
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;">O utiliza este código de seguridad</div>
+          <div class="code">${code}</div>
+        </div>
+
+        <p style="font-size:11px;color:#fbbf24;margin-top:16px;">⏳ Este enlace y código son válidos durante 60 minutos. Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
+
+        <div class="footer">
+          © ${new Date().getFullYear()} Oryon. Plataforma de Gestión y Facturación de Talleres.
+        </div>
+      </div>
+    </body>
+    </html>
+    `
+
+    const emailResult = await sendResendEmail({
+      to: cleanEmail,
+      subject: '🔐 Restablece tu contraseña de Oryon',
+      html
+    })
+
+    return c.json({
+      success: true,
+      message: 'Correo de recuperación enviado con éxito mediante Resend',
+      emailSent: emailResult.success,
+      resetLink: emailResult.success ? undefined : resetLink
+    })
+  } catch (err: any) {
+    console.error('Error in handleForgotPassword:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.post('/auth/forgot-password', handleForgotPassword)
+app.post('/make-server-4d437e50/auth/forgot-password', handleForgotPassword)
+
+// 13. Confirmar cambio de contraseña
+const handleResetPasswordConfirm = async (c: any) => {
+  try {
+    const { token, code, email, password } = await c.req.json()
+
+    if (!password || password.length < 6) {
+      return c.json({ success: false, error: 'La nueva contraseña debe tener mínimo 6 caracteres' }, 400)
+    }
+
+    let payload: any = null
+
+    if (token) {
+      const dataStr = await kv.get(`password_reset:${token}`)
+      if (dataStr) payload = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr
+    } else if (email && code) {
+      const dataStr = await kv.get(`password_reset_code:${email.trim().toLowerCase()}`)
+      if (dataStr) {
+        const stored = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr
+        if (stored.code === code.trim()) {
+          payload = stored
+        }
+      }
+    }
+
+    if (!payload) {
+      return c.json({ success: false, error: 'El enlace o código de recuperación es inválido o ha expirado.' }, 400)
+    }
+
+    if (Date.now() > payload.expiresAt) {
+      return c.json({ success: false, error: 'El enlace de recuperación ha expirado. Por favor solicita uno nuevo.' }, 400)
+    }
+
+    // Actualizar contraseña en Supabase Auth
+    const { error: updateError } = await supabase.auth.admin.updateUserById(payload.userId, {
+      password
+    })
+
+    if (updateError) {
+      return c.json({ success: false, error: updateError.message }, 500)
+    }
+
+    // Limpiar tokens de KV
+    if (payload.token) await kv.del(`password_reset:${payload.token}`)
+    if (payload.email) await kv.del(`password_reset_code:${payload.email}`)
+
+    return c.json({
+      success: true,
+      message: '¡Tu contraseña ha sido actualizada con éxito! Ya puedes iniciar sesión.'
+    })
+  } catch (err: any) {
+    console.error('Error in handleResetPasswordConfirm:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.post('/auth/reset-password-confirm', handleResetPasswordConfirm)
+app.post('/make-server-4d437e50/auth/reset-password-confirm', handleResetPasswordConfirm)
+
 
 
 
@@ -698,7 +1466,58 @@ async function uploadToCloudinary(base64Image: string, folder: string = 'repairs
   return result.secure_url
 }
 
-// ==================== HEALTH CHECK ====================
+// ==================== SYSTEM DATABASE WIPE & RESET ====================
+const handleSystemResetDatabase = async (c: any) => {
+  try {
+    console.log('⚠️ INITIATING COMPLETE DATABASE & AUTH RESET...')
+
+    // 1. Delete all records from KV Store table
+    const { error: kvError } = await supabase
+      .from('kv_store_4d437e50')
+      .delete()
+      .neq('key', '___non_existent_key_for_all___')
+
+    if (kvError) {
+      console.error('Error wiping KV table:', kvError)
+    }
+
+    // 2. Delete all users from Supabase Auth
+    let deletedUsersCount = 0
+    try {
+      const { data: userList, error: listError } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000
+      })
+
+      if (!listError && userList?.users) {
+        for (const user of userList.users) {
+          try {
+            await supabase.auth.admin.deleteUser(user.id)
+            deletedUsersCount++
+          } catch (delErr) {
+            console.warn(`Could not delete user ${user.id}:`, delErr)
+          }
+        }
+      }
+    } catch (authErr) {
+      console.error('Error wiping auth users:', authErr)
+    }
+
+    console.log(`✅ System database reset completed: ${deletedUsersCount} users removed from Auth, KV store cleared.`)
+
+    return c.json({
+      success: true,
+      message: 'Base de datos y usuarios reseteados completamente con éxito.',
+      deletedUsersCount
+    })
+  } catch (err: any) {
+    console.error('Error resetting database:', err)
+    return c.json({ success: false, error: err.message }, 500)
+  }
+}
+
+app.post('/system/reset-database', handleSystemResetDatabase)
+app.post('/make-server-4d437e50/system/reset-database', handleSystemResetDatabase)
 
 // Health check endpoint
 app.get('/make-server-4d437e50/health', (c) => {
@@ -1008,14 +1827,10 @@ app.post('/make-server-4d437e50/company/users', async (c) => {
     
     const { email, password, name, role } = await c.req.json()
     
-    // Check plan limits before creating user
+    // Check plan limits before creating user (customLimits override plan defaults)
     const license = await checkLicense(userProfile.companyId)
     const planId = license.planId || 'basico'
-    const limits = PLAN_LIMITS[planId as keyof typeof PLAN_LIMITS]
-    
-    if (!limits) {
-      return c.json({ success: false, error: 'Plan no válido' }, 400)
-    }
+    const limits = license.company?.customLimits || PLAN_LIMITS[planId as keyof typeof PLAN_LIMITS] || { branches: 1, admins: 1, advisors: 1, technicians: 2 }
     
     // Count current users by role (only active users)
     const allUsers = await kv.getByPrefix('user:')
@@ -1077,6 +1892,30 @@ app.post('/make-server-4d437e50/company/users', async (c) => {
     }
     
     await kv.set(`user:${authData.user.id}`, JSON.stringify(employeeProfile))
+    
+    // Enviar correo de bienvenida y credenciales por Resend
+    sendResendEmail({
+      to: email,
+      subject: `🎉 Bienvenido a Oryon - Cuenta de ${name}`,
+      html: `
+      <div style="font-family:sans-serif;background:#0f172a;color:#f8fafc;padding:24px;">
+        <div style="max-width:500px;margin:0 auto;background:#1e293b;border-radius:12px;border:1px solid #334155;padding:28px;">
+          <h2 style="color:#3b82f6;margin-top:0;">⚡ ORYON</h2>
+          <h3 style="color:#f8fafc;">¡Hola ${name}!</h3>
+          <p style="color:#cbd5e1;">Has sido registrado en la plataforma Oryon con el rol de <strong>${employeeRole}</strong>.</p>
+          <div style="background:#0f172a;padding:14px;border-radius:8px;margin:16px 0;border:1px solid #334155;color:#cbd5e1;">
+            <p style="margin:0 0 6px 0;"><strong>Usuario:</strong> ${email}</p>
+            <p style="margin:0 0 6px 0;"><strong>Rol:</strong> ${employeeRole}</p>
+            <p style="margin:0;"><strong>Contraseña inicial:</strong> <code>${password}</code></p>
+          </div>
+          <div style="text-align:center;margin:20px 0;">
+            <a href="http://localhost:3002/login" style="background:#2563eb;color:#fff!important;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block;">Iniciar Sesión en Oryon</a>
+          </div>
+          <p style="font-size:11px;color:#94a3b8;margin-top:20px;border-top:1px solid #334155;padding-top:12px;">Por seguridad, te recomendamos cambiar tu contraseña una vez ingreses al sistema.</p>
+        </div>
+      </div>
+      `
+    }).catch(e => console.warn('Resend employee email error:', e))
     
     return c.json({ success: true, user: employeeProfile })
   } catch (error) {
@@ -1353,22 +2192,10 @@ app.get('/make-server-4d437e50/company/info', async (c) => {
     
     const company = JSON.parse(companyDataStr)
     
-    // Migration: Initialize licenseExpiry if it doesn't exist
-    if (!company.licenseExpiry) {
-      console.log('Initializing licenseExpiry for company:', company.id)
-      const expiryDate = new Date()
-      
-      // If in trial, use trial end date
-      if (company.trialEndsAt) {
-        expiryDate.setTime(new Date(company.trialEndsAt).getTime())
-      } else {
-        // Otherwise, give 30 days from now
-        expiryDate.setDate(expiryDate.getDate() + 30)
-      }
-      
-      company.licenseExpiry = expiryDate.toISOString()
+    // If licenseExpiry is not set, only initialize from trial if present
+    if (!company.licenseExpiry && company.trialEndsAt) {
+      company.licenseExpiry = company.trialEndsAt
       await kv.set(`company:${userProfile.companyId}`, JSON.stringify(company))
-      console.log('License expiry initialized:', company.licenseExpiry)
     }
     
     return c.json({ success: true, company })
@@ -1467,10 +2294,10 @@ app.post('/make-server-4d437e50/branches', async (c) => {
       return c.json({ success: false, error: 'Admin access required' }, 403)
     }
     
-    // Check plan limits
+    // Check plan limits (customLimits override plan defaults)
     const license = await checkLicense(userProfile.companyId)
     const planId = license.planId || 'basico'
-    const maxBranches = PLAN_LIMITS[planId as keyof typeof PLAN_LIMITS]?.branches || 1
+    const maxBranches = license.company?.customLimits?.branches || PLAN_LIMITS[planId as keyof typeof PLAN_LIMITS]?.branches || 1
     
     const branchIdsStr = await kv.get(`company:${userProfile.companyId}:branches`)
     const currentBranches = branchIdsStr ? JSON.parse(branchIdsStr) : []
@@ -4632,65 +5459,9 @@ app.put('/make-server-4d437e50/company/settings', async (c) => {
 
 // ==================== LICENSE MANAGEMENT ====================
 
-// Upgrade plan (new feature-based licensing)
-app.post('/make-server-4d437e50/license/upgrade-plan', async (c) => {
-  try {
-    const { error, user } = await verifyAuth(c.req.header('Authorization'))
-    if (error || !user) {
-      return c.json({ success: false, error: 'Unauthorized' }, 401)
-    }
-    
-    const userProfile = await getUserProfile(user.id)
-    if (!userProfile || userProfile.role !== 'admin') {
-      return c.json({ success: false, error: 'Admin access required' }, 403)
-    }
-    
-    const { planId, country, amount } = await c.req.json()
-    
-    // Validate plan
-    const validPlans = ['basico', 'pyme', 'enterprise']
-    if (!validPlans.includes(planId)) {
-      return c.json({ success: false, error: 'Invalid plan' }, 400)
-    }
-    
-    console.log('Upgrading plan for company:', userProfile.companyId, 'to:', planId)
-    
-    // Get company data
-    const companyDataStr = await kv.get(`company:${userProfile.companyId}`)
-    if (!companyDataStr) {
-      return c.json({ success: false, error: 'Company not found' }, 404)
-    }
-    
-    const company = JSON.parse(companyDataStr)
-    
-    // Update company plan
-    company.planId = planId
-    company.lastUpgrade = new Date().toISOString()
-    
-    // Set license expiry to 30 days from now
-    const expiryDate = new Date()
-    expiryDate.setDate(expiryDate.getDate() + 30)
-    company.licenseExpiry = expiryDate.toISOString()
-    
-    // Remove trial status if was in trial
-    if (company.trialEndsAt) {
-      delete company.trialEndsAt
-    }
-    
-    await kv.set(`company:${userProfile.companyId}`, JSON.stringify(company))
-    
-    console.log('Plan upgraded successfully to:', planId)
-    
-    return c.json({
-      success: true,
-      planId,
-      message: 'Plan actualizado exitosamente'
-    })
-  } catch (error) {
-    console.error('Error upgrading plan:', error)
-    return c.json({ success: false, error: String(error) }, 500)
-  }
-})
+// Upgrade plan (delegates to handleUpgradePlan)
+app.post('/make-server-4d437e50/license/upgrade-plan', handleUpgradePlan)
+app.post('/license/upgrade-plan', handleUpgradePlan)
 
 // Create PSE payment (Colombia)
 app.post('/make-server-4d437e50/license/pse/create', async (c) => {

@@ -1,11 +1,13 @@
 import { useState } from 'react'
+import { projectId, publicAnonKey } from '../utils/supabase/info'
 import { getSupabaseClient } from '../utils/supabase/client'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
 import { Alert, AlertDescription } from './ui/alert'
-import { Wrench, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, KeyRound, Loader2, Mail, ShieldAlert } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface ForgotPasswordProps {
   onBackToLogin: () => void
@@ -16,23 +18,53 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [fallbackLink, setFallbackLink] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!email) return
+
     setLoading(true)
     setError('')
     setSuccess(false)
+    setFallbackLink(null)
 
     try {
+      // 1. Intentar enviar correo con el servicio de Resend a través del backend de Oryon
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/auth/forgot-password`,
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${publicAnonKey}`
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            origin: window.location.origin
+          })
+        }
+      )
+
+      const data = await response.json()
+
+      if (data.success) {
+        setSuccess(true)
+        if (data.resetLink) {
+          setFallbackLink(data.resetLink)
+        }
+        toast.success('Instrucciones de recuperación enviadas a tu correo')
+        setLoading(false)
+        return
+      }
+
+      // 2. Fallback estándar con Supabase Auth si el backend reporta algún error
       const supabase = getSupabaseClient()
-      
-      // Supabase Auth envía automáticamente un email con el link de recuperación
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/#/reset-password`,
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
       })
 
       if (resetError) {
-        console.error('Password reset error:', resetError)
         setError(resetError.message)
         setLoading(false)
         return
@@ -40,7 +72,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
 
       setSuccess(true)
       setLoading(false)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Password reset request error:', err)
       setError('Error al solicitar recuperación de contraseña. Por favor intenta de nuevo.')
       setLoading(false)
@@ -49,34 +81,55 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 sm:p-6">
+        <Card className="w-full max-w-md border-border bg-card shadow-lg">
           <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto w-16 h-16 bg-green-600 rounded-full flex items-center justify-center">
-              <CheckCircle2 className="text-white" size={32} />
+            <div className="mx-auto w-14 h-14 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center">
+              <CheckCircle2 size={32} />
             </div>
-            <CardTitle className="text-3xl">¡Email Enviado!</CardTitle>
-            <CardDescription>
-              Revisa tu bandeja de entrada
+            <CardTitle className="text-xl font-bold tracking-tight">¡Correo de Recuperación Enviado!</CardTitle>
+            <CardDescription className="text-xs">
+              Hemos enviado las instrucciones a <strong>{email}</strong> mediante el servicio seguro de Resend.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert>
-              <AlertDescription>
-                Hemos enviado un email a <strong>{email}</strong> con las instrucciones para recuperar tu contraseña.
-                <br /><br />
-                Si no recibes el email en unos minutos, revisa tu carpeta de spam.
+          <CardContent className="space-y-4 text-xs">
+            <Alert className="bg-muted/50 border-border">
+              <AlertDescription className="text-xs leading-relaxed text-muted-foreground">
+                Revisa tu bandeja de entrada o carpeta de spam. Encontrarás un enlace seguro y un código de 6 dígitos para restablecer tu contraseña.
               </AlertDescription>
             </Alert>
 
-            <Button 
-              onClick={onBackToLogin} 
-              className="w-full"
-              variant="outline"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al inicio de sesión
-            </Button>
+            {fallbackLink && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-800 dark:text-amber-300">
+                <p className="font-semibold text-[11px] mb-1">Enlace directo generado para pruebas:</p>
+                <a 
+                  href={fallbackLink} 
+                  className="text-[11px] underline break-all hover:text-amber-900 dark:hover:text-amber-100"
+                >
+                  Abrir asistente de nueva contraseña
+                </a>
+              </div>
+            )}
+
+            <div className="space-y-2 pt-2">
+              <Button 
+                onClick={() => {
+                  window.location.href = `/reset-password?email=${encodeURIComponent(email)}`
+                }}
+                className="w-full h-10 text-xs font-semibold"
+              >
+                Ingresar Código de 6 Dígitos
+              </Button>
+
+              <Button 
+                onClick={onBackToLogin} 
+                className="w-full h-10 text-xs font-semibold"
+                variant="outline"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al Inicio de Sesión
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -84,46 +137,58 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-            <Wrench className="text-white" size={32} />
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 sm:p-6">
+      <Card className="w-full max-w-md border-border bg-card shadow-lg">
+        <CardHeader className="space-y-2 text-center">
+          <div className="mx-auto w-14 h-14 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-1">
+            <KeyRound size={28} />
           </div>
-          <CardTitle className="text-3xl">Recuperar Contraseña</CardTitle>
-          <CardDescription>
-            Ingresa tu email y te enviaremos un link para recuperar tu contraseña
+          <CardTitle className="text-xl font-bold tracking-tight">Recuperar Contraseña</CardTitle>
+          <CardDescription className="text-xs">
+            Ingresa tu correo registrado y te enviaremos un enlace seguro a través de Resend para restaurar tu acceso.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             {error && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <ShieldAlert className="h-4 w-4" />
+                <AlertDescription className="text-xs">{error}</AlertDescription>
               </Alert>
             )}
             
             <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
-                required
-                disabled={loading}
-              />
+              <Label htmlFor="email" className="text-xs font-semibold mb-1.5 block">Correo Electrónico:</Label>
+              <div className="relative">
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                  required
+                  disabled={loading}
+                  className="h-10 text-xs pl-9"
+                />
+                <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              </div>
             </div>
             
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Enviando...' : 'Enviar Link de Recuperación'}
+            <Button type="submit" className="w-full h-10 text-xs font-semibold" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando Correo con Resend...
+                </>
+              ) : (
+                'Enviar Enlace de Recuperación'
+              )}
             </Button>
 
             <Button 
               type="button"
               onClick={onBackToLogin} 
-              className="w-full"
+              className="w-full h-10 text-xs text-muted-foreground hover:text-foreground"
               variant="ghost"
               disabled={loading}
             >
@@ -131,15 +196,10 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
               Volver al inicio de sesión
             </Button>
           </form>
-
-          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              <strong>Nota:</strong> Para que esta funcionalidad esté activa, es necesario configurar un servidor de email en Supabase. 
-              Sin esta configuración, no se podrán enviar los emails de recuperación.
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>
   )
 }
+
+export default ForgotPassword

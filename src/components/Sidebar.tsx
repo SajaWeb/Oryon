@@ -12,6 +12,7 @@ import {
   Menu,
   MessageCircle,
   TriangleAlert,
+  ShieldCheck,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from './ui/sheet'
 import { Logo, LogoMark } from './brand/Logo'
@@ -25,6 +26,7 @@ interface SidebarProps {
 }
 
 const ROLE_LABEL: Record<string, string> = {
+  superadmin: 'Super Admin',
   admin: 'Administrador',
   tecnico: 'Técnico',
   asesor: 'Asesor',
@@ -40,9 +42,10 @@ export function Sidebar({
   const [isOpen, setIsOpen] = useState(false)
 
   const getDaysRemaining = () => {
-    if (!licenseInfo?.expiryDate) return 0
+    if (licenseInfo?.daysRemaining !== undefined) return licenseInfo.daysRemaining
+    if (!licenseInfo?.expiryDate && !licenseInfo?.licenseExpiry) return 0
     const today = new Date()
-    const expiry = new Date(licenseInfo.expiryDate)
+    const expiry = new Date(licenseInfo.expiryDate || licenseInfo.licenseExpiry)
     const diff = expiry.getTime() - today.getTime()
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
     return Math.max(0, days)

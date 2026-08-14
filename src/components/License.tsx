@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { projectId, publicAnonKey } from "../utils/supabase/info";
+import { projectId } from "../utils/supabase/info";
 import {
   Card,
   CardContent,
@@ -10,14 +10,11 @@ import {
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Alert, AlertDescription } from "./ui/alert";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
-import { Label } from "./ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import {
   CreditCard,
   CheckCircle2,
   AlertCircle,
-  Globe,
   MapPin,
   DollarSign,
   Loader2,
@@ -38,7 +35,6 @@ import { PaymentReceipt } from "./PaymentReceipt";
 import wompiService from "../services/WompiService";
 import PaymentSuccess from "./PaymentSuccess";
 
-
 interface LicenseProps {
   accessToken: string;
   userProfile: any;
@@ -46,11 +42,9 @@ interface LicenseProps {
   onLicenseUpdated: () => void;
 }
 
-interface Plan {
+export interface Plan {
   id: "basico" | "pyme" | "enterprise";
   name: string;
-  price: number;
-  priceUSD: number;
   priceCOP: number;
   badge?: string;
   limits: {
@@ -62,12 +56,10 @@ interface Plan {
   features: string[];
 }
 
-const plans: Plan[] = [
+export const plans: Plan[] = [
   {
     id: "basico",
-    name: "Plan Básico",
-    price: 15,
-    priceUSD: 15,
+    name: "Plan Básico (1 Sucursal)",
     priceCOP: 50000,
     limits: {
       branches: 1,
@@ -76,21 +68,20 @@ const plans: Plan[] = [
       technicians: 2,
     },
     features: [
-      "Gestión de inventario",
-      "Punto de venta",
-      "Órdenes de reparación",
-      "Reportes básicos",
-      "Gestión de clientes",
-      "Dashboard en tiempo real",
+      "1 Sucursal incluida",
+      "1 Administrador, 1 Asesor, 2 Técnicos",
+      "Gestión de inventario y productos",
+      "Punto de venta y facturación",
+      "Órdenes de servicio técnico",
+      "Reportes básicos y clientes",
+      "Acceso móvil y PWA",
     ],
   },
   {
     id: "pyme",
-    name: "Plan PYME",
-    price: 28,
-    priceUSD: 28,
-    priceCOP: 90000,
-    badge: "Popular",
+    name: "Plan PYME (2 Sucursales)",
+    priceCOP: 85000,
+    badge: "Más Popular",
     limits: {
       branches: 2,
       admins: 2,
@@ -98,20 +89,19 @@ const plans: Plan[] = [
       technicians: 8,
     },
     features: [
+      "2 Sucursales incluidas",
+      "2 Administradores, 4 Asesores, 8 Técnicos",
       "Todo del Plan Básico",
-      "Múltiples sucursales",
-      "Reportes avanzados",
-      "Notificaciones push",
-      "Exportación PDF/Excel",
-      "Soporte prioritario",
+      "Transferencias entre sucursales",
+      "Reportes avanzados y métricas",
+      "Exportación PDF / Excel",
+      "Soporte prioritario por WhatsApp",
     ],
   },
   {
     id: "enterprise",
-    name: "Plan Enterprise",
-    price: 50,
-    priceUSD: 50,
-    priceCOP: 160000,
+    name: "Plan Enterprise (4 Sucursales)",
+    priceCOP: 140000,
     badge: "Mejor Valor",
     limits: {
       branches: 4,
@@ -120,12 +110,13 @@ const plans: Plan[] = [
       technicians: 16,
     },
     features: [
+      "4 Sucursales incluidas",
+      "4 Administradores, 8 Asesores, 16 Técnicos",
       "Todo del Plan PYME",
-      "Máximo número de sucursales",
-      "Máximo número de usuarios",
-      "API personalizada",
-      "Integración WhatsApp",
-      "Soporte dedicado 24/7",
+      "Máximo volumen y rendimiento",
+      "Auditoría y trazabilidad completa",
+      "Integración de recibos digitales",
+      "Soporte VIP prioritario 24/7",
     ],
   },
 ];
@@ -136,9 +127,6 @@ export function License({
   licenseInfo,
   onLicenseUpdated,
 }: LicenseProps) {
-  const [selectedCountry, setSelectedCountry] = useState<
-    "colombia" | "international"
-  >("international");
   const [selectedPlan, setSelectedPlan] = useState<string>("pyme");
   const [loading, setLoading] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
@@ -151,52 +139,20 @@ export function License({
   const [receiptData, setReceiptData] = useState<any>(null);
 
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
-const [paymentSuccessData, setPaymentSuccessData] = useState<{
-  transactionId: string;
-  paymentMethod: "wompi" | "paddle";
-  reference?: string;
-  planId?: string;
-} | null>(null);
+  const [paymentSuccessData, setPaymentSuccessData] = useState<{
+    transactionId: string;
+    paymentMethod: "wompi";
+    reference?: string;
+    planId?: string;
+  } | null>(null);
 
-
-  // Al inicio del render del componente License, agregar esta condición:
-  if (showPaymentSuccess && paymentSuccessData) {
-    return (
-      <PaymentSuccess
-        transactionId={paymentSuccessData.transactionId}
-        accessToken={accessToken}
-        paymentMethod={paymentSuccessData.paymentMethod}
-        reference={paymentSuccessData.reference}
-        planId={paymentSuccessData.planId}
-        onComplete={async () => {
-          setShowPaymentSuccess(false);
-          setPaymentSuccessData(null);
-
-          // Recargar datos
-          await loadCompanyData();
-          onLicenseUpdated();
-
-          // Opcional: recargar la página
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        }}
-      />
-    );
-  }
   // Get current plan info and company data
   useEffect(() => {
-    console.log(
-      "License component mounted/updated with licenseInfo:",
-      licenseInfo
-    );
-
     if (licenseInfo?.planId) {
       const plan = plans.find((p) => p.id === licenseInfo.planId);
-      setCurrentPlan(plan || null);
+      setCurrentPlan(plan || plans[0]);
       setSelectedPlan(licenseInfo.planId);
     } else {
-      // Default to basico if no plan
       setCurrentPlan(plans[0]);
       setSelectedPlan("basico");
     }
@@ -208,7 +164,6 @@ const [paymentSuccessData, setPaymentSuccessData] = useState<{
 
   const loadCompanyData = async () => {
     try {
-      console.log("Loading company data...");
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/company/info`,
         {
@@ -218,9 +173,7 @@ const [paymentSuccessData, setPaymentSuccessData] = useState<{
         }
       );
       const data = await response.json();
-      console.log("Company data response:", data);
       if (data.success) {
-        console.log("Company licenseExpiry:", data.company.licenseExpiry);
         setCompanyData(data.company);
       }
     } catch (error) {
@@ -229,30 +182,44 @@ const [paymentSuccessData, setPaymentSuccessData] = useState<{
   };
 
   const getDaysRemaining = () => {
-    if (!companyData?.licenseExpiry) return 0;
+    const expiryStr = companyData?.licenseExpiry || licenseInfo?.licenseExpiry;
+    if (!expiryStr) return 0;
     const now = new Date();
-    const expiry = new Date(companyData.licenseExpiry);
+    const expiry = new Date(expiryStr);
+    if (isNaN(expiry.getTime())) return 0;
     const diffTime = expiry.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return Math.max(0, diffDays);
   };
 
   const isInTrial = () => {
+    const trialEndsAt = companyData?.trialEndsAt || licenseInfo?.trialEndsAt;
+    if (trialEndsAt) {
+      return new Date() <= new Date(trialEndsAt);
+    }
     return licenseInfo?.inTrial === true;
   };
 
+  const isExpired = () => {
+    if (isInTrial()) return false;
+    const expiryStr = companyData?.licenseExpiry || licenseInfo?.licenseExpiry;
+    if (!expiryStr) return false;
+    const expiry = new Date(expiryStr);
+    if (isNaN(expiry.getTime())) return false;
+    return new Date() > expiry;
+  };
+
   const getRenewalDate = () => {
-    if (!companyData?.licenseExpiry) {
-      console.log("No licenseExpiry found in companyData:", companyData);
+    const expiryStr = companyData?.licenseExpiry || licenseInfo?.licenseExpiry;
+    if (!expiryStr) {
       return "No disponible";
     }
     try {
-      const date = new Date(companyData.licenseExpiry);
+      const date = new Date(expiryStr);
       if (isNaN(date.getTime())) {
-        console.error("Invalid date:", companyData.licenseExpiry);
         return "Fecha inválida";
       }
-      return date.toLocaleDateString("es-ES", {
+      return date.toLocaleDateString("es-CO", {
         year: "numeric",
         month: "long",
         day: "numeric",
@@ -266,7 +233,7 @@ const [paymentSuccessData, setPaymentSuccessData] = useState<{
   const handleValidatePlanChange = async (targetPlanId: string) => {
     const currentPlanId = currentPlan?.id || "basico";
 
-    if (targetPlanId === currentPlanId) {
+    if (targetPlanId === currentPlanId && !isExpired()) {
       toast.info("Ya tienes este plan activo");
       return;
     }
@@ -275,8 +242,6 @@ const [paymentSuccessData, setPaymentSuccessData] = useState<{
     setShowValidation(false);
 
     try {
-      console.log("Validating plan change to:", targetPlanId);
-
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/plans/validate-change`,
         {
@@ -290,16 +255,13 @@ const [paymentSuccessData, setPaymentSuccessData] = useState<{
       );
 
       const data = await response.json();
-      console.log("Validation result:", data);
 
       if (data.success) {
         setValidationResult(data);
         setShowValidation(true);
 
-        // If can change, proceed to payment
         if (data.canChange) {
           setSelectedPlan(targetPlanId);
-          // Continue to payment
           await handlePurchase(targetPlanId);
         } else {
           setLoading(false);
@@ -319,192 +281,87 @@ const [paymentSuccessData, setPaymentSuccessData] = useState<{
     }
   };
 
-const handlePurchase = async (planId?: string) => {
-  const targetPlanId = planId || selectedPlan
-  
-  if (!loading) {
-    setLoading(true)
-  }
+  const handlePurchase = async (planId?: string) => {
+    const targetPlanId = planId || selectedPlan;
 
-  try {
-    const plan = plans.find(p => p.id === targetPlanId)
-    if (!plan) {
-      toast.error('Plan no válido')
-      setLoading(false)
-      return
+    if (!loading) {
+      setLoading(true);
     }
 
-    const amount = selectedCountry === 'colombia' ? plan.priceCOP : plan.priceUSD
+    try {
+      const plan = plans.find((p) => p.id === targetPlanId);
+      if (!plan) {
+        toast.error("Plan no válido");
+        setLoading(false);
+        return;
+      }
 
-    // Create payment based on country
-    if (selectedCountry === 'colombia') {
-      // PSE Payment for Colombia usando Wompi
-      toast.loading('Preparando pago con PSE...', { id: 'payment-process' })
-      
+      const amount = plan.priceCOP;
+      toast.loading("Preparando pago seguro con Wompi (PSE / Tarjetas / Nequi)...", {
+        id: "payment-process",
+      });
+
+      const companyId = companyData?.id || userProfile?.companyId || 1;
+      const reference = `ORY-${companyId}-${Date.now()}`;
+
+      // 1. Guardar la referencia del pago en backend (no bloqueante)
       try {
-        // Crear referencia única para el pago
-        const reference = `ORY-${userProfile?.companyId || 'COMP'}-${Date.now()}`
-        
-        // Guardar la referencia del pago en Supabase para tracking
-        const saveResponse = await fetch(
+        await fetch(
           `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/license/payment/create`,
           {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
               reference: reference,
               planId: plan.id,
               amount: amount,
-              currency: 'COP',
-              paymentMethod: 'PSE',
-              status: 'pending',
-              companyId: companyData?.id || userProfile?.companyId
-            })
+              currency: "COP",
+              paymentMethod: "Wompi",
+              status: "pending",
+              companyId: companyId,
+              durationMonths: 1,
+              customerEmail: userProfile?.email || "",
+            }),
           }
-        )
-
-        const saveData = await saveResponse.json()
-        
-        if (saveData.success) {
-          // Crear link de pago de Wompi
-          const paymentLink = wompiService.createPaymentLink({
-            amount_in_cents: amount * 100, // Convertir a centavos
-            currency: 'COP',
-            reference: reference,
-            customer_email: userProfile?.email || '',
-            redirect_url: `${window.location.origin}/payment-callback?planId=${plan.id}&reference=${reference}&method=wompi`,
-            customer_data: {
-              full_name: userProfile?.fullName || userProfile?.companyName || '',
-              phone_number: userProfile?.phone || '',
-              legal_id: userProfile?.documentNumber || '',
-              legal_id_type: userProfile?.documentType || 'CC'
-            }
-          })
-
-          toast.dismiss('payment-process')
-          toast.success('Redirigiendo a Wompi para completar el pago...', {
-            description: 'Serás redirigido al checkout seguro'
-          })
-          
-          // Redirigir a Wompi después de un breve delay
-          setTimeout(() => {
-            window.location.href = paymentLink
-          }, 1500)
-        } else {
-          throw new Error('No se pudo guardar el registro del pago')
-        }
-        
-      } catch (error) {
-        console.error('Error al crear el pago PSE:', error)
-        toast.dismiss('payment-process')
-        toast.error('Error al procesar el pago', {
-          description: 'No se pudo crear el link de pago. Por favor intenta de nuevo.'
-        })
-        setLoading(false)
+        );
+      } catch (backendErr) {
+        console.warn("Backend payment tracking log skipped:", backendErr);
       }
-    } else {
-      // Paddle Payment for International
-      toast.loading('Preparando pago con Paddle...', { id: 'payment-process' })
-      
-      try {
-        const reference = `ORY-${userProfile?.companyId || 'COMP'}-${Date.now()}`
-        
-        // Guardar el pago en la BD
-        const saveResponse = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/license/payment/create`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              reference: reference,
-              planId: plan.id,
-              amount: amount,
-              currency: 'USD',
-              paymentMethod: 'Paddle',
-              status: 'pending'
-            })
-          }
-        )
 
-        const saveData = await saveResponse.json()
-        
-        if (saveData.success) {
-          // Iniciar checkout de Paddle
-          const paddleResponse = await fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/license/paddle/create`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                planId: plan.id,
-                amount: amount,
-                reference: reference,
-                customerEmail: userProfile?.email || ''
-              })
-            }
-          )
+      // 2. Abrir Checkout oficial de Wompi mediante Widget
+      const redirectUrl = `${window.location.origin}/payment-callback?planId=${plan.id}&reference=${reference}&method=wompi`;
 
-          const paddleData = await paddleResponse.json()
-          
-          if (paddleData.success && paddleData.checkoutUrl) {
-            toast.dismiss('payment-process')
-            toast.success('Redirigiendo a Paddle...', {
-              description: 'Serás redirigido al checkout seguro'
-            })
-            
-            // Redirigir a Paddle
-            setTimeout(() => {
-              window.location.href = paddleData.checkoutUrl
-            }, 1500)
-          } else {
-            throw new Error('No se pudo crear el checkout de Paddle')
-          }
-        } else {
-          throw new Error('No se pudo guardar el registro del pago')
-        }
-        
-      } catch (error) {
-        console.error('Error al crear el pago Paddle:', error)
-        toast.dismiss('payment-process')
-        toast.error('Error al procesar el pago', {
-          description: 'No se pudo crear el link de pago. Por favor intenta de nuevo.'
-        })
-        setLoading(false)
-      }
+      toast.dismiss("payment-process");
+
+      await wompiService.openCheckout({
+        amount_in_cents: amount * 100, // Convertir a centavos
+        currency: "COP",
+        reference: reference,
+        customer_email: userProfile?.email || "",
+        redirect_url: redirectUrl,
+        customer_data: {
+          full_name: userProfile?.name || userProfile?.companyName || "",
+          phone_number: userProfile?.phone || "",
+          legal_id: userProfile?.documentNumber || "",
+          legal_id_type: userProfile?.documentType || "CC",
+        },
+      });
+
+      setLoading(false);
+    } catch (error: any) {
+      console.error("Error al iniciar el pago con Wompi:", error);
+      toast.dismiss("payment-process");
+      toast.error("Error al procesar el pago", {
+        description: error.message || "Por favor intenta nuevamente.",
+      });
+      setLoading(false);
     }
-  } catch (err) {
-    console.error('Error processing plan upgrade:', err)
-    toast.error('Error al procesar la actualización')
-    setLoading(false)
-  }
-}
+  };
 
-  const selectedPlanData = plans.find((p) => p.id === selectedPlan);
-  const daysRemaining = getDaysRemaining();
-  const inTrial = isInTrial();
-
-  // Debug logging
-  useEffect(() => {
-    console.log("License Component State:", {
-      companyData,
-      currentPlan,
-      daysRemaining,
-      inTrial,
-      licenseExpiry: companyData?.licenseExpiry,
-      renewalDate: getRenewalDate(),
-    });
-  }, [companyData, currentPlan, daysRemaining, inTrial]);
-
-  // Si estamos mostrando el recibo, renderizarlo en su lugar
+  // Renderizar recibo si está activo
   if (showReceipt && receiptData) {
     return (
       <PaymentReceipt
@@ -514,205 +371,186 @@ const handlePurchase = async (planId?: string) => {
         onComplete={async () => {
           setShowReceipt(false);
           setReceiptData(null);
-
-          // Recargar datos de la empresa
           await loadCompanyData();
           onLicenseUpdated();
-
-          // Recargar la página para reflejar cambios
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
         }}
       />
     );
   }
 
+  // Renderizar pantalla de confirmación si viene de callback
+  if (showPaymentSuccess && paymentSuccessData) {
+    return (
+      <PaymentSuccess
+        transactionId={paymentSuccessData.transactionId}
+        accessToken={accessToken}
+        paymentMethod="wompi"
+        reference={paymentSuccessData.reference}
+        planId={paymentSuccessData.planId}
+        onComplete={async () => {
+          setShowPaymentSuccess(false);
+          setPaymentSuccessData(null);
+          await loadCompanyData();
+          onLicenseUpdated();
+        }}
+      />
+    );
+  }
+
+  const selectedPlanData = plans.find((p) => p.id === selectedPlan);
+  const daysRemaining = getDaysRemaining();
+  const inTrial = isInTrial();
+  const licenseExpired = isExpired();
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background p-4 sm:p-8">
+    <div className="min-h-screen bg-background p-4 sm:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl mb-3 text-gray-900 dark:text-gray-100">
-            Gestión de Licencia
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-3">
+            Licenciamiento y Suscripción Oryon
           </h1>
-          <p className="text-base text-gray-600 dark:text-gray-400">
-            Administra tu suscripción y actualiza tu plan según las necesidades
-            de tu negocio
+          <p className="text-base text-muted-foreground max-w-2xl mx-auto">
+            Elige el plan ideal según el número de sucursales de tu empresa. Pagos seguros en pesos colombianos (COP) mediante Wompi.
           </p>
-          {/* Debug button to reload company data */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadCompanyData}
-            className="mt-3"
-          >
-            <Loader2 size={14} className="mr-2" />
-            Recargar Datos de Licencia
-          </Button>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadCompanyData}
+              className="text-xs"
+            >
+              <Clock size={13} className="mr-1" />
+              Actualizar Estado de Licencia
+            </Button>
+          </div>
         </div>
 
-        {/* Current Plan Status with Expiry */}
+        {/* License Expired Alert if expired */}
+        {licenseExpired && (
+          <Alert className="mb-6 bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-400">
+            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+            <AlertDescription className="ml-2 font-medium">
+              ⚠️ <strong>Tu licencia ha expirado.</strong> Para continuar usando todas las funciones operativas de Oryon, por favor renueva tu suscripción o selecciona un plan a continuación.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Current Plan Status Card */}
         {currentPlan && (
-          <Card className="mb-8">
-            <CardHeader>
+          <Card className="mb-8 border-border">
+            <CardHeader className="pb-4">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
-                    <Package
-                      className="text-blue-600 dark:text-blue-400"
-                      size={24}
-                    />
+                  <div className="p-3 bg-primary/10 rounded-full text-primary">
+                    <Package size={24} />
                   </div>
                   <div>
-                    <CardTitle>Plan Actual</CardTitle>
+                    <CardTitle className="text-xl">Plan Activo</CardTitle>
                     <CardDescription>
-                      {userProfile?.companyName || "Tu empresa"}
+                      {companyData?.name || userProfile?.companyName || "Tu Empresa"}
                     </CardDescription>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Badge className="bg-blue-600 text-white px-4 py-2 text-base">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className="bg-primary text-primary-foreground px-3 py-1 text-sm font-semibold">
                     {currentPlan.name}
                   </Badge>
                   {inTrial && (
-                    <Badge
-                      variant="outline"
-                      className="border-orange-500 text-orange-600 px-4 py-2"
-                    >
-                      <Clock size={14} className="mr-1" />
-                      Período de Prueba
+                    <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400 px-3 py-1">
+                      <Clock size={13} className="mr-1" />
+                      Período de Prueba Activo
+                    </Badge>
+                  )}
+                  {licenseExpired && (
+                    <Badge variant="destructive" className="px-3 py-1">
+                      Licencia Vencida
                     </Badge>
                   )}
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* License Expiry Information */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                <div className="flex items-start gap-3">
-                  <Calendar
-                    className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-1"
-                    size={24}
-                  />
+              {/* Expiry Details Banner */}
+              <div className="bg-muted/50 rounded-xl p-4 sm:p-5 border border-border">
+                <div className="flex items-start gap-4">
+                  <Calendar className="text-primary flex-shrink-0 mt-1" size={24} />
                   <div className="flex-1">
-                    <p className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                      Fecha de Renovación
-                    </p>
-                    {companyData?.licenseExpiry ? (
-                      <>
-                        <p className="text-blue-800 dark:text-blue-200 text-lg">
-                          {getRenewalDate()}
-                        </p>
-                        <div className="mt-2 flex items-center gap-2">
-                          {daysRemaining > 7 ? (
-                            <>
-                              <CheckCircle2
-                                size={16}
-                                className="text-green-600"
-                              />
-                              <p className="text-sm text-blue-700 dark:text-blue-300">
-                                Quedan <strong>{daysRemaining} días</strong>{" "}
-                                hasta la renovación
-                              </p>
-                            </>
-                          ) : daysRemaining > 0 ? (
-                            <>
-                              <AlertCircle
-                                size={16}
-                                className="text-orange-500"
-                              />
-                              <p className="text-sm text-orange-700 dark:text-orange-300">
-                                ⚠️ Quedan solo{" "}
-                                <strong>{daysRemaining} días</strong> - Renueva
-                                pronto
-                              </p>
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle size={16} className="text-red-500" />
-                              <p className="text-sm text-red-700 dark:text-red-300">
-                                ⚠️ Tu licencia ha expirado - Renueva ahora
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-blue-800 dark:text-blue-200 text-lg">
-                          Cargando información...
-                        </p>
-                        <div className="mt-2 flex items-center gap-2">
-                          <Info size={16} className="text-blue-600" />
-                          <p className="text-sm text-blue-700 dark:text-blue-300">
-                            Haz clic en "Recargar Datos de Licencia" para
-                            inicializar tu licencia
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="text-sm font-semibold text-foreground">
+                        Fecha de Vencimiento:
+                      </p>
+                      <p className="text-base font-bold text-foreground">
+                        {getRenewalDate()}
+                      </p>
+                    </div>
+
+                    <div className="mt-2 flex items-center gap-2">
+                      {daysRemaining > 7 ? (
+                        <>
+                          <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" />
+                          <p className="text-sm text-muted-foreground">
+                            Te quedan <strong className="text-foreground">{daysRemaining} días</strong> de servicio activo.
                           </p>
-                        </div>
-                      </>
-                    )}
+                        </>
+                      ) : daysRemaining > 0 ? (
+                        <>
+                          <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
+                          <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                            ⚠️ Quedan solo <strong>{daysRemaining} días</strong> para el vencimiento. Renueva con anticipación.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
+                          <p className="text-sm text-red-600 dark:text-red-400 font-bold">
+                            ⚠️ Tu licencia se encuentra vencida. Realiza el pago para reactivar el servicio.
+                          </p>
+                        </>
+                      )}
+                    </div>
+
                     {inTrial && (
-                      <div className="mt-2 bg-orange-100 dark:bg-orange-950 border border-orange-300 dark:border-orange-800 rounded px-3 py-2">
-                        <p className="text-xs text-orange-800 dark:text-orange-200">
-                          <strong>Período de Prueba:</strong> Disfruta de todas
-                          las funcionalidades. Al finalizar, deberás renovar
-                          para continuar usando el sistema.
-                        </p>
-                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground bg-background/60 p-2 rounded border border-border">
+                        <strong>Período de prueba:</strong> Tienes acceso a las funcionalidades. Al vencer el período de prueba deberás realizar el pago para continuar utilizando el sistema.
+                      </p>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Plan Limits */}
+              {/* Resource Limits */}
               <div>
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Límites de tu Plan Actual
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                  Límites de tu plan actual
                 </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-                    <Building2 className="text-blue-600" size={24} />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
+                    <Building2 className="text-primary flex-shrink-0" size={20} />
                     <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Sucursales
-                      </p>
-                      <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                        {currentPlan.limits.branches}
-                      </p>
+                      <p className="text-xs text-muted-foreground">Sucursales</p>
+                      <p className="text-lg font-bold text-foreground">{currentPlan.limits.branches}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-                    <UserCog className="text-green-600" size={24} />
+                  <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
+                    <UserCog className="text-emerald-500 flex-shrink-0" size={20} />
                     <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Administradores
-                      </p>
-                      <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                        {currentPlan.limits.admins}
-                      </p>
+                      <p className="text-xs text-muted-foreground">Administradores</p>
+                      <p className="text-lg font-bold text-foreground">{currentPlan.limits.admins}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-                    <Users className="text-purple-600" size={24} />
+                  <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
+                    <Users className="text-indigo-500 flex-shrink-0" size={20} />
                     <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Asesores
-                      </p>
-                      <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                        {currentPlan.limits.advisors}
-                      </p>
+                      <p className="text-xs text-muted-foreground">Asesores</p>
+                      <p className="text-lg font-bold text-foreground">{currentPlan.limits.advisors}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-                    <Wrench className="text-orange-600" size={24} />
+                  <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
+                    <Wrench className="text-amber-500 flex-shrink-0" size={20} />
                     <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Técnicos
-                      </p>
-                      <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                        {currentPlan.limits.technicians}
-                      </p>
+                      <p className="text-xs text-muted-foreground">Técnicos</p>
+                      <p className="text-lg font-bold text-foreground">{currentPlan.limits.technicians}</p>
                     </div>
                   </div>
                 </div>
@@ -721,423 +559,212 @@ const handlePurchase = async (planId?: string) => {
           </Card>
         )}
 
-        {/* Payment Methods Info */}
-        <Card className="mb-8">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Shield className="text-green-600" size={24} />
-              <div>
-                <CardTitle>Métodos de Pago Disponibles</CardTitle>
-                <CardDescription>
-                  Procesamos pagos de forma segura según tu ubicación
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border dark:border-gray-700 rounded-lg p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded">
-                    <MapPin
-                      className="text-blue-600 dark:text-blue-400"
-                      size={20}
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-gray-100">
-                      PSE - Colombia
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Pagos Seguros en Línea
-                    </p>
-                  </div>
+        {/* Payment Gateway Badge */}
+        <Card className="mb-8 border-border bg-gradient-to-r from-muted/30 to-muted/10">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-500/10 rounded-lg text-emerald-600 dark:text-emerald-400">
+                  <Shield size={22} />
                 </div>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2
-                      size={16}
-                      className="text-green-600 flex-shrink-0 mt-0.5"
-                    />
-                    <span>Pago directo desde tu banco</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2
-                      size={16}
-                      className="text-green-600 flex-shrink-0 mt-0.5"
-                    />
-                    <span>Procesamiento inmediato</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2
-                      size={16}
-                      className="text-green-600 flex-shrink-0 mt-0.5"
-                    />
-                    <span>Precios en pesos colombianos (COP)</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="border dark:border-gray-700 rounded-lg p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded">
-                    <Globe
-                      className="text-green-600 dark:text-green-400"
-                      size={20}
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-gray-100">
-                      Paddle - Internacional
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Pagos Globales
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    Pasarela de Pago Segura: Wompi
+                    <Badge variant="outline" className="text-xs font-normal">
+                      PSE, Nequi, Bancolombia, Tarjetas
+                    </Badge>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Procesamiento instantáneo en pesos colombianos (COP). Tu suscripción se renueva al instante de confirmarse el pago.
+                  </p>
                 </div>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2
-                      size={16}
-                      className="text-green-600 flex-shrink-0 mt-0.5"
-                    />
-                    <span>Tarjetas de crédito/débito</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2
-                      size={16}
-                      className="text-green-600 flex-shrink-0 mt-0.5"
-                    />
-                    <span>PayPal y más métodos</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2
-                      size={16}
-                      className="text-green-600 flex-shrink-0 mt-0.5"
-                    />
-                    <span>Precios en dólares (USD)</span>
-                  </li>
-                </ul>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <MapPin size={14} className="text-primary" />
+                <span>Colombia (COP)</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Tabs for Plan Management and License Extension */}
+        {/* Tabs: Planes vs Extensión de Tiempo */}
         <Tabs defaultValue="plans" className="mb-8">
           <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="plans">Cambiar Plan</TabsTrigger>
-            <TabsTrigger value="extend">Extender Licencia</TabsTrigger>
+            <TabsTrigger value="plans">Planes por Sucursales</TabsTrigger>
+            <TabsTrigger value="extend">Extender Duración</TabsTrigger>
           </TabsList>
 
-          {/* Change Plan Tab */}
-          <TabsContent value="plans" className="space-y-8">
-            {/* Country Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe size={20} />
-                  Selecciona tu ubicación
-                </CardTitle>
-                <CardDescription>
-                  Esto determinará la moneda y método de pago
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <RadioGroup
-                  value={selectedCountry}
-                  onValueChange={(val: any) => setSelectedCountry(val as any)}
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div
-                      className={`flex items-center space-x-3 border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                        selectedCountry === "colombia"
-                          ? "border-blue-600 bg-blue-50 dark:bg-blue-950"
-                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                      }`}
-                      onClick={() => setSelectedCountry("colombia")}
-                    >
-                      <RadioGroupItem value="colombia" id="colombia" />
-                      <Label
-                        htmlFor="colombia"
-                        className="flex-1 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <MapPin
-                            size={20}
-                            className="text-blue-600 dark:text-blue-400"
-                          />
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-gray-100">
-                              Colombia (PSE)
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Precios en COP
-                            </p>
-                          </div>
-                        </div>
-                      </Label>
-                    </div>
+          {/* Planes Tab */}
+          <TabsContent value="plans" className="space-y-6">
+            {/* Validation Alert */}
+            {showValidation && validationResult && !validationResult.canChange && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <p className="font-semibold mb-2">
+                    No puedes cambiar a este plan porque excedes los límites actuales:
+                  </p>
+                  <ul className="list-disc ml-5 space-y-1 text-sm">
+                    {validationResult.violations?.map((v: any, idx: number) => (
+                      <li key={idx}>{v.message}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-xs">
+                    Ve a <strong>Configuración → Usuarios / Sucursales</strong> para ajustar los recursos antes de cambiar de plan.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
 
-                    <div
-                      className={`flex items-center space-x-3 border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                        selectedCountry === "international"
-                          ? "border-blue-600 bg-blue-50 dark:bg-blue-950"
-                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                      }`}
-                      onClick={() => setSelectedCountry("international")}
-                    >
-                      <RadioGroupItem
-                        value="international"
-                        id="international"
-                      />
-                      <Label
-                        htmlFor="international"
-                        className="flex-1 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Globe
-                            size={20}
-                            className="text-green-600 dark:text-green-400"
-                          />
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-gray-100">
-                              Internacional (Paddle)
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Precios en USD
-                            </p>
-                          </div>
-                        </div>
-                      </Label>
-                    </div>
-                  </div>
-                </RadioGroup>
-              </CardContent>
-            </Card>
+            {/* Plans Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              {plans.map((plan) => {
+                const isSelected = selectedPlan === plan.id;
+                const isCurrent = plan.id === currentPlan?.id;
 
-            {/* Plans */}
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard size={24} />
-                  Selecciona tu plan
-                </CardTitle>
-                <CardDescription>
-                  Elige el plan que mejor se adapte al tamaño de tu negocio
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {/* Validation Alert */}
-                {showValidation &&
-                  validationResult &&
-                  !validationResult.canChange && (
-                    <Alert variant="destructive" className="mb-6">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <p className="font-semibold mb-2">
-                          No puedes cambiar a este plan porque excedes los
-                          límites:
-                        </p>
-                        <ul className="list-disc ml-5 space-y-1">
-                          {validationResult.violations.map(
-                            (v: any, idx: number) => (
-                              <li key={idx}>{v.message}</li>
-                            )
-                          )}
-                        </ul>
-                        <p className="mt-3 text-sm">
-                          <strong>
-                            Ve a Configuración → Gestión de Usuarios y
-                            Sucursales
-                          </strong>{" "}
-                          para eliminar los recursos excedentes.
-                        </p>
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                return (
+                  <div
+                    key={plan.id}
+                    onClick={() => setSelectedPlan(plan.id)}
+                    className={`relative rounded-xl p-6 cursor-pointer transition-all border-2 flex flex-col justify-between ${
+                      isSelected
+                        ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
+                        : "border-border hover:border-border/80 bg-card hover:shadow-sm"
+                    }`}
+                  >
+                    {plan.badge && (
+                      <Badge className="absolute -top-3 right-4 bg-emerald-600 text-white font-semibold">
+                        {plan.badge}
+                      </Badge>
+                    )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                  {plans.map((plan) => (
-                    <div
-                      key={plan.id}
-                      className={`relative border-2 rounded-lg p-6 cursor-pointer transition-all ${
-                        selectedPlan === plan.id
-                          ? "border-blue-600 bg-blue-50 dark:bg-blue-950 shadow-lg scale-105"
-                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow"
-                      }`}
-                      onClick={() => setSelectedPlan(plan.id)}
-                    >
-                      {plan.badge && (
-                        <Badge className="absolute -top-2 -right-2 bg-green-600">
-                          {plan.badge}
-                        </Badge>
-                      )}
+                    {isCurrent && (
+                      <Badge className="absolute -top-3 left-4 bg-primary text-primary-foreground font-semibold">
+                        Plan Actual
+                      </Badge>
+                    )}
 
-                      {plan.id === currentPlan?.id && (
-                        <Badge className="absolute -top-2 -left-2 bg-blue-600">
-                          Plan Actual
-                        </Badge>
-                      )}
-
-                      <div className="text-center mb-4">
-                        <h3 className="font-semibold text-xl mb-3 text-gray-900 dark:text-gray-100">
+                    <div>
+                      <div className="text-center mb-5 pt-2">
+                        <h3 className="font-bold text-lg text-foreground mb-1">
                           {plan.name}
                         </h3>
-                        <div className="mb-4">
-                          {selectedCountry === "colombia" ? (
-                            <>
-                              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                                ${plan.priceCOP.toLocaleString()}
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                COP / mes
-                              </p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                                ${plan.priceUSD}
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                USD / mes
-                              </p>
-                            </>
-                          )}
+                        <div className="my-3">
+                          <p className="text-3xl font-extrabold text-foreground">
+                            ${plan.priceCOP.toLocaleString("es-CO")}
+                          </p>
+                          <p className="text-xs text-muted-foreground font-medium mt-1">
+                            COP / mes (Facturación 30 días)
+                          </p>
                         </div>
                       </div>
 
-                      {/* Limits */}
-                      <div className="space-y-2 mb-4 pb-4 border-b dark:border-gray-700">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                            <Building2 size={16} />
+                      {/* Limits list */}
+                      <div className="space-y-2 mb-4 pb-4 border-b border-border text-sm">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Building2 size={14} className="text-primary" />
                             Sucursales
                           </span>
-                          <span className="font-semibold text-gray-900 dark:text-gray-100">
-                            {plan.limits.branches}
-                          </span>
+                          <span className="font-semibold text-foreground">{plan.limits.branches}</span>
                         </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                            <UserCog size={16} />
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <UserCog size={14} className="text-emerald-500" />
                             Administradores
                           </span>
-                          <span className="font-semibold text-gray-900 dark:text-gray-100">
-                            {plan.limits.admins}
-                          </span>
+                          <span className="font-semibold text-foreground">{plan.limits.admins}</span>
                         </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                            <Users size={16} />
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Users size={14} className="text-indigo-500" />
                             Asesores
                           </span>
-                          <span className="font-semibold text-gray-900 dark:text-gray-100">
-                            {plan.limits.advisors}
-                          </span>
+                          <span className="font-semibold text-foreground">{plan.limits.advisors}</span>
                         </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                            <Wrench size={16} />
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Wrench size={14} className="text-amber-500" />
                             Técnicos
                           </span>
-                          <span className="font-semibold text-gray-900 dark:text-gray-100">
-                            {plan.limits.technicians}
-                          </span>
+                          <span className="font-semibold text-foreground">{plan.limits.technicians}</span>
                         </div>
                       </div>
 
                       {/* Features */}
-                      <ul className="space-y-2 text-sm">
+                      <ul className="space-y-2 text-xs mb-6">
                         {plan.features.map((feature, idx) => (
-                          <li key={idx} className="flex items-start gap-2">
-                            <CheckCircle2
-                              size={16}
-                              className="text-green-600 flex-shrink-0 mt-0.5"
-                            />
-                            <span className="text-gray-700 dark:text-gray-300">
-                              {feature}
-                            </span>
+                          <li key={idx} className="flex items-start gap-2 text-muted-foreground">
+                            <CheckCircle2 size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                            <span>{feature}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
-                  ))}
-                </div>
 
-                {/* Purchase Summary */}
-                <div className="bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-800 dark:to-blue-950 rounded-lg p-6 border dark:border-gray-700">
-                  <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-                    <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Plan seleccionado:
-                      </p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                        {selectedPlanData?.name}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Método:{" "}
-                        {selectedCountry === "colombia"
-                          ? "PSE (Colombia)"
-                          : "Paddle (Internacional)"}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-3xl font-bold flex items-center gap-1 text-gray-900 dark:text-gray-100">
-                        <DollarSign size={28} />
-                        {selectedCountry === "colombia"
-                          ? selectedPlanData?.priceCOP.toLocaleString()
-                          : selectedPlanData?.priceUSD}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {selectedCountry === "colombia" ? "COP" : "USD"} / mes
-                      </p>
-                    </div>
+                    <Button
+                      variant={isSelected ? "default" : "outline"}
+                      className="w-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleValidatePlanChange(plan.id);
+                      }}
+                      disabled={loading}
+                    >
+                      {isCurrent && !licenseExpired
+                        ? "Renovar Plan Actual"
+                        : `Seleccionar ${plan.name.split(" ")[1]}`}
+                    </Button>
                   </div>
+                );
+              })}
+            </div>
 
-                  <Button
-                    onClick={() => handleValidatePlanChange(selectedPlan)}
-                    disabled={loading || selectedPlan === currentPlan?.id}
-                    className="w-full h-12 text-lg"
-                    size="lg"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Procesando...
-                      </>
-                    ) : selectedPlan === currentPlan?.id ? (
-                      <>
-                        <CheckCircle2 className="mr-2" size={20} />
-                        Este es tu Plan Actual
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="mr-2" size={20} />
-                        {currentPlan &&
-                        plans.findIndex((p) => p.id === selectedPlan) >
-                          plans.findIndex((p) => p.id === currentPlan.id)
-                          ? "Mejorar Plan Ahora"
-                          : "Cambiar Plan Ahora"}
-                      </>
-                    )}
-                  </Button>
-
-                  {selectedPlan !== currentPlan?.id && (
-                    <div className="mt-3 bg-blue-100 dark:bg-blue-900 rounded-lg p-3">
-                      <p className="text-xs text-blue-900 dark:text-blue-100 flex items-start gap-2">
-                        <Info size={14} className="flex-shrink-0 mt-0.5" />
-                        <span>
-                          Al cambiar de plan, los nuevos límites se aplicarán
-                          inmediatamente y tu fecha de renovación se
-                          actualizará.
-                        </span>
-                      </p>
-                    </div>
-                  )}
+            {/* Purchase CTA Summary */}
+            <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase font-semibold">Plan seleccionado:</p>
+                  <p className="text-xl font-bold text-foreground">{selectedPlanData?.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Pasarela: Wompi Colombia (PSE / Bancolombia / Nequi / Tarjetas)
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="text-right">
+                  <p className="text-3xl font-extrabold text-foreground flex items-center gap-1">
+                    <DollarSign size={24} className="text-primary" />
+                    ${selectedPlanData?.priceCOP.toLocaleString("es-CO")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">COP por 30 días</p>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => handleValidatePlanChange(selectedPlan)}
+                disabled={loading}
+                className="w-full h-12 text-base font-semibold"
+                size="lg"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Procesando con Wompi...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="mr-2" size={18} />
+                    {selectedPlan === currentPlan?.id && !licenseExpired
+                      ? "Pagar Renovación con Wompi"
+                      : "Pagar y Activar Plan con Wompi"}
+                  </>
+                )}
+              </Button>
+
+              <p className="text-center text-xs text-muted-foreground mt-3 flex items-center justify-center gap-1">
+                <Shield size={13} className="text-emerald-500" />
+                Transacción segura cifrada y verificada por Wompi Colombia
+              </p>
+            </div>
           </TabsContent>
 
           {/* Extend License Tab */}
@@ -1157,20 +784,28 @@ const handlePurchase = async (planId?: string) => {
           </TabsContent>
         </Tabs>
 
-        {/* Help Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>¿Necesitas ayuda?</CardTitle>
+        {/* Support Card */}
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Info size={18} className="text-primary" />
+              ¿Preguntas sobre licenciamiento o facturación?
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Si tienes preguntas sobre los planes, necesitas un plan
-              personalizado para tu negocio, o tienes problemas con tu pago, no
-              dudes en contactarnos.
+            <p className="text-xs text-muted-foreground mb-4">
+              Si requieres soporte con tu pago de Wompi, asesoría sobre el plan para tus sucursales o planes personalizados a gran escala, nuestro equipo de soporte técnico está disponible para atenderte.
             </p>
-            <div className="flex gap-3">
-              <Button variant="outline">Contactar Soporte</Button>
-              <Button variant="outline">Ver Documentación</Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.open("https://wa.me/573004001077?text=Hola,%20requiero%20soporte%20con%20el%20pago%20de%20mi%20licencia%20Oryon", "_blank");
+                }}
+              >
+                Contactar Soporte vía WhatsApp
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -1178,3 +813,4 @@ const handlePurchase = async (planId?: string) => {
     </div>
   );
 }
+export default License;
