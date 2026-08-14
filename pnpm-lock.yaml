@@ -167,7 +167,7 @@ importers:
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.3
-        version: 4.3.3(vite@6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))
+        version: 4.3.3(vite@6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.43
@@ -179,16 +179,16 @@ importers:
         version: 19.2.4(@types/react@19.2.18)
       '@vitejs/plugin-react-swc':
         specifier: ^3.10.2
-        version: 3.11.0(vite@6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))
+        version: 3.11.0(vite@6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
       vite:
-        specifier: 6.3.5
-        version: 6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)
+        specifier: ^6.4.3
+        version: 6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)
       vite-plugin-pwa:
         specifier: ^1.1.0
-        version: 1.3.0(vite@6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))(workbox-build@7.4.1)(workbox-window@7.4.1)
+        version: 1.3.0(vite@6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))(workbox-build@7.4.1)(workbox-window@7.4.1)
 
 packages:
 
@@ -3417,8 +3417,8 @@ packages:
       '@vite-pwa/assets-generator':
         optional: true
 
-  vite@6.3.5:
-    resolution: {integrity: sha512-cZn6NDFE7wdTpINgs++ZJ4N49W2vRp8LCKrn3Ob1kYNtOo21vfDoaV5GzBfLU4MovSAB8uNRm4jgzVQZ+mBzPQ==}
+  vite@6.4.3:
+    resolution: {integrity: sha512-NTKlcQjlAK7MlQoyb6LgaqHc8sso/pVyUJYWMws3jg21uTJw/LddqIFPcPqP6PzpgbIcZyKI85sFE4HBrQDA8A==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
     hasBin: true
     peerDependencies:
@@ -5275,12 +5275,12 @@ snapshots:
       '@tailwindcss/oxide-win32-arm64-msvc': 4.3.3
       '@tailwindcss/oxide-win32-x64-msvc': 4.3.3
 
-  '@tailwindcss/vite@4.3.3(vite@6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))':
+  '@tailwindcss/vite@4.3.3(vite@6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))':
     dependencies:
       '@tailwindcss/node': 4.3.3
       '@tailwindcss/oxide': 4.3.3
       tailwindcss: 4.3.3
-      vite: 6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)
+      vite: 6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)
 
   '@trickfilm400/rollup-plugin-off-main-thread@3.0.0-pre1':
     dependencies:
@@ -5336,11 +5336,11 @@ snapshots:
 
   '@types/trusted-types@2.0.7': {}
 
-  '@vitejs/plugin-react-swc@3.11.0(vite@6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))':
+  '@vitejs/plugin-react-swc@3.11.0(vite@6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))':
     dependencies:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@swc/core': 1.15.47
-      vite: 6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)
+      vite: 6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)
     transitivePeerDependencies:
       - '@swc/helpers'
 
@@ -6893,18 +6893,18 @@ snapshots:
       d3-time: 3.1.0
       d3-timer: 3.0.1
 
-  vite-plugin-pwa@1.3.0(vite@6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))(workbox-build@7.4.1)(workbox-window@7.4.1):
+  vite-plugin-pwa@1.3.0(vite@6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0))(workbox-build@7.4.1)(workbox-window@7.4.1):
     dependencies:
       debug: 4.4.3
       pretty-bytes: 6.1.1
       tinyglobby: 0.2.17
-      vite: 6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)
+      vite: 6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)
       workbox-build: 7.4.1
       workbox-window: 7.4.1
     transitivePeerDependencies:
       - supports-color
 
-  vite@6.3.5(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0):
+  vite@6.4.3(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.5)
