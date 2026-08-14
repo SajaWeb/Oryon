@@ -1,0 +1,218 @@
+/* ORYON — sistema de diseño
+   Port de tokens/{colors,typography,spacing,shape}.css del design system de marca.
+
+   Dark-first: el tema base es oscuro (así se ve el producto en el taller y así se ve
+   el sitio). El modo claro es una variante, no al revés.
+
+   Los overrides del tema claro usan selector de ATRIBUTO sin prefijo :root, para que
+   cualquier subárbol pueda forzar un tema (la landing va siempre en grafito).
+
+   Neutros de aluminio: hue frío 195–205, croma bajísimo (2–6%). Metal, no carbón.
+   Un solo acento: cian señal. Sin gradientes en ningún nivel del sistema. */
+
+:root {
+  /* --- Aluminio / grafito --- */
+  --alu-000: #ffffff;
+  --alu-50:  #f1f4f5;
+  --alu-100: #dfe4e6;
+  --alu-200: #c2cacd;
+  --alu-300: #98a2a6;
+  --alu-400: #6e787c;
+  --alu-500: #4b5457;
+  --alu-600: #343a3d;
+  --alu-700: #262b2d;
+  --alu-800: #1b1f21;
+  --alu-900: #131617;
+  --alu-950: #0b0d0e;
+
+  /* --- Acento: cian señal --- */
+  --accent-50:  #e8fbff;
+  --accent-100: #c9f6ff;
+  --accent-300: #7cebff;
+  --accent-400: #35e0ff; /* acento principal sobre grafito */
+  --accent-500: #17bcdb;
+  --accent-600: #1195ae;
+  --accent-700: #0e6f82; /* relleno en modo claro (blanco encima da AA) */
+  --accent-800: #0a4a57;
+  --accent-950: #05252c;
+
+  /* --- Estados de OT (valores para grafito) ---
+     Siete, ordenados por el flujo real. El cian está reservado a la marca,
+     así que ningún estado lo usa. */
+  --state-queued:     #6e787c;  --state-queued-fg:     #98a2a6;
+  --state-diagnosis:  #6c7bff;  --state-diagnosis-fg:  #9aa4ff;
+  --state-repair:     #ffb020;  --state-repair-fg:     #ffc85e;
+  --state-waiting:    #ff6b3d;  --state-waiting-fg:    #ff9270;
+  --state-ready:      #3fd98a;  --state-ready-fg:      #79e8af;
+  --state-delivered:  #5c7f82;  --state-delivered-fg:  #8faaac;
+  --state-cancelled:  #ff4d42;  --state-cancelled-fg:  #ff8a82;
+
+  /* --- Feedback --- */
+  --success: #3fd98a; --success-subtle: #08301f;
+  --warning: #ffb020; --warning-subtle: #33240a;
+  --danger:  #ff4d42; --danger-hover: #ff8a82; --danger-subtle: #38120f;
+  --info:    #35e0ff; --info-subtle: #05252c;
+}
+
+/* --- Alias semánticos: OSCURO (tema base) ---
+   Se declaran también bajo [data-theme="dark"] y no solo en :root para que
+   cualquier subárbol pueda forzar grafito aunque el usuario tenga el tema claro
+   guardado. Es lo que usa la landing, que va siempre en oscuro. */
+:root,
+[data-theme="dark"] {
+  --bg-base:        var(--alu-950);
+  --bg-sunken:      #070909;
+  --surface-card:   var(--alu-900);
+  --surface-raised: var(--alu-800);
+  --surface-hover:  #1e2325;
+  --surface-active: #272d2f;
+  --surface-inverse: var(--alu-50);
+
+  --border-subtle:  #202527;
+  --border-default: #2c3335;
+  --border-strong:  #3e4649;
+  --border-focus:   var(--accent-400);
+
+  --text-primary:    #f2f5f6;
+  --text-secondary:  #98a2a6;
+  --text-tertiary:   #6e787c;
+  --text-disabled:   #4b5457;
+  --text-inverse:    #0b0d0e;
+  --text-accent:     var(--accent-400);
+  --text-on-accent:  #04181d;
+
+  --accent-fill:          var(--accent-400);
+  --accent-fill-hover:    var(--accent-300);
+  --accent-fill-active:   var(--accent-500);
+  --accent-subtle:        var(--accent-950);
+  --accent-subtle-border: #0d5566;
+  --focus-ring: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent-400);
+
+  color-scheme: dark;
+}
+
+:root {
+  /* --- Tipografía ---
+     Archivo en 800/900 con tracking negativo fuerte: titulares que ocupan el ancho
+     de la pantalla. IBM Plex Sans hace el trabajo silencioso del producto.
+     JetBrains Mono para todo dato tabular (0 rasgado, 1/l/I diferenciados: crítico
+     cuando alguien teclea un IMEI de 15 dígitos). Martian Mono, solo en mayúsculas
+     y tamaños pequeños, marca la voz de la marca. */
+  --font-display:    "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-sans:       "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono:       "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono-display: "Martian Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-black: 900;
+
+  /* escala — size / line-height / tracking */
+  --text-mega:    112px; --lh-mega:    96px; --tr-mega:    -0.045em; /* hero de marca */
+  --text-display:  64px; --lh-display: 60px; --tr-display: -0.038em;
+  --text-h1:       40px; --lh-h1:      42px; --tr-h1:      -0.030em;
+  --text-h2:       28px; --lh-h2:      32px; --tr-h2:      -0.022em;
+  --text-h3:       20px; --lh-h3:      26px; --tr-h3:      -0.016em;
+  --text-h4:       16px; --lh-h4:      22px; --tr-h4:      -0.011em;
+  --text-body-lg:  16px; --lh-body-lg: 25px; --tr-body-lg: 0;
+  --text-body:     14px; --lh-body:    21px; --tr-body:    0;
+  --text-small:    13px; --lh-small:   18px; --tr-small:   0;
+  --text-caption:  11px; --lh-caption: 14px; --tr-caption: 0.10em;
+  --text-mono-size: 13px; --lh-mono:   18px; --tr-mono:    0;
+  --text-mono-sm:  12px; --lh-mono-sm: 16px;
+
+  /* --- Espaciado: base 4px. La densidad del producto vive entre 8 y 16px. --- */
+  --space-0: 0;    --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+  --space-16: 64px; --space-20: 80px;
+
+  --row-height: 40px;             /* alto de fila de tabla */
+  --control-height-sm: 28px;
+  --control-height: 34px;         /* inputs, botones */
+  --control-height-lg: 40px;
+  --sidebar-width: 236px;
+  --sidebar-width-collapsed: 56px;
+  --topbar-height: 52px;
+  --content-max: 1440px;
+
+  /* --- Forma: esquinas casi rectas (herramienta de precisión, no app de consumo).
+     Nada supera 6px salvo el pill del punto de estado y del switch.
+     Bordes de 1px siempre visibles: sobre grafito son la estructura del sistema.
+     Sombras funcionales (elevar modal/dropdown), nunca decorativas. --- */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;   /* default: botones, inputs, cards */
+  --radius-lg: 6px;   /* modales, paneles grandes */
+  --radius-pill: 999px;
+  --radius: 4px;      /* alias que consume la capa shadcn */
+
+  --border-width: 1px;
+  --border-width-strong: 2px;
+
+  --shadow-none: none;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 4px 14px -2px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 20px 48px -14px rgba(0, 0, 0, 0.75), 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glow-accent: 0 0 0 1px var(--accent-800), 0 0 24px -6px rgba(53, 224, 255, 0.35);
+
+  --duration-fast: 120ms;
+  --duration: 180ms;
+  --duration-slow: 260ms;
+  --ease: cubic-bezier(0.2, 0.6, 0.3, 1);
+}
+
+/* --- MODO CLARO (variante para mostrador con luz de día) ---
+   Solo se reasignan los alias; las rampas base no cambian. */
+[data-theme="light"] {
+  --bg-base:        var(--alu-50);
+  --bg-sunken:      var(--alu-100);
+  --surface-card:   var(--alu-000);
+  --surface-raised: var(--alu-000);
+  --surface-hover:  var(--alu-100);
+  --surface-active: var(--alu-200);
+  --surface-inverse: var(--alu-900);
+
+  --border-subtle:  var(--alu-100);
+  --border-default: var(--alu-200);
+  --border-strong:  var(--alu-300);
+  --border-focus:   var(--accent-700);
+
+  --text-primary:   #121516;
+  --text-secondary: var(--alu-500);
+  --text-tertiary:  var(--alu-400);
+  --text-disabled:  var(--alu-300);
+  --text-inverse:   var(--alu-50);
+  --text-accent:    var(--accent-700);
+  --text-on-accent: #ffffff;
+
+  --accent-fill:          var(--accent-700);
+  --accent-fill-hover:    var(--accent-800);
+  --accent-fill-active:   var(--accent-800);
+  --accent-subtle:        var(--accent-50);
+  --accent-subtle-border: var(--accent-100);
+  --focus-ring: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent-700);
+
+  --state-queued:    #4b5457; --state-queued-fg:    #343a3d;
+  --state-diagnosis: #4453d6; --state-diagnosis-fg: #333fa8;
+  --state-repair:    #a66a00; --state-repair-fg:    #7f5100;
+  --state-waiting:   #d2401a; --state-waiting-fg:   #a32f12;
+  --state-ready:     #12864f; --state-ready-fg:     #0c6a3e;
+  --state-delivered: #3d6062; --state-delivered-fg: #2f4b4d;
+  --state-cancelled: #c7261c; --state-cancelled-fg: #9c1d15;
+
+  --success: #12864f; --success-subtle: #e7f7ef;
+  --warning: #a66a00; --warning-subtle: #fbf1df;
+  --danger:  #c7261c; --danger-hover: #9c1d15; --danger-subtle: #fbeae9;
+  --info:    #0e6f82; --info-subtle: #e8fbff;
+
+  --shadow-sm: 0 1px 2px rgba(11, 13, 14, 0.07);
+  --shadow-md: 0 4px 12px -2px rgba(11, 13, 14, 0.12), 0 1px 2px rgba(11, 13, 14, 0.06);
+  --shadow-lg: 0 16px 40px -12px rgba(11, 13, 14, 0.26), 0 2px 6px rgba(11, 13, 14, 0.08);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --glow-accent: none;
+
+  color-scheme: light;
+}

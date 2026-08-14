@@ -1,11 +1,15 @@
   import { VitePWA } from 'vite-plugin-pwa';
   import { defineConfig } from 'vite';
   import react from '@vitejs/plugin-react-swc';
+  import tailwindcss from '@tailwindcss/vite';
   import path from 'path';
 
   export default defineConfig({
     plugins: [react(),
-      VitePWA({ registerType: 'autoUpdate' })
+      tailwindcss(),
+      // manifest: false — el manifest se sirve a mano desde public/manifest.json,
+      // ya enlazado en index.html. Si no, el plugin inyecta un segundo manifest.
+      VitePWA({ registerType: 'autoUpdate', manifest: false })
     ],
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],

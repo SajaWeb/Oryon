@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { projectId } from '../../utils/supabase/info'
 import { Wrench, ShoppingCart, Clock, CheckCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { Badge } from '../ui/badge'
 import { ScrollArea } from '../ui/scroll-area'
+import { StatusBadge } from '../oryon'
 
 interface Activity {
   id: string
@@ -64,32 +64,21 @@ export function RecentActivity({ accessToken }: RecentActivityProps) {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'repair':
-        return <Wrench className="text-orange-600" size={18} />
+        return <Wrench className="text-[var(--state-repair)]" size={18} />
       case 'sale':
-        return <ShoppingCart className="text-green-600" size={18} />
+        return <ShoppingCart className="text-[var(--state-ready)]" size={18} />
       default:
-        return <Clock className="text-gray-600" size={18} />
+        return <Clock className="text-[var(--text-tertiary)]" size={18} />
     }
   }
 
+  /* El mapa anterior se indexaba por etiquetas en español ('Recibido'), pero el
+     backend manda claves en inglés ('received', 'waiting_parts'), así que nunca
+     acertaba y la insignia mostraba la clave cruda. StatusBadge normaliza ambas
+     formas contra los siete estados del sistema de diseño. */
   const getStatusBadge = (status?: string) => {
     if (!status) return null
-    
-    const statusConfig: Record<string, { label: string; color: string }> = {
-      'Recibido': { label: 'Recibido', color: 'bg-blue-500' },
-      'En diagnóstico': { label: 'En diagnóstico', color: 'bg-yellow-500' },
-      'En reparación': { label: 'En reparación', color: 'bg-orange-500' },
-      'Reparado': { label: 'Reparado', color: 'bg-green-500' },
-      'Entregado': { label: 'Entregado', color: 'bg-gray-500' },
-    }
-
-    const config = statusConfig[status] || { label: status, color: 'bg-gray-500' }
-    
-    return (
-      <Badge className={`${config.color} text-white text-xs`}>
-        {config.label}
-      </Badge>
-    )
+    return <StatusBadge status={status} size="sm" />
   }
 
   const formatTimestamp = (timestamp: string) => {
@@ -145,7 +134,7 @@ export function RecentActivity({ accessToken }: RecentActivityProps) {
               {activities.map((activity) => (
                 <div
                   key={activity.id}
-                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
                 >
                   <div className="mt-1">
                     {getActivityIcon(activity.type)}

@@ -1,15 +1,68 @@
+<!DOCTYPE html>
+<html lang="es" class="dark" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Oryon</title>
-    </head>
+    <title>Oryon — Software para talleres de reparación</title>
+    <meta
+      name="description"
+      content="Controla órdenes de trabajo, inventario y sucursales de tu taller técnico desde un solo lugar. Cero caos, cero reclamos, más ventas."
+    />
 
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-    </body>
-  </html>
-  
+    <!-- Grafito: el mismo color base del sistema de diseño, para que la barra del
+         navegador y el fondo de la app sean la misma superficie. -->
+    <meta name="theme-color" content="#0B0D0E" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Oryon" />
+    <meta property="og:locale" content="es_ES" />
+    <meta property="og:title" content="Oryon — Software para talleres de reparación" />
+    <meta
+      property="og:description"
+      content="Órdenes en segundos con foto y patrón, seguimiento por QR para el cliente, inventario y sucursales bajo control."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Archivo (display) · IBM Plex Sans (texto) · JetBrains Mono (datos) ·
+         Martian Mono (voz de marca: eyebrows y etiquetas). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&family=Martian+Mono:wght@400;500;700&display=swap"
+    />
+
+    <!-- Anti-FOUC: pinta el tema antes del primer frame. Debe quedar idéntico a
+         applyTheme() en src/utils/ThemeContext.tsx. Dark-first: sin nada guardado,
+         grafito. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('oryon-theme') || 'dark';
+          var effective =
+            stored === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : stored;
+          var root = document.documentElement;
+          root.classList.remove('light', 'dark');
+          root.classList.add(effective);
+          root.setAttribute('data-theme', effective);
+        } catch (e) {
+          /* localStorage bloqueado: se queda con el dark del atributo estático */
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

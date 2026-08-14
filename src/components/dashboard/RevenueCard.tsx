@@ -78,22 +78,22 @@ export function RevenueCard({ accessToken }: RevenueCardProps) {
     >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <DollarSign className="text-green-600" size={20} />
+          <DollarSign className="text-[var(--state-ready)]" size={20} />
           Ingresos Totales
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {/* Period selector buttons */}
-          <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+          <div className="flex gap-2 p-1 bg-[var(--bg-sunken)] rounded-[var(--radius-md)] border border-[var(--border-subtle)]">
             {(['day', 'week', 'month'] as Period[]).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
                 className={`flex-1 px-3 py-2 rounded-md text-sm transition-all ${
                   period === p
-                    ? 'bg-green-500/20 text-green-700 shadow-sm'
-                    : 'text-gray-600 hover:bg-white/50'
+                    ? 'bg-[var(--accent-subtle)] text-[var(--text-accent)] border border-[var(--accent-subtle-border)]'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'
                 }`}
               >
                 {p === 'day' ? 'Día' : p === 'week' ? 'Semana' : 'Mes'}
@@ -116,11 +116,11 @@ export function RevenueCard({ accessToken }: RevenueCardProps) {
                 transition={{ duration: 0.3 }}
               >
                 {loading ? (
-                  <div className="text-4xl text-green-600 animate-pulse">
+                  <div className="text-4xl text-[var(--state-ready)] animate-pulse">
                     Cargando...
                   </div>
                 ) : (
-                  <div className="text-4xl text-green-600">
+                  <div className="text-4xl text-[var(--state-ready)]">
                     ${revenueData.totalRevenue.toLocaleString()}
                   </div>
                 )}
@@ -149,7 +149,7 @@ export function RevenueCard({ accessToken }: RevenueCardProps) {
                 >
                   <span className="text-gray-600">Ticket promedio</span>
                   <span className="font-medium flex items-center gap-1">
-                    <TrendingUp size={14} className="text-green-600" />
+                    <TrendingUp size={14} className="text-[var(--state-ready)]" />
                     ${revenueData.averageTicket.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
                 </motion.div>

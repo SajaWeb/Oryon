@@ -8,6 +8,10 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 
+/**
+ * Alternador de tema. Vive en la topbar, no como pastilla flotante: el sistema
+ * de diseño no admite elementos decorativos suspendidos sobre el contenido.
+ */
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
 
@@ -15,13 +19,14 @@ export function ThemeToggle() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
-          className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-lg bg-background border-2 border-border hover:bg-accent transition-all duration-200 hover:scale-110"
+          aria-label="Cambiar tema"
+          className="oryon-nav-item h-8 w-8 rounded-[var(--radius-sm)] text-[var(--text-secondary)]"
         >
-          {theme === 'light' && <Sun className="h-5 w-5" />}
-          {theme === 'dark' && <Moon className="h-5 w-5" />}
-          {theme === 'system' && <Monitor className="h-5 w-5" />}
+          {theme === 'light' && <Sun className="h-4 w-4" />}
+          {theme === 'dark' && <Moon className="h-4 w-4" />}
+          {theme === 'system' && <Monitor className="h-4 w-4" />}
           <span className="sr-only">Cambiar tema</span>
         </Button>
       </DropdownMenuTrigger>

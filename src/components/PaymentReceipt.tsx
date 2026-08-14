@@ -299,18 +299,18 @@ export function PaymentReceipt({
                 margin: 40px 0 20px 0;
                 padding: 30px;
                 background: #eff6ff;
-                border: 2px solid #3b82f6;
+                border: 2px solid #0E6F82;
               }
               
               .thank-you h2 {
                 font-size: 24px;
-                color: #1e40af;
+                color: #0E6F82;
                 margin-bottom: 10px;
               }
               
               .thank-you p {
                 font-size: 14px;
-                color: #1e40af;
+                color: #0E6F82;
                 line-height: 1.6;
               }
               

@@ -82,11 +82,11 @@ export function RepairsProgress({ accessToken }: RepairsProgressProps) {
   }
 
   const statusData = [
-    { label: statusLabels.received, count: stats.received, color: 'bg-blue-500' },
-    { label: statusLabels.diagnosing, count: stats.diagnosing, color: 'bg-yellow-500' },
-    { label: statusLabels.waiting_parts, count: stats.waiting_parts, color: 'bg-orange-500' },
-    { label: statusLabels.repairing, count: stats.repairing, color: 'bg-purple-500' },
-    { label: statusLabels.completed, count: stats.completed, color: 'bg-green-500' }
+    { label: statusLabels.received, count: stats.received, color: 'bg-[var(--state-queued)]' },
+    { label: statusLabels.diagnosing, count: stats.diagnosing, color: 'bg-[var(--state-diagnosis)]' },
+    { label: statusLabels.waiting_parts, count: stats.waiting_parts, color: 'bg-[var(--state-waiting)]' },
+    { label: statusLabels.repairing, count: stats.repairing, color: 'bg-[var(--state-repair)]' },
+    { label: statusLabels.completed, count: stats.completed, color: 'bg-[var(--state-ready)]' }
   ]
 
   if (loading) {

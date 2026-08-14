@@ -283,7 +283,7 @@ function generateInvoiceHTML(data: InvoiceData, config: PrintConfig): string {
         }
         
         .service-badge {
-          background: #1e40af;
+          background: #0E6F82;
           color: white;
           padding: 5px 10px;
           border-radius: 3px;
@@ -295,7 +295,7 @@ function generateInvoiceHTML(data: InvoiceData, config: PrintConfig): string {
         
         .repair-info {
           background: #f0f9ff;
-          border: 1px solid #3b82f6;
+          border: 1px solid #0E6F82;
           padding: 8px;
           margin-bottom: 10px;
           border-radius: 3px;
@@ -734,25 +734,25 @@ function generateServiceOrderHTML(data: ServiceOrderData, config: PrintConfig, q
       </div>
       
       <div class="tracking-section" style="text-align: center; margin-top: 15px; padding: 15px; border: 2px solid #000; background: #f0f9ff;">
-        <div style="font-weight: bold; margin-bottom: 10px; font-size: ${is80mm ? '12px' : '14px'}; color: #1e40af;">
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: ${is80mm ? '12px' : '14px'}; color: #0E6F82;">
           🔍 SEGUIMIENTO DE REPARACIÓN
         </div>
-        <div style="background: white; padding: 10px; border: 2px dashed #3b82f6; border-radius: 8px; margin-bottom: 10px;">
+        <div style="background: white; padding: 10px; border: 2px dashed #0E6F82; border-radius: 8px; margin-bottom: 10px;">
           <div style="font-size: ${is80mm ? '9px' : '11px'}; color: #64748b; margin-bottom: 5px;">
             CÓDIGO DE SEGUIMIENTO
           </div>
-          <div style="font-size: ${is80mm ? '24px' : '32px'}; font-weight: bold; color: #1e40af; letter-spacing: 2px; font-family: monospace;">
+          <div style="font-size: ${is80mm ? '24px' : '32px'}; font-weight: bold; color: #0E6F82; letter-spacing: 2px; font-family: monospace;">
             ${data.orderNumber.replace('#', '')}
           </div>
         </div>
         ${qrCodeDataUrl ? `
         <div style="margin-bottom: 10px;">
-          <img src="${qrCodeDataUrl}" alt="QR Code" style="width: ${is80mm ? '100px' : '120px'}; height: ${is80mm ? '100px' : '120px'}; margin: 0 auto; display: block; border: 2px solid #3b82f6; background: white; padding: 5px; border-radius: 8px;">
+          <img src="${qrCodeDataUrl}" alt="QR Code" style="width: ${is80mm ? '100px' : '120px'}; height: ${is80mm ? '100px' : '120px'}; margin: 0 auto; display: block; border: 2px solid #0E6F82; background: white; padding: 5px; border-radius: 8px;">
         </div>
         ` : ''}
         <div style="font-size: ${is80mm ? '8px' : '10px'}; color: #64748b; line-height: 1.4;">
           ${qrCodeDataUrl ? 'Escanea el QR o ' : ''}Ingresa el código en:<br>
-          <strong style="color: #1e40af;">${window.location.origin}/tracking</strong>
+          <strong style="color: #0E6F82;">${window.location.origin}/tracking</strong>
         </div>
       </div>
       

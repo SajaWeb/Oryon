@@ -112,8 +112,8 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
 
   if (loading) {
     return (
-      <div className="p-4 md:p-8">
-        <div className="mb-8">
+      <div className="p-4 md:p-5">
+        <div className="mb-6">
           <h2 className="text-2xl md:text-3xl mb-2">
             {userProfile?.name ? (
               <>
@@ -123,10 +123,10 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
               'Dashboard'
             )}
           </h2>
-          <p className="text-gray-600">Vista general de tu negocio</p>
+          <p style={{ fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}>Vista general de tu negocio</p>
         </div>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-10 w-10" style={{ borderBottom: '2px solid var(--accent-400)' }}></div>
         </div>
       </div>
     )
@@ -134,7 +134,7 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
 
   if (error) {
     return (
-      <div className="p-4 md:p-8 space-y-4">
+      <div className="p-4 md:p-5 space-y-4">
         <div className="mb-8">
           <h2 className="text-2xl md:text-3xl mb-2">
             {userProfile?.name ? (
@@ -145,7 +145,7 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
               'Dashboard'
             )}
           </h2>
-          <p className="text-gray-600">Vista general de tu negocio</p>
+          <p style={{ fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}>Vista general de tu negocio</p>
         </div>
         
         <ServerStatus accessToken={accessToken} />
@@ -160,31 +160,29 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
     )
   }
 
+  // Un tono por KPI, tomado de los estados de OT — no colores sueltos.
   const cards = [
     {
       title: 'Productos',
       value: stats?.totalProducts || 0,
       icon: Package,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
+      tone: 'accent' as const,
       subtitle: 'En inventario',
       onClick: () => onNavigate?.('products')
     },
     {
-      title: 'Reparaciones Activas',
+      title: 'Reparaciones activas',
       value: stats?.activeRepairs || 0,
       icon: Wrench,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
+      tone: 'repair' as const,
       subtitle: `${stats?.totalRepairs || 0} en total`,
       onClick: () => onNavigate?.('repairs')
     },
     {
-      title: 'Ventas Totales',
+      title: 'Ventas totales',
       value: stats?.totalSales || 0,
       icon: DollarSign,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      tone: 'ready' as const,
       subtitle: 'Transacciones realizadas',
       onClick: () => onNavigate?.('sales')
     },
@@ -192,19 +190,27 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
       title: 'Clientes',
       value: stats?.totalCustomers || 0,
       icon: Users,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
+      tone: 'diagnosis' as const,
       subtitle: 'Registrados',
       onClick: () => onNavigate?.('customers')
     }
   ]
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="mb-8">
-        <div className="flex justify-between items-start">
+    <div className="p-4 md:p-5">
+      <div className="mb-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-2xl md:text-3xl mb-2">
+            <h2
+              className="mb-1.5"
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 'var(--text-h2)',
+                lineHeight: 'var(--lh-h2)',
+                letterSpacing: 'var(--tr-h2)',
+                fontWeight: 'var(--fw-bold)',
+              }}
+            >
               {userProfile?.name ? (
                 <>
                   {getGreeting()}, {getFirstName(userProfile.name)}! 👋
@@ -213,10 +219,15 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
             'Dashboard'
           )}
             </h2>
-            <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
-              <p>Aquí tienes un resumen de tu negocio</p>
+            <div
+              className="flex flex-wrap items-center gap-3"
+              style={{ fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}
+            >
+              <p style={{ margin: 0, fontSize: 'inherit' }}>Aquí tienes un resumen de tu negocio</p>
               {lastUpdated && (
-                <span>• Actualizado: {lastUpdated.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="oryon-tabular" style={{ fontSize: 'var(--text-mono-sm)' }}>
+                  · Actualizado {lastUpdated.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                </span>
               )}
             </div>
           </div>
@@ -233,48 +244,45 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {cards.map((card) => (
           <StatCard
             key={card.title}
             title={card.title}
             value={card.value}
             icon={card.icon}
-            color={card.color}
-            bgColor={card.bgColor}
+            tone={card.tone}
             subtitle={card.subtitle}
             onClick={card.onClick}
           />
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
         <RevenueCard accessToken={accessToken} />
 
         {(stats?.lowStock || 0) > 0 ? (
           <StatCard
-            title="Alertas de Stock"
+            title="Alertas de stock"
             value={stats?.lowStock || 0}
             icon={AlertCircle}
-            color="text-red-600"
-            bgColor="bg-red-50"
+            tone="danger"
             subtitle="Productos requieren atención"
             onClick={() => setLowStockDialogOpen(true)}
-            className="border-red-200"
           />
         ) : (
           <RepairsProgress accessToken={accessToken} />
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
         <RecentActivity accessToken={accessToken} />
         {(stats?.lowStock || 0) > 0 && (
           <RepairsProgress accessToken={accessToken} />
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 gap-3">
         <SalesChart accessToken={accessToken} />
       </div>
 

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import "./styles/globals.css";
 import { getSupabaseClient } from "./utils/supabase/client";
 import { projectId } from "./utils/supabase/info";
 import { registerServiceWorker } from "./utils/registerServiceWorker";
@@ -23,7 +22,7 @@ import { HomePage } from "./components/HomePage";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 import { OfflineIndicator } from "./components/OfflineIndicator";
-import { ThemeToggle } from "./components/ThemeToggle";
+import { AppTopbar } from "./components/AppTopbar";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
@@ -625,10 +624,10 @@ export default function App() {
           userProfile={userProfile}
           licenseInfo={licenseInfo}
         />
-        <main className="flex-1 overflow-auto pt-16 lg:pt-0">
-          {renderView()}
-        </main>
-        <ThemeToggle />
+        <div className="flex min-w-0 flex-1 flex-col pt-[var(--topbar-height)] lg:pt-0">
+          <AppTopbar currentView={currentView} userProfile={userProfile} />
+          <main className="min-h-0 flex-1 overflow-auto">{renderView()}</main>
+        </div>
       </div>
       <PWAInstallPrompt />
       <PWAUpdatePrompt />

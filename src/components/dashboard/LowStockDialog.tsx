@@ -284,11 +284,11 @@ export function LowStockDialog({
           .header {
             margin-bottom: 30px;
             padding-bottom: 20px;
-            border-bottom: 3px solid #2563eb;
+            border-bottom: 3px solid #0E6F82;
           }
           .header h1 {
             margin: 0 0 8px 0;
-            color: #1e40af;
+            color: #0E6F82;
             font-size: 28px;
           }
           .header .date {
@@ -315,7 +315,7 @@ export function LowStockDialog({
             overflow: hidden;
           }
           thead {
-            background-color: #1e40af;
+            background-color: #0E6F82;
             color: white;
           }
           thead th {

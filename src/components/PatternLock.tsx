@@ -65,7 +65,7 @@ export function PatternLock({ onPatternComplete, value = [], gridSize = 3, readO
 
     // Dibujar líneas del patrón
     if (pattern.length > 0) {
-      ctx.strokeStyle = '#3b82f6'
+      ctx.strokeStyle = '#17BCDB'
       ctx.lineWidth = LINE_WIDTH
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
@@ -94,9 +94,9 @@ export function PatternLock({ onPatternComplete, value = [], gridSize = 3, readO
       // Círculo exterior
       ctx.beginPath()
       ctx.arc(point.x, point.y, isSelected ? SELECTED_RADIUS : POINT_RADIUS, 0, 2 * Math.PI)
-      ctx.fillStyle = isSelected ? '#3b82f6' : '#e5e7eb'
+      ctx.fillStyle = isSelected ? '#17BCDB' : '#C2CACD'
       ctx.fill()
-      ctx.strokeStyle = isSelected ? '#2563eb' : '#d1d5db'
+      ctx.strokeStyle = isSelected ? '#0E6F82' : '#98A2A6'
       ctx.lineWidth = 2
       ctx.stroke()
 

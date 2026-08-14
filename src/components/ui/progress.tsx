@@ -19,7 +19,9 @@ function Progress({
     <ProgressPrimitive.Root
       data-slot="progress"
       className={cn(
-        "bg-primary/20 relative h-2 w-full overflow-hidden rounded-full",
+        // Pista neutra: teñirla con el acento (bg-primary/20) la volvía un tinte
+        // cian que competía con el color del propio indicador de estado.
+        "relative h-1.5 w-full overflow-hidden rounded-[var(--radius-xs)] border border-[var(--border-subtle)] bg-[var(--bg-sunken)]",
         className,
       )}
       {...props}

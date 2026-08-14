@@ -34,7 +34,7 @@ interface ReportsProps {
   accessToken: string
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
+const COLORS = ['var(--chart-1)', 'var(--chart-2)', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
 
 const statusLabels: Record<string, string> = {
   received: 'Recibido',
@@ -318,8 +318,8 @@ export function Reports({ accessToken }: ReportsProps) {
                         <YAxis tick={{ fontSize: 12 }} />
                         <Tooltip />
                         <Legend wrapperStyle={{ fontSize: '12px' }} />
-                        <Bar dataKey="ingresos" fill="#10b981" name="Ingresos ($)" />
-                        <Bar dataKey="ganancia" fill="#3b82f6" name="Ganancia ($)" />
+                        <Bar dataKey="ingresos" fill="var(--chart-2)" name="Ingresos ($)" />
+                        <Bar dataKey="ganancia" fill="var(--chart-1)" name="Ganancia ($)" />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -508,14 +508,14 @@ export function Reports({ accessToken }: ReportsProps) {
                     <Line 
                       type="monotone" 
                       dataKey="ingresos" 
-                      stroke="#3b82f6" 
+                      stroke="var(--chart-1)" 
                       strokeWidth={2}
                       name="Ingresos ($)"
                     />
                     <Line 
                       type="monotone" 
                       dataKey="ganancia" 
-                      stroke="#10b981" 
+                      stroke="var(--chart-2)" 
                       strokeWidth={2}
                       name="Ganancia ($)"
                     />
@@ -578,7 +578,7 @@ export function Reports({ accessToken }: ReportsProps) {
                         labelLine={false}
                         label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                         outerRadius={70}
-                        fill="#8884d8"
+                        fill="var(--chart-4)"
                         dataKey="value"
                       >
                         {paymentMethods.map((entry, index) => (
@@ -717,7 +717,7 @@ export function Reports({ accessToken }: ReportsProps) {
                         labelLine={false}
                         label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                         outerRadius={70}
-                        fill="#8884d8"
+                        fill="var(--chart-4)"
                         dataKey="value"
                       >
                         {repairsByStatus.map((entry, index) => (
