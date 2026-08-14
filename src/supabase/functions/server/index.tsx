@@ -120,6 +120,35 @@ async function checkLicense(companyId: number) {
   }
 }
 
+// Función universal para calcular la extensión acumulativa de licencia
+export function calculateExtendedExpiryDate(company: any, monthsToAdd: number = 0, daysToAdd: number = 0): string {
+  const now = new Date()
+  const nowTime = now.getTime()
+  
+  // 1. Obtener todas las posibles fechas de vigencia futuras (prueba gratuita o licencia activa)
+  const expiryTime = company?.licenseExpiry ? new Date(company.licenseExpiry).getTime() : 0
+  const trialTime = company?.trialEndsAt ? new Date(company.trialEndsAt).getTime() : 0
+  
+  // 2. La fecha base es SIEMPRE la fecha más lejana en el futuro (si aún tiene días restantes de prueba o suscripción, se preservan y se suman)
+  const maxFutureTime = Math.max(
+    nowTime,
+    isNaN(expiryTime) ? 0 : expiryTime,
+    isNaN(trialTime) ? 0 : trialTime
+  )
+  const baseDate = new Date(maxFutureTime)
+  
+  // 3. Sumar los meses y días adquiridos
+  const newExpiry = new Date(baseDate)
+  if (monthsToAdd > 0) {
+    newExpiry.setMonth(newExpiry.getMonth() + monthsToAdd)
+  }
+  if (daysToAdd > 0) {
+    newExpiry.setDate(newExpiry.getDate() + daysToAdd)
+  }
+  
+  return newExpiry.toISOString()
+}
+
 // Helper to filter only actual products (exclude transactions, units, variants)
 function filterOnlyProducts(items: string[]): any[] {
   return items
@@ -416,20 +445,11 @@ const handlePaymentUpdate = async (c: any) => {
       const company = await getCompany(supabase, payment.companyId)
       if (company) {
         const now = new Date()
-        let baseDate = now
-        if (company.licenseExpiry) {
-          const currentExpiry = new Date(company.licenseExpiry)
-          if (currentExpiry > now) {
-            baseDate = currentExpiry
-          }
-        }
-
-        const monthsToAdd = payment.durationMonths || 1
-        const newExpiry = new Date(baseDate)
-        newExpiry.setMonth(newExpiry.getMonth() + monthsToAdd)
+        const monthsToAdd = Math.max(1, Number(payment.durationMonths || 1))
+        const newExpiry = calculateExtendedExpiryDate(company, monthsToAdd, 0)
 
         company.planId = planId || payment.planId || company.planId || 'basico'
-        company.licenseExpiry = newExpiry.toISOString()
+        company.licenseExpiry = newExpiry
         company.lastUpgrade = now.toISOString()
         company.updatedAt = now.toISOString()
         if (company.trialEndsAt) {
@@ -437,7 +457,7 @@ const handlePaymentUpdate = async (c: any) => {
         }
 
         await saveCompany(supabase, company)
-        console.log(`✅ Company ${company.id} license updated to plan ${company.planId} until ${newExpiry.toISOString()}`)
+        console.log(`✅ Company ${company.id} license updated to plan ${company.planId} until ${newExpiry}`)
       }
     }
 
@@ -473,20 +493,11 @@ const handleWompiWebhook = async (c: any) => {
           const company = await getCompany(supabase, payment.companyId)
           if (company) {
             const now = new Date()
-            let baseDate = now
-            if (company.licenseExpiry) {
-              const currentExpiry = new Date(company.licenseExpiry)
-              if (currentExpiry > now) {
-                baseDate = currentExpiry
-              }
-            }
-
-            const monthsToAdd = payment.durationMonths || 1
-            const newExpiry = new Date(baseDate)
-            newExpiry.setMonth(newExpiry.getMonth() + monthsToAdd)
+            const monthsToAdd = Math.max(1, Number(payment.durationMonths || 1))
+            const newExpiry = calculateExtendedExpiryDate(company, monthsToAdd, 0)
 
             company.planId = payment.planId || company.planId || 'basico'
-            company.licenseExpiry = newExpiry.toISOString()
+            company.licenseExpiry = newExpiry
             company.lastUpgrade = now.toISOString()
             company.updatedAt = now.toISOString()
             if (company.trialEndsAt) {
@@ -494,7 +505,7 @@ const handleWompiWebhook = async (c: any) => {
             }
 
             await saveCompany(supabase, company)
-            console.log(`✅ Company ${company.id} license upgraded via Wompi Webhook until ${newExpiry.toISOString()}`)
+            console.log(`✅ Company ${company.id} license upgraded via Wompi Webhook until ${newExpiry}`)
           }
         }
       }
@@ -569,17 +580,19 @@ app.post('/make-server-4d437e50/license/upgrade-plan', handleUpgradePlan)
 
 // ==================== SUPER ADMIN ENDPOINTS ====================
 
-// Helper para verificar rol de super admin o admin
+// Helper para verificar rol estricto de super admin
 async function verifySuperAdmin(authHeader: string | null) {
   const { error, user } = await verifyAuth(authHeader)
   if (error || !user) {
     return { error: 'Unauthorized', user: null, userProfile: null }
   }
   const userProfile = await getUserProfile(user.id)
-  if (!userProfile || (userProfile.role !== 'superadmin' && userProfile.role !== 'admin' && userProfile.role !== 'administrador')) {
-    return { error: 'Super Admin access required', user, userProfile: null }
+  const isSuper = (userProfile && (userProfile.role === 'superadmin' || userProfile.isSuperAdmin === true)) ||
+                  (user.user_metadata?.role === 'superadmin' || user.user_metadata?.isSuperAdmin === true)
+  if (!isSuper) {
+    return { error: 'Super Admin access required. Workshop users cannot access this endpoint.', user, userProfile: null }
   }
-  return { error: null, user, userProfile }
+  return { error: null, user, userProfile: userProfile || { userId: user.id, email: user.email, name: user.user_metadata?.name || 'Super Admin', role: 'superadmin', isSuperAdmin: true } }
 }
 
 // 1. Estadísticas globales para Super Admin
@@ -771,20 +784,11 @@ const handleSuperAdminManualApprove = async (c: any) => {
     const company = await getCompany(supabase, payment.companyId)
     if (company) {
       const now = new Date()
-      let baseDate = now
-      if (company.licenseExpiry) {
-        const currentExpiry = new Date(company.licenseExpiry)
-        if (currentExpiry > now) {
-          baseDate = currentExpiry
-        }
-      }
-
-      const monthsToAdd = months || payment.durationMonths || 1
-      const newExpiry = new Date(baseDate)
-      newExpiry.setMonth(newExpiry.getMonth() + monthsToAdd)
+      const monthsToAdd = Math.max(1, Number(months || payment.durationMonths || 1))
+      const newExpiry = calculateExtendedExpiryDate(company, monthsToAdd, 0)
 
       company.planId = payment.planId || company.planId || 'basico'
-      company.licenseExpiry = newExpiry.toISOString()
+      company.licenseExpiry = newExpiry
       company.lastUpgrade = now.toISOString()
       company.updatedAt = now.toISOString()
       if (company.trialEndsAt) {
@@ -825,27 +829,13 @@ const handleSuperAdminExtendLicense = async (c: any) => {
     }
 
     const now = new Date()
-    let baseDate = now
-    if (company.licenseExpiry) {
-      const currentExpiry = new Date(company.licenseExpiry)
-      if (currentExpiry > now) {
-        baseDate = currentExpiry
-      }
-    }
-
-    const newExpiry = new Date(baseDate)
-    if (months > 0) {
-      newExpiry.setMonth(newExpiry.getMonth() + months)
-    }
-    if (days > 0) {
-      newExpiry.setDate(newExpiry.getDate() + days)
-    }
+    const newExpiry = calculateExtendedExpiryDate(company, Number(months || 0), Number(days || 0))
 
     if (planId) {
       company.planId = planId
     }
 
-    company.licenseExpiry = newExpiry.toISOString()
+    company.licenseExpiry = newExpiry
     company.lastManualExtension = now.toISOString()
     company.extendedBy = userProfile?.name || 'Super Admin'
     company.updatedAt = now.toISOString()
@@ -857,7 +847,7 @@ const handleSuperAdminExtendLicense = async (c: any) => {
 
     return c.json({
       success: true,
-      message: `Licencia de ${company.name} extendida hasta ${newExpiry.toLocaleDateString()}`,
+      message: `Licencia de ${company.name} extendida hasta ${new Date(newExpiry).toLocaleDateString()}`,
       company
     })
   } catch (err: any) {
@@ -986,7 +976,7 @@ const handleSuperAdminGetUsers = async (c: any) => {
     const allUsersRaw = await kv.getByPrefix('user:')
     const allUsers = allUsersRaw
       .map((u: any) => typeof u === 'string' ? JSON.parse(u) : u)
-      .filter((u: any) => u && (u.role === 'superadmin' || u.isSuperAdmin === true || u.role === 'admin'))
+      .filter((u: any) => u && (u.role === 'superadmin' || u.isSuperAdmin === true))
 
     return c.json({
       success: true,
@@ -1742,6 +1732,26 @@ app.get('/make-server-4d437e50/auth/session', async (c) => {
     }
     
     const userProfile = await getUserProfile(user.id)
+    
+    // Check if user is superadmin
+    if (userProfile?.role === 'superadmin' || userProfile?.isSuperAdmin === true || user.user_metadata?.role === 'superadmin' || user.user_metadata?.isSuperAdmin === true) {
+      const superProfile = {
+        ...(userProfile || {}),
+        userId: user.id,
+        email: user.email,
+        name: userProfile?.name || user.user_metadata?.name || user.email?.split('@')[0],
+        role: 'superadmin',
+        isSuperAdmin: true,
+        companyId: 'system'
+      }
+      return c.json({ 
+        success: true, 
+        authenticated: true,
+        user: superProfile,
+        license: { valid: true, isSuperAdmin: true, planId: 'enterprise' }
+      })
+    }
+
     if (!userProfile) {
       // User authenticated but no profile (likely Google OAuth first time)
       return c.json({ 

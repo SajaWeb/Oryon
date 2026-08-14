@@ -302,10 +302,29 @@ export function License({
       });
 
       const companyId = companyData?.id || userProfile?.companyId || 1;
-      const reference = `ORY-${companyId}-${Date.now()}`;
+      const reference = `PLAN-${plan.id}-1M-${Date.now()}`;
 
-      // 1. Guardar la referencia del pago en backend (no bloqueante)
+      // 1. Guardar la referencia del pago en backend y directamente en KV
       try {
+        const supabase = getSupabaseClient();
+        await supabase.from('kv_store_4d437e50').upsert({
+          key: `payment:${reference}`,
+          value: JSON.stringify({
+            reference: reference,
+            planId: plan.id,
+            amount: amount,
+            currency: "COP",
+            paymentMethod: "Wompi PSE",
+            status: "PENDING",
+            companyId: companyId,
+            companyName: companyData?.name || userProfile?.companyName || `Empresa #${companyId}`,
+            durationMonths: 1,
+            customerEmail: userProfile?.email || "",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+        });
+
         await fetch(
           `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/license/payment/create`,
           {
@@ -328,7 +347,7 @@ export function License({
           }
         );
       } catch (backendErr) {
-        console.warn("Backend payment tracking log skipped:", backendErr);
+        console.warn("Backend payment tracking log:", backendErr);
       }
 
       // 2. Abrir Checkout oficial de Wompi mediante Widget

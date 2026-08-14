@@ -160,61 +160,121 @@ export function PaymentSuccess({
     }
   }
 
+const DEFAULT_PLAN_LIMITS: Record<string, { branches: number; admins: number; advisors: number; technicians: number }> = {
+  basico: { branches: 1, admins: 1, advisors: 1, technicians: 2 },
+  pyme: { branches: 2, admins: 2, advisors: 4, technicians: 8 },
+  enterprise: { branches: 4, admins: 4, advisors: 8, technicians: 16 }
+}
+
   const processPlanUpgrade = async (transaction: any) => {
     try {
-      const token = await getAuthToken()
-      if (!token) {
-        console.warn('No se encontró token de autorización válido para registrar la extensión')
-        return
-      }
+      const ref = String(transaction.reference || reference || transactionId || '')
+      const supabase = getSupabaseClient()
 
-      const ref = transaction.reference || reference || transactionId
+      // 1. Validar idempotencia: si ya fue procesado y aplicado, evitar duplicar vigencia
+      try {
+        const { data: payRow } = await supabase.from('kv_store_4d437e50').select('value').eq('key', `payment:${ref}`).single()
+        if (payRow?.value) {
+          const parsedPay = typeof payRow.value === 'string' ? JSON.parse(payRow.value) : payRow.value
+          if (parsedPay?.status === 'APPROVED' && parsedPay?.applied === true) {
+            console.log('Pago ya aplicado previamente, no se duplica vigencia:', ref)
+            return
+          }
+        }
+      } catch (checkErr) {}
 
-      // Detectar meses desde los props o desde la referencia (ej: EXT-pyme-6M-...)
+      // Detectar si es compra / cambio de plan (PLAN-) o extensión de tiempo (EXT-)
+      const isPlanPurchase = ref.startsWith('PLAN-') || (!ref.startsWith('EXT-') && Boolean(planId))
+
       let durationMonths = months || 1
-      const refMatch = String(ref).match(/-(\d+)M-/)
+      const refMatch = ref.match(/-(\d+)M-/)
       if (refMatch && refMatch[1]) {
         durationMonths = parseInt(refMatch[1], 10)
       }
 
-      // 1. Actualizar estado del pago en la base de datos
-      await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/license/payment/update`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            reference: ref,
-            transactionId: transaction.id,
-            status: 'approved',
-            paymentData: transaction,
-            planId: planId,
-            durationMonths: durationMonths
-          })
-        }
-      )
+      // Detectar planId desde la referencia (ej: PLAN-pyme-1M-...)
+      let targetPlanId = planId
+      if (!targetPlanId) {
+        if (ref.includes('enterprise')) targetPlanId = 'enterprise'
+        else if (ref.includes('pyme')) targetPlanId = 'pyme'
+        else if (ref.includes('basico')) targetPlanId = 'basico'
+      }
 
-      // 2. Actualizar plan y sumar meses a la fecha de vencimiento
-      if (planId || durationMonths) {
-        await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/license/upgrade-plan`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              planId: planId,
-              transactionId: transaction.id,
-              durationMonths: durationMonths,
-              months: durationMonths
-            })
+      // 2. Actualizar directamente en la base de datos de forma atómica
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: userRow } = await supabase.from('kv_store_4d437e50').select('value').eq('key', `user:${user.id}`).single()
+          if (userRow?.value) {
+            const profile = typeof userRow.value === 'string' ? JSON.parse(userRow.value) : userRow.value
+            const targetCompanyId = profile.companyId || 1
+
+            const { data: compRow } = await supabase.from('kv_store_4d437e50').select('value').eq('key', `company:${targetCompanyId}`).single()
+            if (compRow?.value) {
+              const comp = typeof compRow.value === 'string' ? JSON.parse(compRow.value) : compRow.value
+              const now = new Date()
+
+              let newExpiry: Date
+
+              if (isPlanPurchase) {
+                // ACTIVACIÓN / CAMBIO DE PLAN:
+                // Se activa la suscripción del plan seleccionado con su vigencia (1 mes = 30 días a partir de hoy)
+                const base = new Date()
+                base.setMonth(base.getMonth() + durationMonths)
+                newExpiry = base
+
+                comp.planId = targetPlanId || comp.planId || 'basico'
+                comp.customLimits = DEFAULT_PLAN_LIMITS[comp.planId] || DEFAULT_PLAN_LIMITS.basico
+              } else {
+                // EXTENSIÓN DE TIEMPO (EXT-):
+                // Suma los meses comprados a la vigencia actual existente
+                const expiryTime = comp.licenseExpiry ? new Date(comp.licenseExpiry).getTime() : 0
+                const trialTime = comp.trialEndsAt ? new Date(comp.trialEndsAt).getTime() : 0
+                const maxFutureTime = Math.max(now.getTime(), isNaN(expiryTime) ? 0 : expiryTime, isNaN(trialTime) ? 0 : trialTime)
+                const baseDate = new Date(maxFutureTime)
+
+                baseDate.setMonth(baseDate.getMonth() + durationMonths)
+                newExpiry = baseDate
+              }
+
+              comp.licenseExpiry = newExpiry.toISOString()
+              comp.lastUpgrade = now.toISOString()
+              comp.updatedAt = now.toISOString()
+              if (comp.trialEndsAt) {
+                delete comp.trialEndsAt
+              }
+
+              await supabase.from('kv_store_4d437e50').upsert({
+                key: `company:${targetCompanyId}`,
+                value: JSON.stringify(comp)
+              })
+
+              // Guardar registro de pago marcado como aplicado
+              const payRecord = {
+                reference: ref,
+                transactionId: transaction.id || ref,
+                companyId: targetCompanyId,
+                companyName: comp.name || profile.companyName || `Empresa #${targetCompanyId}`,
+                planId: comp.planId,
+                amount: transaction.amount_in_cents ? transaction.amount_in_cents / 100 : (transaction.amount || (targetPlanId === 'pyme' ? 85000 : 50000)),
+                durationMonths: durationMonths,
+                status: 'APPROVED',
+                applied: true,
+                paymentMethod: transaction.payment_method_type || 'Wompi PSE',
+                customerEmail: profile.email || user.email || '',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }
+
+              await supabase.from('kv_store_4d437e50').upsert({
+                key: `payment:${ref}`,
+                value: JSON.stringify(payRecord)
+              })
+            }
           }
-        )
+        }
+      } catch (directErr) {
+        console.warn('Error en actualización directa de plan/extensión:', directErr)
       }
     } catch (error) {
       console.error('Error al registrar actualización de plan:', error)

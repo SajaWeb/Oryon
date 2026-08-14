@@ -125,8 +125,35 @@ export function ExtendLicenseSection({
     try {
       const reference = `EXT-${currentPlanId}-${selectedOption.months}M-${Date.now()}`
       
-      // 1. Intentar registrar intención de pago en el backend (no bloqueante)
+      // 1. Intentar registrar intención de pago en KV y en el backend
       try {
+        const supabase = getSupabaseClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        let companyId = 1
+        if (user) {
+          const { data: userRow } = await supabase.from('kv_store_4d437e50').select('value').eq('key', `user:${user.id}`).single()
+          if (userRow?.value) {
+            const parsedUser = typeof userRow.value === 'string' ? JSON.parse(userRow.value) : userRow.value
+            companyId = parsedUser.companyId || 1
+          }
+        }
+
+        await supabase.from('kv_store_4d437e50').upsert({
+          key: `payment:${reference}`,
+          value: JSON.stringify({
+            reference,
+            planId: currentPlanId,
+            amount: pricing.finalPrice,
+            currency: 'COP',
+            paymentMethod: 'Wompi PSE',
+            durationMonths: selectedOption.months,
+            status: 'PENDING',
+            companyId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+        })
+
         await fetch(
           `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/license/payment/create`,
           {
@@ -147,7 +174,7 @@ export function ExtendLicenseSection({
           }
         )
       } catch (backendErr) {
-        console.warn('Backend payment tracking log skipped:', backendErr)
+        console.warn('Backend payment tracking notice:', backendErr)
       }
 
       // 2. Abrir Checkout oficial de Wompi mediante Hosted Link

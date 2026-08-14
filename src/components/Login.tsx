@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
-import { Wrench, XCircle } from 'lucide-react'
+import { Wrench, XCircle, Shield } from 'lucide-react'
 
 interface LoginProps {
   onLoginSuccess: (accessToken: string) => void
@@ -19,16 +19,19 @@ export function Login({ onLoginSuccess, onSwitchToRegister, onSwitchToForgotPass
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const [isSuperAdminBlocked, setIsSuperAdminBlocked] = useState(false)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setIsSuperAdminBlocked(false)
 
     try {
       const supabase = getSupabaseClient()
       
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password
       })
 
@@ -50,6 +53,20 @@ export function Login({ onLoginSuccess, onSwitchToRegister, onSwitchToForgotPass
       }
 
       if (data.session) {
+        // Verificar si la cuenta posee rol de Superadministrador
+        const user = data.user
+        const isSuperAdmin = 
+          user?.user_metadata?.role === 'superadmin' || 
+          user?.user_metadata?.isSuperAdmin === true
+
+        if (isSuperAdmin) {
+          await supabase.auth.signOut()
+          setError('Esta cuenta tiene rol de Superadministrador Maestro y está restringida exclusivamente a la administración global del SaaS. No puedes ingresar desde el portal de empresas/talleres.')
+          setIsSuperAdminBlocked(true)
+          setLoading(false)
+          return
+        }
+
         onLoginSuccess(data.session.access_token)
       }
     } catch (err) {
@@ -109,18 +126,28 @@ export function Login({ onLoginSuccess, onSwitchToRegister, onSwitchToForgotPass
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-3">
                 <div className="flex items-start gap-3">
                   <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 space-y-1">
                     <p className="font-medium text-red-900 dark:text-red-100">
-                      No se pudo iniciar sesión
+                      {isSuperAdminBlocked ? 'Cuenta de Superadministrador Detectada' : 'No se pudo iniciar sesión'}
                     </p>
                     <p className="text-sm text-red-800 dark:text-red-200 leading-relaxed">
                       {error}
                     </p>
                   </div>
                 </div>
+                {isSuperAdminBlocked && (
+                  <Button
+                    type="button"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm transition-all flex items-center justify-center gap-2"
+                    onClick={() => window.location.href = '/superadmin'}
+                  >
+                    <Shield className="w-4 h-4" />
+                    Ir al Portal Super Admin (/superadmin)
+                  </Button>
+                )}
               </div>
             )}
             

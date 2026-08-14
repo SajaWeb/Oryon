@@ -28,17 +28,42 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  // Extraer token / email de query params
+  // Extraer token / email de query params y procesar sesión de recuperación
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search)
-      const tokenParam = urlParams.get('token') || ''
+      const tokenParam = urlParams.get('token') || urlParams.get('token_hash') || ''
       const emailParam = urlParams.get('email') || ''
       const codeParam = urlParams.get('code') || ''
 
       if (tokenParam) setToken(tokenParam)
       if (emailParam) setEmail(emailParam)
       if (codeParam) setCode(codeParam)
+
+      const supabase = getSupabaseClient()
+
+      // Si viene código de autorización (PKCE), intercambiarlo por sesión
+      if (codeParam) {
+        supabase.auth.exchangeCodeForSession(codeParam).then(({ data, error }) => {
+          if (data?.session?.user?.email) {
+            setEmail(data.session.user.email)
+          }
+          if (error) {
+            console.warn('Error canjeando código de recuperación:', error)
+          }
+        })
+      }
+
+      // Escuchar eventos de recuperación de contraseña
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'PASSWORD_RECOVERY' && session?.user?.email) {
+          setEmail(session.user.email)
+        }
+      })
+
+      return () => {
+        subscription.unsubscribe()
+      }
     } catch (e) {
       console.warn('Error parsing URL search params:', e)
     }
@@ -63,7 +88,24 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
     }
 
     try {
-      // 1. Intentar actualizar mediante el endpoint seguro con token/código de Resend
+      const supabase = getSupabaseClient()
+
+      // 1. Intentar actualizar contraseña directamente con Supabase Auth (si hay sesión o token hash procesado)
+      const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+        password: password
+      })
+
+      if (!updateError && updateData?.user) {
+        setSuccess(true)
+        toast.success('¡Contraseña actualizada exitosamente!')
+        setLoading(false)
+        setTimeout(() => {
+          onResetSuccess()
+        }, 2500)
+        return
+      }
+
+      // 2. Si no hay sesión directa pero viene token/código de Resend o servidor
       if (token || (email && code)) {
         const response = await fetch(
           `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/auth/reset-password-confirm`,
@@ -93,36 +135,20 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
           }, 2500)
           return
         } else {
-          // Si falló el token de Resend y no hay sesión de Supabase Auth
-          setError(data.error || 'Error al actualizar contraseña')
+          setError(data.error || 'Error al actualizar contraseña. El código o enlace puede haber expirado.')
           setLoading(false)
           return
         }
       }
 
-      // 2. Fallback con Supabase Auth session si se abrió desde link nativo de Supabase
-      const supabase = getSupabaseClient()
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: password
-      })
-
       if (updateError) {
-        console.error('Password update error:', updateError)
-        setError(updateError.message || 'El enlace de recuperación es inválido o ha expirado.')
+        setError(updateError.message || 'El enlace de recuperación es inválido o ha expirado. Solicita uno nuevo.')
         setLoading(false)
         return
       }
-
-      setSuccess(true)
-      toast.success('¡Contraseña actualizada!')
-      setLoading(false)
-
-      setTimeout(() => {
-        onResetSuccess()
-      }, 2500)
     } catch (err: any) {
       console.error('Password reset error:', err)
-      setError('Error al actualizar la contraseña. Por favor intenta de nuevo.')
+      setError('Error al actualizar la contraseña. Por favor solicita un nuevo enlace.')
       setLoading(false)
     }
   }

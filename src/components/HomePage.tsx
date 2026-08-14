@@ -28,6 +28,7 @@ import {
 
 interface HomePageProps {
   onNavigateToLogin: () => void
+  onNavigateToRegister?: () => void
 }
 
 /* ===========================================================================
@@ -86,7 +87,13 @@ function CTAButton({
 }
 
 /* =========================================================================== */
-function SiteNav({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
+function SiteNav({
+  onNavigateToLogin,
+  onNavigateToRegister,
+}: {
+  onNavigateToLogin: () => void
+  onNavigateToRegister?: () => void
+}) {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -150,10 +157,14 @@ function SiteNav({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
         <div style={{ flex: 1 }} />
 
         <button style={linkStyle} onClick={onNavigateToLogin} className="hidden sm:block">
-          Entrar
+          Iniciar Sesión
         </button>
-        <CTAButton variant="primary" onClick={onNavigateToLogin} iconRight={<ArrowRight size={16} />}>
-          Comenzar
+        <CTAButton
+          variant="primary"
+          onClick={onNavigateToRegister || onNavigateToLogin}
+          iconRight={<ArrowRight size={16} />}
+        >
+          Registrar Taller
         </CTAButton>
       </div>
     </header>
@@ -266,7 +277,13 @@ function HeroPanel() {
   )
 }
 
-function Hero({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
+function Hero({
+  onNavigateToLogin,
+  onNavigateToRegister,
+}: {
+  onNavigateToLogin: () => void
+  onNavigateToRegister?: () => void
+}) {
   return (
     <section style={{ position: 'relative', overflow: 'hidden' }}>
       {/* Retícula de plano técnico: la única textura del sistema. */}
@@ -318,10 +335,10 @@ function Hero({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
               <CTAButton
                 variant="primary"
                 size="lg"
-                onClick={onNavigateToLogin}
+                onClick={onNavigateToRegister || onNavigateToLogin}
                 iconRight={<ArrowRight size={16} />}
               >
-                Comenzar ahora
+                Comenzar prueba gratis
               </CTAButton>
               <CTAButton
                 size="lg"
@@ -890,7 +907,13 @@ function Roles() {
 }
 
 /* =========================================================================== */
-function Planes({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
+function Planes({
+  onNavigateToLogin,
+  onNavigateToRegister,
+}: {
+  onNavigateToLogin: () => void
+  onNavigateToRegister?: () => void
+}) {
   const planes = [
     {
       nombre: 'Básico',
@@ -960,6 +983,20 @@ function Planes({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
                   )}
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 6 }}>{p.desc}</div>
+                <div style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontWeight: 900,
+                      fontSize: 40,
+                      letterSpacing: '-0.04em',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {p.precio}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 4 }}>COP / mes</span>
+                </div>
                 <div
                   style={{
                     fontFamily: 'var(--font-mono)',
@@ -987,10 +1024,10 @@ function Planes({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
               <div style={{ marginTop: 'auto', paddingTop: 6 }}>
                 <CTAButton
                   variant={p.destacado ? 'primary' : 'secondary'}
-                  onClick={onNavigateToLogin}
+                  onClick={onNavigateToRegister || onNavigateToLogin}
                   iconRight={<ArrowRight size={16} />}
                 >
-                  Empezar
+                  Probar 7 días gratis
                 </CTAButton>
               </div>
             </div>
@@ -1002,7 +1039,13 @@ function Planes({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
 }
 
 /* =========================================================================== */
-function CTA({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
+function CTA({
+  onNavigateToLogin,
+  onNavigateToRegister,
+}: {
+  onNavigateToLogin: () => void
+  onNavigateToRegister?: () => void
+}) {
   return (
     <section style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-sunken)' }}>
       <div
@@ -1035,10 +1078,10 @@ function CTA({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
             <CTAButton
               variant="primary"
               size="lg"
-              onClick={onNavigateToLogin}
+              onClick={onNavigateToRegister || onNavigateToLogin}
               iconRight={<ArrowRight size={16} />}
             >
-              Comenzar ahora
+              Registrar mi taller
             </CTAButton>
             <CTAButton size="lg" onClick={onNavigateToLogin}>
               Ya tengo cuenta
@@ -1053,53 +1096,55 @@ function CTA({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
 /* =========================================================================== */
 function SiteFooter() {
   const col = (t: string, items: string[]) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div>
       <div
         style={{
           fontFamily: 'var(--font-mono-display)',
-          fontSize: 10,
-          letterSpacing: '0.10em',
+          fontSize: 11,
+          letterSpacing: '0.08em',
           textTransform: 'uppercase',
           color: 'var(--text-tertiary)',
+          marginBottom: 14,
         }}
       >
         {t}
       </div>
-      {items.map((i) => (
-        <span key={i} style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-          {i}
-        </span>
-      ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {items.map((i) => (
+          <span key={i} style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            {i}
+          </span>
+        ))}
+      </div>
     </div>
   )
 
   return (
-    <footer style={{ borderTop: '1px solid var(--border-subtle)' }}>
+    <footer style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-base)' }}>
       <div
-        className="mx-auto grid gap-10 px-6 pb-8 pt-14 md:px-10 lg:grid-cols-[1.4fr_1fr_1fr_1fr]"
+        className="mx-auto grid gap-10 px-6 py-14 md:grid-cols-4 md:px-10"
         style={{ maxWidth: 1240 }}
       >
         <div>
-          <Logo size={26} />
-          <p style={{ margin: '16px 0 0', maxWidth: 280, fontSize: 13, lineHeight: '20px', color: 'var(--text-tertiary)' }}>
-            Software de gestión para talleres técnicos de celulares, computadores y electrónica.
+          <Logo size={24} />
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: '20px', marginTop: 12 }}>
+            El sistema operativo para talleres de servicio técnico en Colombia y Latinoamérica.
           </p>
         </div>
-        {col('Producto', ['Órdenes de trabajo', 'Seguimiento con QR', 'Inventario', 'Sucursales', 'Reportes'])}
-        {col('Empresa', ['Sobre Oryon', 'Contacto', 'Estado del servicio'])}
-        {col('Legal', ['Términos', 'Privacidad', 'Tratamiento de datos'])}
+        {col('Producto', ['Órdenes de servicio', 'Punto de venta', 'Inventario', 'Seguimiento QR'])}
+        {col('Empresa', ['Planes y precios', 'Términos de servicio', 'Privacidad', 'Contacto'])}
+        {col('Soporte', ['WhatsApp soporte', 'Documentación', 'Estado del sistema', 'Guía rápida'])}
       </div>
-
       <div
-        className="mx-auto flex flex-wrap justify-between gap-3 px-6 pb-10 pt-5 md:px-10"
-        style={{ maxWidth: 1240, borderTop: '1px solid var(--border-subtle)' }}
+        className="mx-auto px-6 py-6 text-center text-xs md:px-10"
+        style={{
+          maxWidth: 1240,
+          borderTop: '1px solid var(--border-subtle)',
+          color: 'var(--text-tertiary)',
+          fontFamily: 'var(--font-mono)',
+        }}
       >
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-tertiary)' }}>
-          © {new Date().getFullYear()} Oryon S.A.S.
-        </span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-tertiary)' }}>
-          Sistema de gestión integral
-        </span>
+        © 2026 Oryon. Todos los derechos reservados.
       </div>
     </footer>
   )
@@ -1110,7 +1155,7 @@ function SiteFooter() {
    Va siempre en grafito (data-theme="dark"), independientemente del tema que
    el usuario tenga guardado: el kit de marca es dark-first y no lleva toggle.
    =========================================================================== */
-export function HomePage({ onNavigateToLogin }: HomePageProps) {
+export function HomePage({ onNavigateToLogin, onNavigateToRegister }: HomePageProps) {
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
@@ -1151,16 +1196,16 @@ export function HomePage({ onNavigateToLogin }: HomePageProps) {
       data-theme="dark"
       style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)' }}
     >
-      <SiteNav onNavigateToLogin={onNavigateToLogin} />
-      <Hero onNavigateToLogin={onNavigateToLogin} />
+      <SiteNav onNavigateToLogin={onNavigateToLogin} onNavigateToRegister={onNavigateToRegister} />
+      <Hero onNavigateToLogin={onNavigateToLogin} onNavigateToRegister={onNavigateToRegister} />
       <Claims />
       <Modulos />
       <Flujo />
       <QR />
       <Producto />
       <Roles />
-      <Planes onNavigateToLogin={onNavigateToLogin} />
-      <CTA onNavigateToLogin={onNavigateToLogin} />
+      <Planes onNavigateToLogin={onNavigateToLogin} onNavigateToRegister={onNavigateToRegister} />
+      <CTA onNavigateToLogin={onNavigateToLogin} onNavigateToRegister={onNavigateToRegister} />
       <SiteFooter />
     </div>
   )

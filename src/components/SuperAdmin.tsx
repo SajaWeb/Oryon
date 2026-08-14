@@ -188,6 +188,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
     password: ''
   })
   const [creatingSuperUser, setCreatingSuperUser] = useState(false)
+  const [hasSuperAdminConfigured, setHasSuperAdminConfigured] = useState<boolean | null>(null)
 
   // 1. Inicializar verificación de autenticación
   useEffect(() => {
@@ -197,27 +198,34 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
   const checkSuperAdminAuth = async () => {
     setAuthChecking(true)
     try {
-      // 1. Consultar si ya existe algún superadmin en el sistema
+      const supabase = getSupabaseClient()
+
+      // 1. Consultar directamente en KV si ya existe algún superadmin en el sistema
+      let hasSuper = false
       try {
-        const statusRes = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/auth/status`,
-          {
-            headers: {
-              'Authorization': `Bearer ${publicAnonKey}`
-            }
-          }
-        )
-        if (statusRes.ok) {
-          const statusData = await statusRes.json()
-          if (statusData.success && !statusData.hasSuperAdmin) {
-            setIsInitialSetupMode(true)
-          }
+        const { data: userRecords } = await supabase
+          .from('kv_store_4d437e50')
+          .select('key, value')
+          .like('key', 'user:%')
+
+        hasSuper = userRecords?.some((r: any) => {
+          try {
+            const parsed = typeof r.value === 'string' ? JSON.parse(r.value) : r.value
+            return parsed && (parsed.role === 'superadmin' || parsed.isSuperAdmin === true)
+          } catch { return false }
+        }) || false
+
+        setHasSuperAdminConfigured(hasSuper)
+
+        if (!hasSuper) {
+          setIsInitialSetupMode(true)
+        } else {
+          setIsInitialSetupMode(false)
         }
-      } catch (statusErr) {
-        // Silencioso si el endpoint aún no está desplegado en la nube
+      } catch (kvErr) {
+        console.warn('Error comprobando superadmin en KV:', kvErr)
       }
 
-      const supabase = getSupabaseClient()
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token || propToken
       const user = session?.user
@@ -273,9 +281,17 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
     }
   }
 
-  // Setup Inicial del Primer Superadministrador
+  // Setup Inicial del Primer Superadministrador (Bootstrap Único)
   const handleInitialSetupSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (hasSuperAdminConfigured === true) {
+      toast.error('Operación no permitida', {
+        description: 'El Superadministrador Maestro ya está configurado. Inicia sesión con tus credenciales.'
+      })
+      setIsInitialSetupMode(false)
+      return
+    }
+
     if (!initialName || !initialEmail || !initialPassword) {
       toast.error('Completa todos los campos obligatorios')
       return
@@ -290,45 +306,59 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
     const supabase = getSupabaseClient()
 
     try {
-      // 1. Intentar registrar a través de /auth/signup (crea el usuario confirmado en Supabase Auth)
-      try {
-        const signupRes = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/auth/signup`,
-          {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${publicAnonKey}`
-            },
-            body: JSON.stringify({
-              name: initialName.trim(),
-              email: initialEmail.trim(),
-              password: initialPassword,
-              companyName: 'Oryon Global'
-            })
-          }
-        )
-        const signupData = await signupRes.json()
-        console.log('Signup result for superadmin:', signupData)
-      } catch (signupErr) {
-        console.warn('Signup notice:', signupErr)
-      }
+      // 1. Intentar iniciar sesión si ya existe la cuenta
+      let authUser: any = null
+      let token: string | null = null
 
-      // 2. Iniciar sesión con Supabase Auth
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: initialEmail.trim(),
         password: initialPassword
       })
 
-      if (signInError || !signInData.session) {
-        toast.error('Error al configurar Super Admin', {
-          description: signInError?.message || 'Verifica el correo y contraseña ingresados'
+      if (signInData?.session?.user) {
+        authUser = signInData.session.user
+        token = signInData.session.access_token
+      } else {
+        // 2. Si no existe, crear la cuenta directamente con rol superadmin
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: initialEmail.trim(),
+          password: initialPassword,
+          options: {
+            data: {
+              name: initialName.trim(),
+              role: 'superadmin',
+              isSuperAdmin: true
+            }
+          }
         })
+
+        if (signUpError) {
+          toast.error('Error al crear cuenta', { description: signUpError.message })
+          setInitialSetupLoading(false)
+          return
+        }
+
+        authUser = signUpData.user || signUpData.session?.user
+        token = signUpData.session?.access_token || null
+
+        // Si el login no fue automático, intentar loguear
+        if (!token) {
+          const { data: retrySignIn } = await supabase.auth.signInWithPassword({
+            email: initialEmail.trim(),
+            password: initialPassword
+          })
+          authUser = retrySignIn?.session?.user || authUser
+          token = retrySignIn?.session?.access_token || token
+        }
+      }
+
+      if (!authUser) {
+        toast.error('No se pudo autenticar el usuario superadmin')
         setInitialSetupLoading(false)
         return
       }
 
-      // 3. Asignar metadatos de Super Admin a la cuenta
+      // 3. Asignar metadatos de Super Admin a la cuenta en Supabase Auth
       await supabase.auth.updateUser({
         data: {
           name: initialName.trim(),
@@ -337,16 +367,43 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
         }
       })
 
-      const token = signInData.session.access_token
+      // 4. Guardar REGISTRO EXACTO en la base de datos KV con rol superadmin
+      const masterUserRecord = {
+        userId: authUser.id,
+        id: authUser.id,
+        email: initialEmail.trim(),
+        name: initialName.trim(),
+        role: 'superadmin',
+        isSuperAdmin: true,
+        isMaster: true,
+        active: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+
+      try {
+        await supabase.from('kv_store_4d437e50').upsert({
+          key: `user:${authUser.id}`,
+          value: JSON.stringify(masterUserRecord)
+        })
+      } catch (kvErr) {
+        console.warn('Error guardando en KV table:', kvErr)
+      }
 
       toast.success('¡Superadministrador maestro configurado con éxito!', {
-        description: 'Acceso autorizado al Centro de Control'
+        description: 'Rol de Super Admin activado en la base de datos'
       })
 
-      setSessionToken(token)
-      setIsSuperAdminAuthenticated(true)
-      setIsInitialSetupMode(false)
-      loadAllData(token)
+      if (token) {
+        setSessionToken(token)
+        setIsSuperAdminAuthenticated(true)
+        setIsInitialSetupMode(false)
+        loadAllData(token)
+      } else {
+        setIsInitialSetupMode(false)
+        setLoginEmail(initialEmail.trim())
+        setLoginPassword(initialPassword)
+      }
     } catch (err: any) {
       toast.error('Error al inicializar Super Admin', { description: err.message })
     } finally {
@@ -366,11 +423,80 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
     try {
       const supabase = getSupabaseClient()
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
+        email: loginEmail.trim(),
         password: loginPassword
       })
 
       if (error || !data.session) {
+        // Auto-sincronización: Si el usuario existe en KV como superadmin pero no estaba en auth.users (por truncado o reset)
+        try {
+          const { data: kvRecords } = await supabase
+            .from('kv_store_4d437e50')
+            .select('key, value')
+            .like('key', 'user:%')
+          
+          const superadminRecord = kvRecords?.find((r: any) => {
+            try {
+              const parsed = typeof r.value === 'string' ? JSON.parse(r.value) : r.value
+              return parsed && (parsed.email?.toLowerCase() === loginEmail.trim().toLowerCase()) && (parsed.role === 'superadmin' || parsed.isSuperAdmin === true)
+            } catch { return false }
+          })
+
+          if (superadminRecord) {
+            // Intentar registrar la cuenta en Supabase Auth con la contraseña suministrada
+            const { data: signUpData } = await supabase.auth.signUp({
+              email: loginEmail.trim(),
+              password: loginPassword,
+              options: {
+                data: {
+                  name: 'Alejandro Echavarria Jaramillo',
+                  role: 'superadmin',
+                  isSuperAdmin: true
+                }
+              }
+            })
+
+            let autoToken = signUpData?.session?.access_token
+            let authUser = signUpData?.session?.user || signUpData?.user
+
+            if (!autoToken) {
+              const { data: retrySignIn } = await supabase.auth.signInWithPassword({
+                email: loginEmail.trim(),
+                password: loginPassword
+              })
+              autoToken = retrySignIn?.session?.access_token
+              authUser = retrySignIn?.session?.user || authUser
+            }
+
+            if (autoToken && authUser) {
+              await supabase.auth.updateUser({
+                data: {
+                  name: 'Alejandro Echavarria Jaramillo',
+                  role: 'superadmin',
+                  isSuperAdmin: true
+                }
+              })
+
+              const parsedUser = typeof superadminRecord.value === 'string' ? JSON.parse(superadminRecord.value) : superadminRecord.value
+              parsedUser.userId = authUser.id
+              parsedUser.id = authUser.id
+              await supabase.from('kv_store_4d437e50').upsert({
+                key: `user:${authUser.id}`,
+                value: JSON.stringify(parsedUser)
+              })
+
+              setSessionToken(autoToken)
+              setIsSuperAdminAuthenticated(true)
+              toast.success('¡Superadministrador autenticado y sincronizado con éxito!')
+              loadAllData(autoToken)
+              setLoginLoading(false)
+              return
+            }
+          }
+        } catch (autoErr) {
+          console.warn('Auto-healing auth notice:', autoErr)
+        }
+
         toast.error('Credenciales incorrectas', {
           description: error?.message || 'Verifica el usuario y la contraseña'
         })
@@ -381,12 +507,12 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
       const token = data.session.access_token
       const user = data.user
 
-      // Comprobar rol de superadmin en metadatos o endpoint
+      // Comprobar rol ESTRICTO de superadmin en metadatos o endpoint
       const isSuper = 
         user.user_metadata?.role === 'superadmin' || 
-        user.user_metadata?.isSuperAdmin === true ||
-        user.user_metadata?.role === 'admin'
+        user.user_metadata?.isSuperAdmin === true
 
+      // Intentar validar también con el backend
       try {
         const res = await fetch(
           `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/stats`,
@@ -401,7 +527,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
             setSessionToken(token)
             setIsSuperAdminAuthenticated(true)
             setStats(resData.stats)
-            toast.success('Acceso autorizado como Super Administrador')
+            toast.success('Acceso autorizado como Super Administrador Maestro')
             loadAllData(token)
             setLoginLoading(false)
             return
@@ -412,12 +538,12 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
       if (isSuper) {
         setSessionToken(token)
         setIsSuperAdminAuthenticated(true)
-        toast.success('Acceso autorizado como Super Administrador')
+        toast.success('Acceso autorizado como Super Administrador Maestro')
         loadAllData(token)
       } else {
         await supabase.auth.signOut()
-        toast.error('Acceso Denegado', {
-          description: 'Esta cuenta no posee privilegios de Super Administrador'
+        toast.error('Acceso Denegado: Portal Exclusivo de Super Admin', {
+          description: 'Esta cuenta pertenece a una empresa o taller y no posee permisos de Superadministrador Maestro del SaaS. Inicia sesión en el portal de usuarios.'
         })
       }
     } catch (err: any) {
@@ -459,69 +585,202 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
 
   const loadStats = async (tok: string) => {
     try {
-      const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/stats`,
-        { 
-          headers: { 
-            Authorization: `Bearer ${tok}`
-          } 
-        }
-      )
-      const data = await res.json()
-      if (data.success) setStats(data.stats)
+      const supabase = getSupabaseClient()
+      const { data: allRows } = await supabase.from('kv_store_4d437e50').select('key, value')
+      if (allRows) {
+        let totalComps = 0
+        let activeComps = 0
+        let expiredComps = 0
+        let trialComps = 0
+        let totalUsers = 0
+        let totalRepairs = 0
+        const now = new Date()
+
+        let totalRevenue = 0
+        let totalPayments = 0
+        let approvedPayments = 0
+        let pendingPayments = 0
+        let declinedPayments = 0
+
+        allRows.forEach(r => {
+          const isCompanyKey = /^company:\d+$/.test(r.key)
+          if (isCompanyKey) {
+            try {
+              const comp = typeof r.value === 'string' ? JSON.parse(r.value) : r.value
+              if (comp && comp.id && comp.name) {
+                totalComps++
+                const expiryDate = comp.licenseExpiry ? new Date(comp.licenseExpiry) : null
+                const trialDate = comp.trialEndsAt ? new Date(comp.trialEndsAt) : null
+                const effectiveExpiry = expiryDate && (!trialDate || expiryDate > trialDate) ? expiryDate : trialDate
+                const inTrial = Boolean(trialDate && trialDate > now && (!expiryDate || trialDate >= expiryDate))
+                const isExpired = Boolean(effectiveExpiry && effectiveExpiry < now)
+
+                if (inTrial) trialComps++
+                else if (isExpired) expiredComps++
+                else activeComps++
+              }
+            } catch {}
+          } else if (r.key.startsWith('user:')) {
+            totalUsers++
+          } else if (r.key.startsWith('repair:')) {
+            totalRepairs++
+          } else if (r.key.startsWith('payment:')) {
+            totalPayments++
+            try {
+              const pay = typeof r.value === 'string' ? JSON.parse(r.value) : r.value
+              const statusUpper = String(pay.status || '').toUpperCase()
+              if (statusUpper === 'APPROVED') {
+                approvedPayments++
+                totalRevenue += (Number(pay.amount) || 0)
+              } else if (statusUpper === 'PENDING') {
+                pendingPayments++
+              } else {
+                declinedPayments++
+              }
+            } catch {}
+          }
+        })
+
+        setStats({
+          totalRevenueCOP: totalRevenue,
+          totalPaymentsCount: totalPayments,
+          approvedPaymentsCount: approvedPayments,
+          pendingPaymentsCount: pendingPayments,
+          declinedPaymentsCount: declinedPayments,
+          totalCompaniesCount: totalComps,
+          activeLicensesCount: activeComps,
+          expiredLicensesCount: expiredComps,
+          trialLicensesCount: trialComps
+        })
+      }
     } catch (err) {
-      console.error('Error cargando stats:', err)
+      console.warn('Stats calculation notice:', err)
     }
   }
 
   const loadPayments = async (tok: string) => {
     try {
-      const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/payments`,
-        { 
-          headers: { 
-            Authorization: `Bearer ${tok}`
-          } 
-        }
-      )
-      const data = await res.json()
-      if (data.success) setPayments(data.payments || [])
+      const supabase = getSupabaseClient()
+      const { data: allRows } = await supabase.from('kv_store_4d437e50').select('key, value')
+      if (allRows) {
+        const companyMap: Record<number, string> = {}
+        allRows.filter(r => /^company:\d+$/.test(r.key)).forEach(r => {
+          try {
+            const c = typeof r.value === 'string' ? JSON.parse(r.value) : r.value
+            if (c?.id) companyMap[c.id] = c.name
+          } catch {}
+        })
+
+        const payRows = allRows.filter(r => r.key.startsWith('payment:'))
+        const parsed = payRows.map(r => {
+          try {
+            const pay = typeof r.value === 'string' ? JSON.parse(r.value) : r.value
+            if (pay && pay.reference) {
+              return {
+                ...pay,
+                companyName: pay.companyName || companyMap[pay.companyId] || `Empresa #${pay.companyId || 1}`
+              }
+            }
+            return null
+          } catch { return null }
+        }).filter(Boolean)
+
+        setPayments(parsed)
+      }
     } catch (err) {
-      console.error('Error cargando pagos:', err)
+      console.warn('Payments load notice:', err)
     }
   }
 
   const loadCompanies = async (tok: string) => {
     try {
-      const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/companies`,
-        { 
-          headers: { 
-            Authorization: `Bearer ${tok}`
-          } 
-        }
-      )
-      const data = await res.json()
-      if (data.success) setCompanies(data.companies || [])
+      const supabase = getSupabaseClient()
+      const { data: allRows } = await supabase.from('kv_store_4d437e50').select('key, value')
+      if (allRows) {
+        const users = allRows.filter(r => r.key.startsWith('user:')).map(r => {
+          try { return typeof r.value === 'string' ? JSON.parse(r.value) : r.value } catch { return null }
+        }).filter(Boolean)
+
+        const branchMap: Record<number, number> = {}
+        allRows.filter(r => r.key.endsWith(':branches')).forEach(r => {
+          try {
+            const compId = Number(r.key.split(':')[1])
+            const list = typeof r.value === 'string' ? JSON.parse(r.value) : r.value
+            branchMap[compId] = Array.isArray(list) ? list.length : 1
+          } catch {}
+        })
+
+        const now = new Date()
+        const compList: CompanyRecord[] = []
+
+        allRows.forEach(r => {
+          const isCompanyKey = /^company:\d+$/.test(r.key)
+          if (isCompanyKey) {
+            try {
+              const comp = typeof r.value === 'string' ? JSON.parse(r.value) : r.value
+              if (comp && comp.id && comp.name) {
+                const owner = users.find(u => u.companyId === comp.id && u.role === 'admin')
+                const activeBranches = branchMap[comp.id] || 1
+                const activeAdmins = users.filter(u => u.companyId === comp.id && u.role === 'admin').length
+                const activeAdvisors = users.filter(u => u.companyId === comp.id && u.role === 'asesor').length
+                const activeTechnicians = users.filter(u => u.companyId === comp.id && u.role === 'tecnico').length
+
+                const expiryDate = comp.licenseExpiry ? new Date(comp.licenseExpiry) : null
+                const trialDate = comp.trialEndsAt ? new Date(comp.trialEndsAt) : null
+                const effectiveExpiry = expiryDate && (!trialDate || expiryDate > trialDate) ? expiryDate : trialDate
+
+                const inTrial = Boolean(trialDate && trialDate > now && (!expiryDate || trialDate >= expiryDate))
+                const isExpired = Boolean(effectiveExpiry && effectiveExpiry < now)
+
+                let daysRemaining = 0
+                if (effectiveExpiry && effectiveExpiry > now) {
+                  const diff = effectiveExpiry.getTime() - now.getTime()
+                  daysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+                }
+
+                const status = inTrial ? 'trial' : isExpired ? 'expired' : (comp.status || 'active')
+
+                compList.push({
+                  ...comp,
+                  status,
+                  inTrial,
+                  isExpired,
+                  daysRemaining,
+                  ownerName: owner?.name || 'Sin asignar',
+                  ownerEmail: owner?.email || comp.email || 'N/A',
+                  activeBranches,
+                  activeAdmins,
+                  activeAdvisors,
+                  activeTechnicians,
+                  totalRepairs: 0
+                })
+              }
+            } catch {}
+          }
+        })
+
+        setCompanies(compList)
+      }
     } catch (err) {
-      console.error('Error cargando empresas:', err)
+      console.warn('Companies load notice:', err)
     }
   }
 
   const loadSuperUsers = async (tok: string) => {
     try {
-      const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/users`,
-        { 
-          headers: { 
-            Authorization: `Bearer ${tok}`
-          } 
-        }
-      )
-      const data = await res.json()
-      if (data.success) setSuperUsers(data.users || [])
+      const supabase = getSupabaseClient()
+      const { data: userRows } = await supabase.from('kv_store_4d437e50').select('key, value').like('key', 'user:%')
+      if (userRows) {
+        const superList = userRows.map(r => {
+          try {
+            const parsed = typeof r.value === 'string' ? JSON.parse(r.value) : r.value
+            return parsed && (parsed.role === 'superadmin' || parsed.isSuperAdmin === true) ? parsed : null
+          } catch { return null }
+        }).filter(Boolean)
+        setSuperUsers(superList)
+      }
     } catch (err) {
-      console.error('Error cargando superusuarios:', err)
+      console.warn('Superusers load notice:', err)
     }
   }
 
@@ -564,7 +823,12 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
 
       // Si se especificó agregar meses o días
       if (editForm.addMonths > 0 || editForm.addDays > 0) {
-        const baseDate = finalExpiry && new Date(finalExpiry) > new Date() ? new Date(finalExpiry) : new Date()
+        const now = new Date()
+        const expiryTime = finalExpiry ? new Date(finalExpiry).getTime() : 0
+        const trialTime = selectedCompany.trialEndsAt ? new Date(selectedCompany.trialEndsAt).getTime() : 0
+        const maxFutureTime = Math.max(now.getTime(), isNaN(expiryTime) ? 0 : expiryTime, isNaN(trialTime) ? 0 : trialTime)
+        const baseDate = new Date(maxFutureTime)
+
         if (editForm.addMonths > 0) {
           baseDate.setMonth(baseDate.getMonth() + editForm.addMonths)
         }
@@ -582,42 +846,53 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
         trialEndsAt = trialDate.toISOString()
       }
 
-      const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/companies/${selectedCompany.id}/update-full`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${sessionToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            name: editForm.name,
-            planId: editForm.planId,
-            status: editForm.status,
-            branches: editForm.branches,
-            admins: editForm.admins,
-            advisors: editForm.advisors,
-            technicians: editForm.technicians,
-            licenseExpiry: finalExpiry,
-            trialEndsAt: trialEndsAt,
-            notes: editForm.notes
-          })
-        }
-      )
-
-      const data = await res.json()
-      if (data.success) {
-        toast.success(`Empresa ${editForm.name} actualizada correctamente`, {
-          description: 'Los cambios de licencia y límites ya están activos en el sistema.'
-        })
-        setShowEditCompanyModal(false)
-        setSelectedCompany(null)
-        loadAllData()
-      } else {
-        toast.error('Error al guardar', { description: data.error })
+      const updatedCompanyData = {
+        ...selectedCompany,
+        name: editForm.name,
+        planId: editForm.planId,
+        status: editForm.status,
+        customLimits: {
+          branches: editForm.branches,
+          admins: editForm.admins,
+          advisors: editForm.advisors,
+          technicians: editForm.technicians
+        },
+        licenseExpiry: finalExpiry,
+        trialEndsAt: trialEndsAt || selectedCompany.trialEndsAt,
+        notes: editForm.notes,
+        updatedAt: new Date().toISOString()
       }
+
+      // 1. Intentar endpoint backend si está activo
+      try {
+        await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/companies/${selectedCompany.id}/update-full`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${sessionToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updatedCompanyData)
+          }
+        )
+      } catch (e) {}
+
+      // 2. Guardar directamente en KV
+      const supabase = getSupabaseClient()
+      await supabase.from('kv_store_4d437e50').upsert({
+        key: `company:${selectedCompany.id}`,
+        value: JSON.stringify(updatedCompanyData)
+      })
+
+      toast.success(`Empresa ${editForm.name} actualizada correctamente`, {
+        description: 'Los cambios de licencia y límites ya están activos en el sistema.'
+      })
+      setShowEditCompanyModal(false)
+      setSelectedCompany(null)
+      loadAllData()
     } catch (err: any) {
-      toast.error('Error al actualizar empresa', { description: err.message })
+      toast.error('Error al guardar cambios', { description: err.message })
     } finally {
       setLoading(false)
     }
@@ -628,31 +903,77 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
     if (!selectedPayment) return
     try {
       setLoading(true)
-      const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/payments/${selectedPayment.reference}/manual-approve`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${sessionToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            months: approveMonths,
-            notes: approveNotes
-          })
-        }
-      )
-      const data = await res.json()
-      if (data.success) {
-        toast.success('Pago aprobado manualmente', {
-          description: `Licencia de la empresa extendida por ${approveMonths} mes(es)`
-        })
-        setShowManualApproveModal(false)
-        setSelectedPayment(null)
-        loadAllData()
-      } else {
-        toast.error('Error al aprobar pago', { description: data.error })
+      
+      // 1. Intentar endpoint backend si está disponible
+      try {
+        await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/superadmin/payments/${selectedPayment.reference}/manual-approve`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${sessionToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              months: approveMonths,
+              notes: approveNotes
+            })
+          }
+        )
+      } catch (e) {}
+
+      // 2. Actualizar directamente en KV
+      const supabase = getSupabaseClient()
+
+      // Guardar pago aprobado
+      const updatedPayment = {
+        ...selectedPayment,
+        status: 'approved',
+        manuallyApproved: true,
+        manuallyApprovedBy: currentUserProfile?.name || 'Super Admin',
+        manuallyApprovedAt: new Date().toISOString(),
+        notes: approveNotes || selectedPayment.notes || 'Aprobado manualmente desde Super Admin',
+        updatedAt: new Date().toISOString()
       }
+
+      await supabase.from('kv_store_4d437e50').upsert({
+        key: `payment:${selectedPayment.reference}`,
+        value: JSON.stringify(updatedPayment)
+      })
+
+      // Extender la empresa acumulativamente
+      const { data: compRow } = await supabase.from('kv_store_4d437e50').select('value').eq('key', `company:${selectedPayment.companyId}`).single()
+      if (compRow?.value) {
+        const comp = typeof compRow.value === 'string' ? JSON.parse(compRow.value) : compRow.value
+        const now = new Date()
+        const expiryTime = comp.licenseExpiry ? new Date(comp.licenseExpiry).getTime() : 0
+        const trialTime = comp.trialEndsAt ? new Date(comp.trialEndsAt).getTime() : 0
+        const maxFutureTime = Math.max(now.getTime(), isNaN(expiryTime) ? 0 : expiryTime, isNaN(trialTime) ? 0 : trialTime)
+        const baseDate = new Date(maxFutureTime)
+
+        const newExpiry = new Date(baseDate)
+        newExpiry.setMonth(newExpiry.getMonth() + (approveMonths || 1))
+
+        comp.licenseExpiry = newExpiry.toISOString()
+        comp.planId = selectedPayment.planId || comp.planId || 'basico'
+        comp.lastUpgrade = now.toISOString()
+        comp.updatedAt = now.toISOString()
+        if (comp.trialEndsAt) {
+          delete comp.trialEndsAt
+        }
+
+        await supabase.from('kv_store_4d437e50').upsert({
+          key: `company:${selectedPayment.companyId}`,
+          value: JSON.stringify(comp)
+        })
+      }
+
+      toast.success('Pago aprobado manualmente', {
+        description: `Licencia de la empresa extendida por ${approveMonths} mes(es)`
+      })
+      setShowManualApproveModal(false)
+      setSelectedPayment(null)
+      loadAllData()
     } catch (err: any) {
       toast.error('Error al procesar aprobación', { description: err.message })
     } finally {
@@ -894,15 +1215,17 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                     )}
                   </Button>
 
-                  <div className="pt-2 text-center">
-                    <button
-                      type="button"
-                      onClick={() => setIsInitialSetupMode(true)}
-                      className="text-xs text-muted-foreground hover:text-primary hover:underline cursor-pointer"
-                    >
-                      ¿No tienes Superadministrador configurado? Crear cuenta maestra inicial
-                    </button>
-                  </div>
+                  {!hasSuperAdminConfigured && (
+                    <div className="pt-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setIsInitialSetupMode(true)}
+                        className="text-xs text-muted-foreground hover:text-primary hover:underline cursor-pointer"
+                      >
+                        ¿No tienes Superadministrador configurado? Crear cuenta maestra inicial
+                      </button>
+                    </div>
+                  )}
                 </form>
               )}
             </CardContent>
@@ -1022,9 +1345,9 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase">Recaudado Wompi</p>
                   <p className="text-xl font-black text-foreground mt-1">
-                    ${stats.totalRevenueCOP.toLocaleString('es-CO')}
+                    ${(stats.totalRevenueCOP || 0).toLocaleString('es-CO')}
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{stats.approvedPaymentsCount} pagos aprobados</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{stats.approvedPaymentsCount || 0} pagos aprobados</p>
                 </div>
                 <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                   <DollarSign size={22} />
@@ -1037,9 +1360,9 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase">Empresas Registradas</p>
                   <p className="text-xl font-black text-foreground mt-1">
-                    {stats.totalCompaniesCount}
+                    {stats.totalCompaniesCount || 0}
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{stats.activeLicensesCount} con servicio activo</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{stats.activeLicensesCount || 0} con servicio activo</p>
                 </div>
                 <div className="p-3 rounded-xl bg-primary/10 text-primary">
                   <Building2 size={22} />
@@ -1052,7 +1375,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase">Licencias Vencidas</p>
                   <p className="text-xl font-black text-foreground mt-1 text-red-600 dark:text-red-400">
-                    {stats.expiredLicensesCount}
+                    {stats.expiredLicensesCount || 0}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">Requieren renovación</p>
                 </div>
@@ -1067,7 +1390,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase">Pagos Pendientes</p>
                   <p className="text-xl font-black text-foreground mt-1 text-amber-600 dark:text-amber-400">
-                    {stats.pendingPaymentsCount}
+                    {stats.pendingPaymentsCount || 0}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">En validación bancaria</p>
                 </div>

@@ -8,6 +8,7 @@ import { Register } from "./components/Register";
 import { GoogleSetup } from "./components/GoogleSetup";
 import { ForgotPassword } from "./components/ForgotPassword";
 import { ResetPassword } from "./components/ResetPassword";
+import { ConfirmEmail } from "./components/ConfirmEmail";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
 import { Products } from "./components/products";
@@ -35,10 +36,15 @@ export default function App() {
   console.log("🎯 App component rendering...");
 
   const initialPath = window.location.pathname || "/";
+  const initialHash = window.location.hash || "";
+  const isEmailConfirmationHash = initialHash.includes("type=signup") || initialHash.includes("type=email_change");
+  const isPasswordRecoveryHash = initialHash.includes("type=recovery");
+
   const isInitialTrackingRoute = initialPath.startsWith("/tracking");
-  const isInitialResetPasswordRoute = initialPath.startsWith("/reset-password");
+  const isInitialConfirmEmailRoute = initialPath.startsWith("/confirm-email") || isEmailConfirmationHash;
+  const isInitialResetPasswordRoute = initialPath.startsWith("/reset-password") || isPasswordRecoveryHash;
   const isInitialPaymentCallbackRoute = initialPath.startsWith("/payment-callback");
-  const isPublicRoute = isInitialTrackingRoute || isInitialResetPasswordRoute || isInitialPaymentCallbackRoute;
+  const isPublicRoute = isInitialTrackingRoute || isInitialConfirmEmailRoute || isInitialResetPasswordRoute || isInitialPaymentCallbackRoute;
 
   const [authView, setAuthView] = useState<
     "login" | "register" | "forgot-password" | "reset-password"
@@ -75,7 +81,8 @@ export default function App() {
     }
   }
 
-  const isResetPasswordPage = effectiveRoute.startsWith("/reset-password");
+  const isConfirmEmailPage = effectiveRoute.startsWith("/confirm-email") || isEmailConfirmationHash;
+  const isResetPasswordPage = effectiveRoute.startsWith("/reset-password") || isPasswordRecoveryHash;
   const isPaymentCallbackPage = effectiveRoute.startsWith("/payment-callback");
   const isSuperAdminRoute = effectiveRoute.startsWith("/superadmin");
 
@@ -99,10 +106,15 @@ export default function App() {
 
   useEffect(() => {
     const pathname = window.location.pathname || "/";
+    const hash = window.location.hash || "";
     const isPublic =
       pathname.startsWith("/tracking") ||
+      pathname.startsWith("/confirm-email") ||
       pathname.startsWith("/reset-password") ||
-      pathname.startsWith("/payment-callback");
+      pathname.startsWith("/payment-callback") ||
+      hash.includes("type=signup") ||
+      hash.includes("type=email_change") ||
+      hash.includes("type=recovery");
 
     if (isPublic) {
       setIsLoading(false);
@@ -131,52 +143,97 @@ export default function App() {
   };
 
   const verifySession = async (token: string) => {
+    setIsLoading(true);
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/auth/session`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      const supabase = getSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser(token);
+
+      if (!user) {
+        setIsAuthenticated(false);
+        setIsLoading(false);
+        return;
+      }
+
+      // 1. Obtener perfil de usuario desde KV
+      let profile: any = null;
+      try {
+        const { data: userRow } = await supabase
+          .from("kv_store_4d437e50")
+          .select("value")
+          .eq("key", `user:${user.id}`)
+          .single();
+
+        if (userRow?.value) {
+          profile = typeof userRow.value === "string" ? JSON.parse(userRow.value) : userRow.value;
         }
-      );
+      } catch (err) {}
 
-      const data = await response.json();
+      // Fallback a metadata si no está en KV
+      if (!profile) {
+        profile = {
+          userId: user.id,
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || user.email?.split("@")[0] || "Usuario",
+          role: user.user_metadata?.role || "admin",
+          companyId: user.user_metadata?.companyId || 1,
+          isSuperAdmin: user.user_metadata?.role === "superadmin" || user.user_metadata?.isSuperAdmin === true
+        };
+      }
 
-      if (data.success && data.authenticated) {
+      // Si es Super Admin, redirigir al portal exclusivo
+      if (profile.role === "superadmin" || profile.isSuperAdmin === true) {
         setAccessToken(token);
-        setUserProfile(data.user);
-        setLicenseInfo(data.license);
+        setUserProfile(profile);
         setIsAuthenticated(true);
         setNeedsGoogleSetup(false);
-
-        // Cargar datos directos de la empresa
-        try {
-          const compRes = await fetch(
-            `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/company/info`,
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            }
-          );
-          const compData = await compRes.json();
-          if (compData.success && compData.company) {
-            setCompanyData(compData.company);
-          }
-        } catch (compErr) {
-          console.warn("No se pudo cargar company/info:", compErr);
+        setIsLoading(false);
+        if (!window.location.pathname.startsWith("/superadmin")) {
+          navigate("/superadmin");
         }
-      } else if (data.needsSetup) {
-        setAccessToken(token);
-        setGoogleUserInfo(data.user);
-        setNeedsGoogleSetup(true);
-      } else if (response.status === 403) {
-        const supabase = getSupabaseClient();
-        await supabase.auth.signOut();
-        alert(
-          data.error ||
-            "Tu cuenta ha sido desactivada. Contacta al administrador."
-        );
+        return;
       }
+
+      // 2. Obtener datos de la empresa desde KV
+      let company: any = null;
+      const targetCompanyId = profile.companyId || 1;
+      try {
+        const { data: compRow } = await supabase
+          .from("kv_store_4d437e50")
+          .select("value")
+          .eq("key", `company:${targetCompanyId}`)
+          .single();
+
+        if (compRow?.value) {
+          company = typeof compRow.value === "string" ? JSON.parse(compRow.value) : compRow.value;
+        }
+      } catch (err) {}
+
+      // 3. Calcular estado de la licencia de forma segura
+      const now = new Date();
+      const expiryTime = company?.licenseExpiry ? new Date(company.licenseExpiry).getTime() : 0;
+      const trialTime = company?.trialEndsAt ? new Date(company.trialEndsAt).getTime() : 0;
+      const maxFutureTime = Math.max(now.getTime(), isNaN(expiryTime) ? 0 : expiryTime, isNaN(trialTime) ? 0 : trialTime);
+      const isExpired = maxFutureTime <= now.getTime();
+      const daysRemaining = Math.max(0, Math.ceil((maxFutureTime - now.getTime()) / (1000 * 60 * 60 * 24)));
+
+      const license = {
+        valid: !isExpired,
+        isExpired,
+        inTrial: Boolean(company?.trialEndsAt && new Date(company.trialEndsAt) > now),
+        daysRemaining,
+        planId: company?.planId || "basico",
+        licenseExpiry: company?.licenseExpiry,
+        trialEndsAt: company?.trialEndsAt
+      };
+
+      // Asignar todos los estados de forma sincronizada
+      setAccessToken(token);
+      setUserProfile(profile);
+      setCompanyData(company);
+      setLicenseInfo(license);
+      setIsAuthenticated(true);
+      setNeedsGoogleSetup(false);
     } catch (error) {
       console.error("Error verifying session:", error);
     } finally {
@@ -297,7 +354,12 @@ export default function App() {
   };
 
   const isLicenseExpired = (() => {
-    if (!licenseInfo && !companyData) return false;
+    // Si aún está cargando la sesión o si el usuario no está autenticado o es Super Admin, no bloquear ni flashear
+    if (isLoading || !isAuthenticated || !userProfile) return false;
+    if (userProfile.role === "superadmin" || userProfile.isSuperAdmin === true) return false;
+
+    // Si aún no se han terminado de cargar los datos de la empresa, no asumir vencimiento
+    if (!companyData && !licenseInfo) return false;
 
     const now = new Date();
 
@@ -324,11 +386,6 @@ export default function App() {
       return true;
     }
     if (licenseInfo?.daysRemaining !== undefined && licenseInfo.daysRemaining <= 0 && !licenseInfo.inTrial) {
-      return true;
-    }
-
-    // 4. Si no hay prueba ni fecha de expiración válida => Vencida
-    if (!trialEndsAt && !expiryStr) {
       return true;
     }
 
@@ -487,7 +544,22 @@ export default function App() {
     );
   }
 
-  // RUTAS PÚBLICAS 4: Recuperación de contraseña
+  // RUTAS PÚBLICAS 4: Confirmación de Correo Electrónico
+  if (isConfirmEmailPage) {
+    return (
+      <ThemeProvider>
+        <Toaster position="top-right" />
+        <ConfirmEmail
+          onConfirmSuccess={() => {
+            navigate("/login");
+            setAuthView("login");
+          }}
+        />
+      </ThemeProvider>
+    );
+  }
+
+  // RUTAS PÚBLICAS 5: Recuperación de contraseña
   if (isResetPasswordPage) {
     return (
       <ThemeProvider>
@@ -514,9 +586,22 @@ export default function App() {
     );
   }
 
-  // Rutas de autenticación
+  // Rutas de autenticación y navegación pública
   if (!isAuthenticated) {
-    if (currentRoute === "/login" || currentRoute === "login") {
+    if (isSuperAdminRoute) {
+      return (
+        <ThemeProvider>
+          <Toaster position="top-right" />
+          <SuperAdmin
+            accessToken={accessToken || ""}
+            userProfile={userProfile}
+            onBackToApp={() => navigate("/")}
+          />
+        </ThemeProvider>
+      );
+    }
+
+    if (effectiveRoute === "/login" || effectiveRoute === "login") {
       return (
         <ThemeProvider>
           <Toaster position="top-right" />
@@ -533,7 +618,9 @@ export default function App() {
           />
         </ThemeProvider>
       );
-    } else if (currentRoute === "/register" || currentRoute === "register") {
+    }
+
+    if (effectiveRoute === "/register" || effectiveRoute === "register") {
       return (
         <ThemeProvider>
           <Toaster position="top-right" />
@@ -547,10 +634,9 @@ export default function App() {
           />
         </ThemeProvider>
       );
-    } else if (
-      currentRoute === "/forgot-password" ||
-      currentRoute === "forgot-password"
-    ) {
+    }
+
+    if (effectiveRoute === "/forgot-password" || effectiveRoute === "forgot-password") {
       return (
         <ThemeProvider>
           <Toaster position="top-right" />
@@ -564,32 +650,18 @@ export default function App() {
       );
     }
 
-    if (!currentRoute || currentRoute === "/") {
-      return (
-        <ThemeProvider>
-          <Toaster position="top-right" />
-          <HomePage
-            onNavigateToLogin={() => {
-              navigate("/login");
-              setAuthView("login");
-            }}
-          />
-        </ThemeProvider>
-      );
-    }
-
+    // Landing Page por defecto en la raíz "/"
     return (
       <ThemeProvider>
         <Toaster position="top-right" />
-        <Login
-          onLoginSuccess={handleLoginSuccess}
-          onSwitchToRegister={() => {
+        <HomePage
+          onNavigateToLogin={() => {
+            navigate("/login");
+            setAuthView("login");
+          }}
+          onNavigateToRegister={() => {
             navigate("/register");
             setAuthView("register");
-          }}
-          onSwitchToForgotPassword={() => {
-            navigate("/forgot-password");
-            setAuthView("forgot-password");
           }}
         />
       </ThemeProvider>
