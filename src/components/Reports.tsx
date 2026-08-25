@@ -25,7 +25,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Alert, AlertDescription } from './ui/alert'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+import { MetricCard, Tabs, type TabItem } from './oryon'
+import { PageBody } from './layout/PageBody'
+import { usePageHeader } from './layout/PageHeaderContext'
+import { useShell } from './layout/AppShell'
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { ExportButton } from './ExportButton'
 import { formatCurrency, formatDate, formatDateTime } from '../utils/export'
@@ -46,7 +49,19 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelado'
 }
 
+const REPORT_TABS: TabItem[] = [
+  { id: 'profits', label: 'Ganancias' },
+  { id: 'sales', label: 'Ventas' },
+  { id: 'inventory', label: 'Inventario' },
+  { id: 'repairs', label: 'Reparaciones' },
+  { id: 'customers', label: 'Clientes' },
+]
+
+const money = (n: number) => `$${Math.round(n || 0).toLocaleString('es-CO')}`
+
 export function Reports({ accessToken }: ReportsProps) {
+  const { isMobile, compact } = useShell()
+  const [tab, setTab] = useState('profits')
   const [loading, setLoading] = useState(true)
   const [salesByDay, setSalesByDay] = useState<any[]>([])
   const [repairsByStatus, setRepairsByStatus] = useState<any[]>([])
@@ -132,99 +147,69 @@ export function Reports({ accessToken }: ReportsProps) {
     }
   }
 
+  usePageHeader({
+    title: 'Reportes y análisis',
+    subtitle: 'Insights para tomar mejores decisiones de negocio',
+    eyebrow: 'Análisis',
+  })
+
   if (loading) {
-    return <div className="p-4 sm:p-8">Cargando reportes...</div>
+    return (
+      <PageBody>
+        <div style={{ display: 'grid', placeItems: 'center', height: 240 }}>
+          <span
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              border: '2px solid var(--border-subtle)',
+              borderBottomColor: 'var(--accent-400)',
+              animation: 'oryon-spin 900ms linear infinite',
+            }}
+          />
+        </div>
+      </PageBody>
+    )
   }
 
   return (
-    <div className="p-4 sm:p-8">
-      <div className="mb-4 sm:mb-8">
-        <h2 className="text-2xl sm:text-3xl mb-1 sm:mb-2">Reportes y Análisis</h2>
-        <p className="text-sm sm:text-base text-gray-600">Insights para tomar mejores decisiones de negocio</p>
-      </div>
-
-      {/* Monthly Comparison */}
+    <PageBody>
       {monthlyComparison && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <Card>
-            <CardHeader className="p-4">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Calendar size={16} className="text-blue-600" />
-                Este Mes
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-2xl sm:text-3xl">${monthlyComparison.thisMonth.revenue.toFixed(0)}</div>
-              <p className="text-xs sm:text-sm text-gray-600">{monthlyComparison.thisMonth.count} ventas</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="p-4">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Calendar size={16} className="text-gray-600" />
-                Mes Anterior
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-2xl sm:text-3xl">${monthlyComparison.lastMonth.revenue.toFixed(0)}</div>
-              <p className="text-xs sm:text-sm text-gray-600">{monthlyComparison.lastMonth.count} ventas</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="p-4">
-              <CardTitle className="text-sm flex items-center gap-2">
-                {monthlyComparison.growth >= 0 ? (
-                  <TrendingUp size={16} className="text-green-600" />
-                ) : (
-                  <TrendingDown size={16} className="text-red-600" />
-                )}
-                Crecimiento
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className={`text-2xl sm:text-3xl ${monthlyComparison.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {monthlyComparison.growth >= 0 ? '+' : ''}{monthlyComparison.growth.toFixed(1)}%
-              </div>
-              <p className="text-xs sm:text-sm text-gray-600">vs mes anterior</p>
-            </CardContent>
-          </Card>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${isMobile || compact ? 1 : 3},minmax(0,1fr))`,
+            gap: 12,
+          }}
+        >
+          <MetricCard
+            label="Este mes"
+            value={money(monthlyComparison.thisMonth.revenue)}
+            icon={Calendar}
+            sublabel={`${monthlyComparison.thisMonth.count} ventas`}
+          />
+          <MetricCard
+            label="Mes anterior"
+            value={money(monthlyComparison.lastMonth.revenue)}
+            icon={Calendar}
+            sublabel={`${monthlyComparison.lastMonth.count} ventas`}
+          />
+          <MetricCard
+            label="Crecimiento"
+            value={`${monthlyComparison.growth >= 0 ? '+' : ''}${monthlyComparison.growth.toFixed(1).replace('.', ',')}%`}
+            icon={monthlyComparison.growth >= 0 ? TrendingUp : TrendingDown}
+            delta={`${monthlyComparison.growth >= 0 ? '+' : ''}${monthlyComparison.growth.toFixed(1).replace('.', ',')}%`}
+            deltaTone={monthlyComparison.growth >= 0 ? 'up' : 'down'}
+            sublabel="vs mes anterior"
+          />
         </div>
       )}
 
-      {/* Tabs for different report categories */}
-      <Tabs defaultValue="profits" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto gap-1">
-          <TabsTrigger value="profits" className="text-xs sm:text-sm py-2">
-            <PiggyBank size={16} className="mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Ganancias</span>
-            <span className="sm:hidden">Gan</span>
-          </TabsTrigger>
-          <TabsTrigger value="sales" className="text-xs sm:text-sm py-2">
-            <DollarSign size={16} className="mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Ventas</span>
-            <span className="sm:hidden">Vtas</span>
-          </TabsTrigger>
-          <TabsTrigger value="inventory" className="text-xs sm:text-sm py-2">
-            <Package size={16} className="mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Inventario</span>
-            <span className="sm:hidden">Inv</span>
-          </TabsTrigger>
-          <TabsTrigger value="repairs" className="text-xs sm:text-sm py-2">
-            <Wrench size={16} className="mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Reparaciones</span>
-            <span className="sm:hidden">Rep</span>
-          </TabsTrigger>
-          <TabsTrigger value="customers" className="text-xs sm:text-sm py-2">
-            <Users size={16} className="mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Clientes</span>
-            <span className="sm:hidden">Cli</span>
-          </TabsTrigger>
-        </TabsList>
+      <Tabs items={REPORT_TABS} value={tab} onChange={setTab} />
 
         {/* PROFITS TAB */}
-        <TabsContent value="profits" className="space-y-4">
+        {tab === 'profits' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {profitData ? (
             <>
               {/* Profit Summary Cards */}
@@ -484,10 +469,12 @@ export function Reports({ accessToken }: ReportsProps) {
               <p className="text-sm text-gray-600">Calculando ganancias...</p>
             </div>
           )}
-        </TabsContent>
+        </div>
+        )}
 
         {/* SALES TAB */}
-        <TabsContent value="sales" className="space-y-4">
+        {tab === 'sales' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Sales Trend */}
           <Card>
             <CardHeader className="p-4 sm:p-6">
@@ -594,10 +581,12 @@ export function Reports({ accessToken }: ReportsProps) {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        </div>
+        )}
 
         {/* INVENTORY TAB */}
-        <TabsContent value="inventory" className="space-y-4">
+        {tab === 'inventory' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Low Rotation Alert */}
           {lowRotationProducts.length > 0 && (
             <Alert className="bg-orange-50 border-orange-200">
@@ -659,10 +648,12 @@ export function Reports({ accessToken }: ReportsProps) {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+        )}
 
         {/* REPAIRS TAB */}
-        <TabsContent value="repairs" className="space-y-4">
+        {tab === 'repairs' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Ready Repairs Alert */}
           {readyRepairs.length > 0 && (
             <Alert className="bg-green-50 border-green-200">
@@ -818,10 +809,12 @@ export function Reports({ accessToken }: ReportsProps) {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+        )}
 
         {/* CUSTOMERS TAB */}
-        <TabsContent value="customers" className="space-y-4">
+        {tab === 'customers' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Inactive Customers Alert */}
           {inactiveCustomers.length > 0 && (
             <Alert className="bg-blue-50 border-blue-200">
@@ -910,8 +903,8 @@ export function Reports({ accessToken }: ReportsProps) {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-      </Tabs>
-    </div>
+        </div>
+        )}
+    </PageBody>
   )
 }

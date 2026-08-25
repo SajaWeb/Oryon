@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Settings as SettingsIcon } from 'lucide-react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+import { Tabs, type TabItem } from './oryon'
+import { PageBody } from './layout/PageBody'
+import { usePageHeader } from './layout/PageHeaderContext'
 import { CompanyInfoSection } from './settings/CompanyInfoSection'
 import { AppearanceSection } from './settings/AppearanceSection'
 import { NotificationsSection } from './settings/NotificationsSection'
@@ -45,7 +46,16 @@ interface SettingsProps {
   licenseInfo?: any
 }
 
+const SETTINGS_TABS: TabItem[] = [
+  { id: 'general', label: 'General' },
+  { id: 'users', label: 'Usuarios' },
+  { id: 'branches', label: 'Sucursales' },
+  { id: 'documents', label: 'Documentos' },
+  { id: 'system', label: 'Sistema' },
+]
+
 export function Settings({ accessToken, userProfile, licenseInfo }: SettingsProps) {
+  const [tab, setTab] = useState('general')
   const [company, setCompany] = useState<Company | null>(null)
   const [users, setUsers] = useState<User[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
@@ -138,85 +148,73 @@ export function Settings({ accessToken, userProfile, licenseInfo }: SettingsProp
     }
   }
 
+  usePageHeader({
+    title: 'Configuración',
+    subtitle: company?.name ? `${company.name} · empresa, usuarios y documentos` : 'Empresa, usuarios y documentos',
+    eyebrow: 'Cuenta',
+  })
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <PageBody>
+        <div style={{ display: 'grid', placeItems: 'center', height: 240 }}>
+          <span
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              border: '2px solid var(--border-subtle)',
+              borderBottomColor: 'var(--accent-400)',
+              animation: 'oryon-spin 900ms linear infinite',
+            }}
+          />
+        </div>
+      </PageBody>
     )
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
-      <div className="mb-6 sm:mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <SettingsIcon className="text-blue-600" size={32} />
-          <h2 className="text-2xl sm:text-3xl">Configuración</h2>
-        </div>
-        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-          Gestiona todas las configuraciones de tu empresa
-        </p>
-      </div>
+    <PageBody>
+      <CompanyInfoSection company={company} licenseInfo={licenseInfo} />
 
-      {/* Company Info Header */}
-      <div className="mb-6">
-        <CompanyInfoSection company={company} licenseInfo={licenseInfo} />
-      </div>
+      {/* Tabs del design system: hacen scroll horizontal en vez de envolverse.
+          El TabsList de shadcn heredaba h-9 y, por debajo de lg, las cinco pestañas se
+          envolvían en tres filas dentro de una caja de 36px, superponiéndose. */}
+      <Tabs items={SETTINGS_TABS} value={tab} onChange={setTab} />
 
-      {/* Tabs for organized settings */}
-      <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 mb-6">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="users">Usuarios</TabsTrigger>
-          <TabsTrigger value="branches">Sucursales</TabsTrigger>
-          <TabsTrigger value="documents">Documentos</TabsTrigger>
-          <TabsTrigger value="system">Sistema</TabsTrigger>
-        </TabsList>
+      {tab === 'general' && (
+        <GeneralSection accessToken={accessToken} companyName={company?.name || ''} />
+      )}
 
-        {/* General Tab */}
-        <TabsContent value="general" className="space-y-6">
-          <GeneralSection 
-            accessToken={accessToken}
-            companyName={company?.name || ''}
-          />
-        </TabsContent>
+      {tab === 'users' && (
+        <UsersSection
+          accessToken={accessToken}
+          userProfile={userProfile}
+          users={users}
+          branches={branches}
+          onRefresh={fetchUsers}
+        />
+      )}
 
-        {/* Users Tab */}
-        <TabsContent value="users" className="space-y-6">
-          <UsersSection
-            accessToken={accessToken}
-            userProfile={userProfile}
-            users={users}
-            branches={branches}
-            onRefresh={fetchUsers}
-          />
-        </TabsContent>
+      {tab === 'branches' && (
+        <BranchManager accessToken={accessToken} userProfile={userProfile} licenseInfo={licenseInfo} />
+      )}
 
-        {/* Branches Tab */}
-        <TabsContent value="branches" className="space-y-6">
-          <BranchManager 
-            accessToken={accessToken} 
-            userProfile={userProfile}
-            licenseInfo={licenseInfo}
-          />
-        </TabsContent>
+      {tab === 'documents' && (
+        <DocumentsSection
+          accessToken={accessToken}
+          identificationTypes={identificationTypes}
+          setIdentificationTypes={setIdentificationTypes}
+        />
+      )}
 
-        {/* Documents Tab */}
-        <TabsContent value="documents" className="space-y-6">
-          <DocumentsSection
-            accessToken={accessToken}
-            identificationTypes={identificationTypes}
-            setIdentificationTypes={setIdentificationTypes}
-          />
-        </TabsContent>
-
-        {/* System Tab */}
-        <TabsContent value="system" className="space-y-6">
+      {tab === 'system' && (
+        <>
           <AppearanceSection />
           <NotificationsSection />
           <PWAInfo />
-        </TabsContent>
-      </Tabs>
-    </div>
+        </>
+      )}
+    </PageBody>
   )
 }
