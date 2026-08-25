@@ -28,6 +28,8 @@ export interface FilterSpec {
   value: string
   options: SelectOption[]
   onChange: (value: string) => void
+  /** `date` para rangos de fecha (ventas); por defecto, un desplegable. */
+  type?: 'select' | 'date'
 }
 
 export interface ListPageProps<T extends Record<string, any>> {
@@ -59,6 +61,29 @@ export interface ListPageProps<T extends Record<string, any>> {
   banner?: ReactNode
   /** Chips de estado sobre la lista en móvil (reparaciones). */
   chips?: ReactNode
+}
+
+function FilterControl({ filter, size }: { filter: FilterSpec; size: 'sm' | 'lg' }) {
+  if (filter.type === 'date') {
+    return (
+      <Input
+        type="date"
+        size={size}
+        value={filter.value}
+        aria-label={filter.label}
+        onChange={(e) => filter.onChange(e.target.value)}
+      />
+    )
+  }
+  return (
+    <Select
+      size={size}
+      placeholder={filter.placeholder}
+      value={filter.value}
+      options={filter.options}
+      onChange={(e) => filter.onChange(e.target.value)}
+    />
+  )
 }
 
 export function ListPage<T extends Record<string, any>>({
@@ -288,13 +313,7 @@ export function ListPage<T extends Record<string, any>>({
                 >
                   {f.label}
                 </span>
-                <Select
-                  size="lg"
-                  placeholder={f.placeholder}
-                  value={f.value}
-                  options={f.options}
-                  onChange={(e) => f.onChange(e.target.value)}
-                />
+                <FilterControl filter={f} size="lg" />
               </label>
             ))}
           </div>
@@ -319,13 +338,7 @@ export function ListPage<T extends Record<string, any>>({
           </div>
           {filters.map((f) => (
             <div key={f.id} style={{ flex: '1 1 160px', minWidth: 0, maxWidth: 200 }}>
-              <Select
-                size="sm"
-                placeholder={f.placeholder}
-                value={f.value}
-                options={f.options}
-                onChange={(e) => f.onChange(e.target.value)}
-              />
+              <FilterControl filter={f} size="sm" />
             </div>
           ))}
           {(activeFilters > 0 || search.value) && (
