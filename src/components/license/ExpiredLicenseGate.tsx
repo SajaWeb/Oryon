@@ -24,6 +24,7 @@ import { plans, Plan } from '../License'
 import wompiService from '../../services/WompiService'
 import { projectId } from '../../utils/supabase/info'
 import { Logo } from '../brand/Logo'
+import { getSupabaseClient } from "../../utils/supabase/client";
 
 interface ExpiredLicenseGateProps {
   accessToken: string

@@ -10,7 +10,14 @@ import {
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Alert, AlertDescription } from "./ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Tabs, Alert as OryonAlert, type TabItem } from "./oryon";
+import { PageBody } from "./layout/PageBody";
+import { usePageHeader } from "./layout/PageHeaderContext";
+
+const LICENSE_TABS: TabItem[] = [
+  { id: 'plans', label: 'Planes por sucursales' },
+  { id: 'extend', label: 'Extender duración' },
+];
 import {
   CreditCard,
   CheckCircle2,
@@ -34,6 +41,7 @@ import { ExtendLicenseSection } from "./license/ExtendLicenseSection";
 import { PaymentReceipt } from "./PaymentReceipt";
 import wompiService from "../services/WompiService";
 import PaymentSuccess from "./PaymentSuccess";
+import { getSupabaseClient } from "../utils/supabase/client";
 
 interface LicenseProps {
   accessToken: string;
@@ -127,6 +135,7 @@ export function License({
   licenseInfo,
   onLicenseUpdated,
 }: LicenseProps) {
+  const [tab, setTab] = useState('plans');
   const [selectedPlan, setSelectedPlan] = useState<string>("pyme");
   const [loading, setLoading] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
@@ -381,6 +390,13 @@ export function License({
   };
 
   // Renderizar recibo si está activo
+  usePageHeader({
+    title: 'Gestión de licencia',
+    subtitle: 'Suscripción y facturación',
+    eyebrow: 'Cuenta',
+    onRefresh: loadCompanyData,
+  });
+
   if (showReceipt && receiptData) {
     return (
       <PaymentReceipt
@@ -422,38 +438,13 @@ export function License({
   const licenseExpired = isExpired();
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-3">
-            Licenciamiento y Suscripción Oryon
-          </h1>
-          <p className="text-base text-muted-foreground max-w-2xl mx-auto">
-            Elige el plan ideal según el número de sucursales de tu empresa. Pagos seguros en pesos colombianos (COP) mediante Wompi.
-          </p>
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadCompanyData}
-              className="text-xs"
-            >
-              <Clock size={13} className="mr-1" />
-              Actualizar Estado de Licencia
-            </Button>
-          </div>
-        </div>
-
-        {/* License Expired Alert if expired */}
-        {licenseExpired && (
-          <Alert className="mb-6 bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-400">
-            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-            <AlertDescription className="ml-2 font-medium">
-              ⚠️ <strong>Tu licencia ha expirado.</strong> Para continuar usando todas las funciones operativas de Oryon, por favor renueva tu suscripción o selecciona un plan a continuación.
-            </AlertDescription>
-          </Alert>
-        )}
+    <PageBody>
+      {/* El título y el botón de recarga los aporta el shell (topbar / header móvil). */}
+      {licenseExpired && (
+        <OryonAlert variant="danger" title="Tu licencia ha expirado">
+          Renueva la suscripción o elige un plan para seguir usando las funciones operativas.
+        </OryonAlert>
+      )}
 
         {/* Current Plan Status Card */}
         {currentPlan && (
@@ -607,14 +598,11 @@ export function License({
         </Card>
 
         {/* Tabs: Planes vs Extensión de Tiempo */}
-        <Tabs defaultValue="plans" className="mb-8">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="plans">Planes por Sucursales</TabsTrigger>
-            <TabsTrigger value="extend">Extender Duración</TabsTrigger>
-          </TabsList>
+        <Tabs items={LICENSE_TABS} value={tab} onChange={setTab} />
 
           {/* Planes Tab */}
-          <TabsContent value="plans" className="space-y-6">
+          {tab === 'plans' && (
+          <div className="space-y-6">
             {/* Validation Alert */}
             {showValidation && validationResult && !validationResult.canChange && (
               <Alert variant="destructive" className="mb-6">
@@ -784,10 +772,12 @@ export function License({
                 Transacción segura cifrada y verificada por Wompi Colombia
               </p>
             </div>
-          </TabsContent>
+          </div>
+          )}
 
           {/* Extend License Tab */}
-          <TabsContent value="extend">
+          {tab === 'extend' && (
+          <div>
             {currentPlan && companyData?.licenseExpiry && (
               <ExtendLicenseSection
                 accessToken={accessToken}
@@ -800,8 +790,8 @@ export function License({
                 }}
               />
             )}
-          </TabsContent>
-        </Tabs>
+          </div>
+          )}
 
         {/* Support Card */}
         <Card className="border-border">
@@ -828,8 +818,7 @@ export function License({
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
+    </PageBody>
   );
 }
 export default License;

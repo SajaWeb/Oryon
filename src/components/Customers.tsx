@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { projectId } from '../utils/supabase/info'
-import { Plus, Edit, User, RefreshCw, CreditCard, Download } from 'lucide-react'
+import { Plus, Edit, User, Users, Pencil, Phone, RefreshCw, CreditCard, Download } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -21,14 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select'
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from './ui/pagination'
+// Oryon con alias: esta vista aún usa los primitivos shadcn en el formulario.
+import { Button as OryonButton, KeyValue, type Column } from './oryon'
+import { ListPage } from './patterns/ListPage'
+import { ResponsiveDetail } from './layout/ResponsiveDetail'
+import { useShell } from './layout/AppShell'
+import { usePageHeader } from './layout/PageHeaderContext'
+import { CustomerListCard } from './customers/CustomerListCard'
 
 interface Customer {
   id: number
@@ -47,13 +46,19 @@ interface CustomersProps {
 }
 
 export function Customers({ accessToken, userRole = 'admin' }: CustomersProps) {
+  const { compact } = useShell()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [identificationTypes, setIdentificationTypes] = useState<string[]>([])
   const [isExporting, setIsExporting] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
+  // La vista no tenía ni búsqueda ni filtros: con el directorio paginado y sin buscador,
+  // encontrar a alguien era imposible desde un teléfono.
+  const [searchTerm, setSearchTerm] = useState('')
+  const [idTypeFilter, setIdTypeFilter] = useState('')
+  const [sortBy, setSortBy] = useState('recientes')
+  const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null)
   const itemsPerPage = 12
   const [formData, setFormData] = useState({
     name: '',
@@ -236,49 +241,197 @@ export function Customers({ accessToken, userRole = 'admin' }: CustomersProps) {
     }
   }
 
+  const initialsOfName = (name: string) => {
+    const parts = (name || '').trim().split(/\s+/).filter(Boolean)
+    if (!parts.length) return '··'
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[1][0]).toUpperCase()
+  }
+
+  const filteredCustomers = (() => {
+    const q = searchTerm.trim().toLowerCase()
+    let rows = customers.filter((c) => {
+      if (idTypeFilter && c.identificationType !== idTypeFilter) return false
+      if (!q) return true
+      return (
+        c.name?.toLowerCase().includes(q) ||
+        c.phone?.toLowerCase().includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.identificationNumber?.toLowerCase().includes(q)
+      )
+    })
+    if (sortBy === 'nombre') rows = [...rows].sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    if (sortBy === 'recientes') {
+      rows = [...rows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    }
+    return rows
+  })()
+
+  const customerColumns: Column<Customer>[] = [
+    { key: 'id', label: 'ID', mono: true, width: 60 },
+    { key: 'name', label: 'Nombre' },
+    {
+      key: 'identificationType',
+      label: 'Identificación',
+      muted: true,
+      hideOnCompact: true,
+      render: (c) => c.identificationType || '—',
+    },
+    {
+      key: 'identificationNumber',
+      label: 'Número',
+      mono: true,
+      muted: true,
+      render: (c) => c.identificationNumber || '—',
+    },
+    { key: 'phone', label: 'Teléfono', mono: true, render: (c) => c.phone || '—' },
+    { key: 'email', label: 'Email', muted: true, hideOnCompact: true, render: (c) => c.email || '—' },
+    { key: 'address', label: 'Dirección', muted: true, hideOnCompact: true, render: (c) => c.address || '—' },
+    {
+      key: 'createdAt',
+      label: 'Registrado',
+      mono: true,
+      muted: true,
+      align: 'right',
+      render: (c) => {
+        const d = new Date(c.createdAt)
+        return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-CO')
+      },
+    },
+  ]
+
+  usePageHeader({
+    title: 'Clientes',
+    subtitle: loading
+      ? 'Cargando directorio…'
+      : `${filteredCustomers.length} de ${customers.length} ${customers.length === 1 ? 'cliente' : 'clientes'}`,
+    eyebrow: 'Directorio',
+    onRefresh: fetchCustomers,
+    refreshing: loading,
+  })
+
   if (loading) {
     return <div className="p-8">Cargando...</div>
   }
 
-  // Pagination logic
-  const totalPages = Math.ceil(customers.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedCustomers = customers.slice(startIndex, endIndex)
-
   return (
-    <div className="p-4 sm:p-8">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-8 gap-3">
-        <div>
-          <h2 className="text-2xl sm:text-3xl mb-1 sm:mb-2">Clientes</h2>
-          <p className="text-sm sm:text-base text-gray-600">Base de datos de clientes ({customers.length} {customers.length === 1 ? 'cliente' : 'clientes'})</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchCustomers} className="flex-1 sm:flex-none h-10 sm:h-auto">
-            <RefreshCw size={18} className="mr-1 sm:mr-2" />
-            <span className="text-xs sm:text-sm">Actualizar</span>
-          </Button>
-          {userRole === 'admin' && (
-            <Button 
-              variant="outline" 
-              onClick={handleExportCustomers}
-              disabled={isExporting || customers.length === 0}
-              className="flex-1 sm:flex-none h-10 sm:h-auto"
-            >
-              <Download size={18} className="mr-1 sm:mr-2" />
-              <span className="text-xs sm:text-sm">{isExporting ? 'Exportando...' : 'Exportar'}</span>
-            </Button>
-          )}
-          <Dialog open={dialogOpen} onOpenChange={(open) => {
-            setDialogOpen(open)
-            if (!open) resetForm()
-          }}>
-            <DialogTrigger asChild>
-              <Button className="flex-1 sm:flex-none h-10 sm:h-auto">
-                <Plus size={18} className="mr-1 sm:mr-2" />
-                <span className="text-xs sm:text-sm">Nuevo</span>
-              </Button>
-            </DialogTrigger>
+    <>
+      <ListPage<Customer>
+        rows={filteredCustomers}
+        columns={customerColumns}
+        rowKey="id"
+        selectedId={detailCustomer?.id ?? null}
+        onRowClick={(c) => setDetailCustomer((cur) => (cur?.id === c.id ? null : c))}
+        renderCard={(c) => (
+          <CustomerListCard
+            customer={c}
+            initials={initialsOfName(c.name)}
+            onOpen={() => setDetailCustomer(c)}
+          />
+        )}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Nombre, cédula, teléfono, email…',
+        }}
+        filters={[
+          {
+            id: 'idType',
+            label: 'Tipo de identificación',
+            placeholder: 'Todos los tipos',
+            value: idTypeFilter,
+            options: identificationTypes.map((t) => ({ value: t, label: t })),
+            onChange: setIdTypeFilter,
+          },
+          {
+            id: 'sort',
+            label: 'Orden',
+            placeholder: 'Más recientes',
+            value: sortBy === 'recientes' ? '' : sortBy,
+            options: [{ value: 'nombre', label: 'Nombre A-Z' }],
+            onChange: (v) => setSortBy(v || 'recientes'),
+          },
+        ]}
+        onClearFilters={() => {
+          setIdTypeFilter('')
+          setSortBy('recientes')
+        }}
+        primaryAction={{ label: 'Nuevo cliente', icon: Plus, onClick: () => setDialogOpen(true) }}
+        onExport={userRole === 'admin' ? handleExportCustomers : undefined}
+        tableTitle="Clientes registrados"
+        tableSubtitle={`${filteredCustomers.length} ${filteredCustomers.length === 1 ? 'cliente' : 'clientes'}`}
+        countLabel={(shown, total) => `Mostrando ${shown} de ${total} clientes`}
+        endLabel={(total) => `Fin de la lista · ${total} clientes`}
+        empty={{
+          icon: Users,
+          title: customers.length === 0 ? 'Sin clientes' : 'Sin resultados',
+          description:
+            customers.length === 0
+              ? 'Aún no hay clientes registrados. Crea el primero para poder facturar.'
+              : 'Ningún cliente coincide con la búsqueda o el filtro.',
+        }}
+      />
+
+      <ResponsiveDetail
+        open={detailCustomer != null}
+        onClose={() => setDetailCustomer(null)}
+        kind="Cliente"
+        title={detailCustomer?.name ?? ''}
+        meta={detailCustomer ? `Cliente #${detailCustomer.id}` : undefined}
+        actions={
+          detailCustomer && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <OryonButton
+                variant="primary"
+                fullWidth
+                iconLeft={Pencil}
+                onClick={() => {
+                  openEditDialog(detailCustomer)
+                  setDetailCustomer(null)
+                }}
+              >
+                Editar
+              </OryonButton>
+              {detailCustomer.phone && (
+                <OryonButton
+                  fullWidth
+                  iconLeft={Phone}
+                  onClick={() => window.open(`tel:${detailCustomer.phone}`)}
+                >
+                  Llamar
+                </OryonButton>
+              )}
+            </div>
+          )
+        }
+      >
+        {detailCustomer && (
+          <KeyValue
+            layout="stacked"
+            columns={compact ? 1 : 2}
+            items={[
+              { label: 'Tipo de identificación', value: detailCustomer.identificationType || '—' },
+              { label: 'Número', value: detailCustomer.identificationNumber || '—', mono: true },
+              { label: 'Teléfono', value: detailCustomer.phone || '—', mono: true },
+              { label: 'Email', value: detailCustomer.email || '—' },
+              { label: 'Dirección', value: detailCustomer.address || '—' },
+              {
+                label: 'Registrado',
+                value: (() => {
+                  const d = new Date(detailCustomer.createdAt)
+                  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-CO')
+                })(),
+                mono: true,
+              },
+            ]}
+          />
+        )}
+      </ResponsiveDetail>
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        setDialogOpen(open)
+        if (!open) resetForm()
+      }}>
           <DialogContent className="max-w-md w-[95vw] sm:w-full p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle className="text-lg sm:text-xl">
@@ -362,126 +515,7 @@ export function Customers({ accessToken, userRole = 'admin' }: CustomersProps) {
               </Button>
             </form>
           </DialogContent>
-        </Dialog>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {paginatedCustomers.map((customer) => (
-          <Card key={customer.id}>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                    <User className="text-blue-600" size={24} />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">{customer.name}</CardTitle>
-                    <p className="text-sm text-gray-600">Cliente #{customer.id}</p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => openEditDialog(customer)}
-                >
-                  <Edit size={16} />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {customer.identificationType && customer.identificationNumber && (
-                <div>
-                  <p className="text-sm text-gray-600">Identificación</p>
-                  <p className="text-sm flex items-center gap-1">
-                    <CreditCard size={14} className="text-gray-400" />
-                    {customer.identificationType}: {customer.identificationNumber}
-                  </p>
-                </div>
-              )}
-              <div>
-                <p className="text-sm text-gray-600">Email</p>
-                <p className="text-sm">{customer.email}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Teléfono</p>
-                <p className="text-sm">{customer.phone}</p>
-              </div>
-              {customer.address && (
-                <div>
-                  <p className="text-sm text-gray-600">Dirección</p>
-                  <p className="text-sm">{customer.address}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-sm text-gray-600">Registrado</p>
-                <p className="text-sm">{new Date(customer.createdAt).toLocaleDateString()}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {customers.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          No hay clientes registrados. ¡Agrega tu primer cliente!
-        </div>
-      )}
-
-      {/* Pagination */}
-      {customers.length > itemsPerPage && (
-        <div className="mt-8 flex justify-center">
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious 
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                />
-              </PaginationItem>
-              
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                // Show first page, last page, current page, and pages around current
-                const showPage = 
-                  page === 1 || 
-                  page === totalPages || 
-                  (page >= currentPage - 1 && page <= currentPage + 1)
-                
-                if (!showPage) {
-                  // Show ellipsis
-                  if (page === currentPage - 2 || page === currentPage + 2) {
-                    return (
-                      <PaginationItem key={page}>
-                        <span className="px-2">...</span>
-                      </PaginationItem>
-                    )
-                  }
-                  return null
-                }
-                
-                return (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      onClick={() => setCurrentPage(page)}
-                      isActive={currentPage === page}
-                      className="cursor-pointer"
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                )
-              })}
-              
-              <PaginationItem>
-                <PaginationNext 
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
-      )}
-    </div>
+      </Dialog>
+    </>
   )
 }

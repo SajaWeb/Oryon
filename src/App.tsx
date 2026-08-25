@@ -9,7 +9,6 @@ import { GoogleSetup } from "./components/GoogleSetup";
 import { ForgotPassword } from "./components/ForgotPassword";
 import { ResetPassword } from "./components/ResetPassword";
 import { ConfirmEmail } from "./components/ConfirmEmail";
-import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
 import { Products } from "./components/products";
 import { Repairs } from "./components/repairs";
@@ -26,7 +25,12 @@ import { HomePage } from "./components/HomePage";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 import { OfflineIndicator } from "./components/OfflineIndicator";
-import { AppTopbar } from "./components/AppTopbar";
+import { AppShell } from "./components/layout/AppShell";
+import {
+  hasAccess as navHasAccess,
+  defaultViewForRole,
+  type ViewId,
+} from "./components/layout/navItems";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
 import { AlertCircle, CreditCard, ShieldAlert } from "lucide-react";
@@ -251,17 +255,10 @@ export default function App() {
     await verifySession(token);
   };
 
-  // Set initial view based on user role
+  // Vista inicial según el rol. La tabla vive en components/layout/navItems.ts
   useEffect(() => {
     if (userProfile) {
-      const role = userProfile.role;
-      if (role === "tecnico") {
-        setCurrentView("repairs");
-      } else if (role === "asesor") {
-        setCurrentView("sales");
-      } else {
-        setCurrentView("dashboard");
-      }
+      setCurrentView(defaultViewForRole(userProfile.role));
     }
   }, [userProfile]);
 
@@ -330,22 +327,8 @@ export default function App() {
     window.dispatchEvent(new PopStateEvent("popstate"));
   };
 
-  const hasAccess = (view: string) => {
-    const role = userProfile?.role || "asesor";
-
-    const permissions: { [key: string]: string[] } = {
-      dashboard: ["admin"],
-      products: ["admin", "asesor"],
-      repairs: ["admin", "asesor", "tecnico"],
-      sales: ["admin", "asesor"],
-      customers: ["admin"],
-      reports: ["admin"],
-      settings: ["admin"],
-      license: ["admin"],
-    };
-
-    return permissions[view]?.includes(role) || false;
-  };
+  // Navegación y permisos comparten una sola definición: components/layout/navItems.ts
+  const hasAccess = (view: string) => navHasAccess(view, userProfile?.role);
 
   const handleLicenseUpdated = async () => {
     if (accessToken) {
@@ -690,20 +673,16 @@ export default function App() {
   return (
     <ThemeProvider>
       <OfflineIndicator />
-      <div className="flex min-h-screen bg-background">
-        <Toaster position="top-right" />
-        <Sidebar
-          currentView={currentView}
-          onViewChange={setCurrentView}
-          onLogout={handleLogout}
-          userProfile={userProfile}
-          licenseInfo={licenseInfo}
-        />
-        <div className="flex min-w-0 flex-1 flex-col pt-[var(--topbar-height)] lg:pt-0">
-          <AppTopbar currentView={currentView} userProfile={userProfile} />
-          <main className="min-h-0 flex-1 overflow-auto">{renderView()}</main>
-        </div>
-      </div>
+      <Toaster position="top-right" />
+      <AppShell
+        currentView={currentView}
+        onViewChange={(view: ViewId) => setCurrentView(view)}
+        onLogout={handleLogout}
+        userProfile={userProfile}
+        licenseInfo={licenseInfo}
+      >
+        {renderView()}
+      </AppShell>
       <PWAInstallPrompt />
       <PWAUpdatePrompt />
     </ThemeProvider>

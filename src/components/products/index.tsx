@@ -4,15 +4,17 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Plus, Download, AlertCircle, History } from 'lucide-react'
-import { Button } from '../ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '../ui/pagination'
-import { Alert, AlertDescription } from '../ui/alert'
+import { ArrowLeftRight, ArrowUpDown, History, PackageSearch, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
+import { Alert, Badge, Button, Card, IconButton, KeyValue, type Column } from '../oryon'
+import { ListPage } from '../patterns/ListPage'
+import { PageBody } from '../layout/PageBody'
+import { ResponsiveDetail } from '../layout/ResponsiveDetail'
+import { useShell } from '../layout/AppShell'
+import { usePageHeader } from '../layout/PageHeaderContext'
+import { ProductListCard } from './ProductListCard'
 import { toast } from 'sonner@2.0.3'
 import { projectId } from '../../utils/supabase/info'
-import { ProductFilters } from './ProductFilters'
-import { ProductCard } from './ProductCard'
 import { ProductForm } from './ProductForm'
 import { UnitsManagement } from './UnitsManagement'
 import { VariantsManagement } from './VariantsManagement'
@@ -21,8 +23,8 @@ import { BranchTransfer } from './BranchTransfer'
 import { UnitsTransfer } from './UnitsTransfer'
 import { ProductTransactionHistory } from './ProductTransactionHistory'
 import { AddStock } from './AddStock'
-import { exportProductsToCSV, canEditProduct, getAvailableBranches } from './utils'
-import { ITEMS_PER_PAGE } from './constants'
+import { exportProductsToCSV, canEditProduct, getAvailableBranches, getAvailableStock, isLowStock, formatPrice, getMarginPercentage } from './utils'
+import { PRODUCT_CATEGORIES } from './constants'
 import type { Product, ProductFormData, ProductFilters as FilterState, Branch, UnitFormData, VariantFormData, InventoryAdjustmentData, BranchTransferData, UnitsTransferData, UserProfile, ProductTransaction } from './types'
 
 interface ProductsProps {
@@ -61,9 +63,18 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
   const [filters, setFilters] = useState<FilterState>({
     searchTerm: '',
     categoryFilter: 'all',
-    branchFilter: 'all'
+    branchFilter: 'all',
+    stockFilter: 'all'
   })
-  const [currentPage, setCurrentPage] = useState(1)
+  // Umbral de stock bajo de la empresa. El filtro y el chip de la lista lo usan en vez de
+  // un 5 fijo, que es lo que hacía la tarjeta anterior.
+  const [lowStockThreshold, setLowStockThreshold] = useState(5)
+  // Producto abierto en el drawer (escritorio) o en la hoja inferior (móvil).
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null)
+
+  const { compact, isMobile } = useShell()
+  // El drawer de tablet mide 320px: dos columnas de ficha ahí no se leen.
+  const detailColumns = compact ? 1 : 2
 
   const isAdmin = userRole === 'admin'
   const userBranchId = userProfile?.branchId
@@ -76,6 +87,7 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
   useEffect(() => {
     fetchProducts()
     fetchBranches()
+    fetchStockThreshold()
   }, [])
 
   // Filter products when filters change
@@ -84,6 +96,22 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
   }, [products, filters])
 
   // Fetch Functions
+  const fetchStockThreshold = async () => {
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/company/settings`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      )
+      if (!response.ok) return
+      const data = await response.json()
+      if (data.success && data.settings?.lowStockThreshold) {
+        setLowStockThreshold(data.settings.lowStockThreshold)
+      }
+    } catch (error) {
+      console.error('Error fetching stock threshold:', error)
+    }
+  }
+
   const fetchBranches = async () => {
     try {
       const response = await fetch(
@@ -164,8 +192,17 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
       filtered = filtered.filter(product => product.branchId === filters.branchFilter)
     }
 
+    // Stock filter — el umbral es el de la empresa, no un 5 fijo
+    if (filters.stockFilter !== 'all') {
+      filtered = filtered.filter(product => {
+        const stock = getAvailableStock(product)
+        if (filters.stockFilter === 'out') return stock === 0
+        if (filters.stockFilter === 'low') return stock > 0 && isLowStock(product, lowStockThreshold)
+        return stock > 0 && !isLowStock(product, lowStockThreshold)
+      })
+    }
+
     setFilteredProducts(filtered)
-    setCurrentPage(1) // Reset to first page
   }
 
   // Product CRUD Operations
@@ -896,193 +933,327 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
     }
   }
 
-  // Pagination
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE)
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-  const endIndex = startIndex + ITEMS_PER_PAGE
-  const paginatedProducts = filteredProducts.slice(startIndex, endIndex)
+  usePageHeader({
+    title: 'Productos',
+    subtitle: loading
+      ? 'Cargando inventario…'
+      : `${filteredProducts.length} de ${products.length} ${products.length === 1 ? 'producto' : 'productos'}`,
+    eyebrow: 'Inventario',
+    onRefresh: fetchProducts,
+    refreshing: loading,
+  })
 
   if (loading) {
-    return <div className="p-4 md:p-8">Cargando productos...</div>
+    return (
+      <PageBody>
+        <Card style={{ height: 200 }} bodyStyle={{ display: 'grid', placeItems: 'center' }}>
+          <span
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: '50%',
+              border: '2px solid var(--border-subtle)',
+              borderBottomColor: 'var(--accent-400)',
+              animation: 'oryon-spin 900ms linear infinite',
+            }}
+          />
+        </Card>
+      </PageBody>
+    )
   }
 
+  const lowStockCount = filteredProducts.filter(
+    (p) => getAvailableStock(p) > 0 && isLowStock(p, lowStockThreshold)
+  ).length
+
+  const branchName = (id: string) => branches.find((b) => b.id === id)?.name || 'Sin sucursal'
+  const categoryLabel = (value: string) =>
+    PRODUCT_CATEGORIES.find((c) => c.value === value)?.label || value
+
+  const columns: Column<Product>[] = [
+    { key: 'name', label: 'Producto' },
+    { key: 'category', label: 'Categoría', muted: true, render: (p) => categoryLabel(p.category) },
+    { key: 'branch', label: 'Sucursal', muted: true, hideOnCompact: true, render: (p) => branchName(p.branchId) },
+    { key: 'price', label: 'Precio', mono: true, align: 'right', render: (p) => formatPrice(p.price) },
+    {
+      key: 'cost',
+      label: 'Costo',
+      mono: true,
+      align: 'right',
+      hideOnCompact: true,
+      render: (p) => (p.cost ? formatPrice(p.cost) : '—'),
+    },
+    {
+      key: 'margin',
+      label: 'Margen',
+      mono: true,
+      align: 'right',
+      hideOnCompact: true,
+      render: (p) => {
+        const m = getMarginPercentage(p)
+        return m ? `${m}%` : '—'
+      },
+    },
+    {
+      key: 'stock',
+      label: 'Stock',
+      align: 'right',
+      render: (p) => {
+        const stock = getAvailableStock(p)
+        const low = isLowStock(p, lowStockThreshold)
+        if (stock === 0) return <Badge tone="danger">Agotado</Badge>
+        return <Badge tone={low ? 'warning' : 'neutral'}>{low ? `${stock} bajo` : `${stock} u.`}</Badge>
+      },
+    },
+  ]
+
+  const detailActions = detailProduct && (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <Button
+        fullWidth
+        iconLeft={ArrowUpDown}
+        onClick={() => { openAdjustmentDialog(detailProduct); setDetailProduct(null) }}
+      >
+        Ajustar
+      </Button>
+      <Button
+        variant="primary"
+        fullWidth
+        iconLeft={ArrowLeftRight}
+        onClick={() => { openTransferDialog(detailProduct); setDetailProduct(null) }}
+      >
+        Trasladar
+      </Button>
+      <Button
+        fullWidth
+        iconLeft={Pencil}
+        onClick={() => { openEditDialog(detailProduct); setDetailProduct(null) }}
+      >
+        Editar
+      </Button>
+      <Button
+        variant="danger"
+        fullWidth
+        iconLeft={Trash2}
+        onClick={() => { handleDeleteProduct(detailProduct.id); setDetailProduct(null) }}
+      >
+        Eliminar
+      </Button>
+    </div>
+  )
+
   return (
-    <div className="p-4 md:p-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
-        <div>
-          <h2 className="text-2xl md:text-3xl mb-2">Productos</h2>
-          <p className="text-gray-600 text-sm md:text-base">
-            Gestiona tu inventario de electrónica ({filteredProducts.length} productos)
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          {userRole === 'admin' && (
-            <>
-              <Button 
-                variant="outline" 
-                onClick={loadTransactionHistory} 
-                className="flex-1 sm:flex-none" 
-                size="sm"
-                disabled={loadingTransactions}
-              >
-                <History size={16} className="sm:mr-2" />
-                <span className="hidden sm:inline">Historial</span>
-                <span className="sm:hidden">Historial</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleExport} 
-                className="flex-1 sm:flex-none" 
-                size="sm"
-              >
-                <Download size={16} className="sm:mr-2" />
-                <span className="hidden sm:inline">Exportar Excel</span>
-                <span className="sm:hidden">Exportar</span>
-              </Button>
-            </>
-          )}
-          
-          {availableBranches.length > 0 && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="flex-1 sm:flex-none" size="sm">
-                  <Plus size={16} className="sm:mr-2" />
-                  <span className="hidden sm:inline">Nuevo Producto</span>
-                  <span className="sm:hidden">Nuevo</span>
-                </Button>
-              </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw]">
-              <DialogHeader>
-                <DialogTitle className="text-lg md:text-xl">
-                  {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
-                </DialogTitle>
-                <DialogDescription className="text-sm">
-                  {editingProduct 
-                    ? 'Actualiza la información del producto' 
-                    : 'Crea un nuevo producto en tu inventario'}
-                </DialogDescription>
-              </DialogHeader>
-              <ProductForm
-                product={editingProduct}
-                branches={availableBranches}
-                onSubmit={handleSubmitProduct}
-                onCancel={closeDialog}
-                isSubmitting={isSubmitting}
-                userRole={userRole}
-              />
-            </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </div>
-
-      {/* Alert for asesor without assigned branches */}
-      {userRole === 'asesor' && availableBranches.length === 0 && (
-        <Alert className="mb-6 bg-amber-50 border-amber-200">
-          <AlertCircle className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="text-amber-800">
-            No tienes sucursales asignadas. Por favor contacta a tu administrador para que te asigne una sucursal y puedas crear productos.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Filters */}
-      <div className="mb-6">
-        <ProductFilters
-          filters={filters}
-          onFiltersChange={setFilters}
-          branches={branches}
-          resultsCount={filteredProducts.length}
-        />
-      </div>
-
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {paginatedProducts.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
+    <>
+      <ListPage<Product>
+        rows={filteredProducts}
+        columns={columns}
+        rowKey="id"
+        selectedId={detailProduct?.id ?? null}
+        onRowClick={(p) => setDetailProduct((current) => (current?.id === p.id ? null : p))}
+        renderCard={(p) => (
+          <ProductListCard
+            product={p}
             branches={branches}
-            onEdit={openEditDialog}
-            onDelete={handleDeleteProduct}
-            onManageUnits={openUnitsDialog}
-            onManageVariants={openVariantsDialog}
-            onAdjustInventory={openAdjustmentDialog}
-            onTransferBranch={openTransferDialog}
-            onAddStock={openAddStockDialog}
-            isAdmin={isAdmin}
-            canEdit={canEditProduct(userRole || 'asesor', userBranchId, product.branchId, userAssignedBranches)}
+            threshold={lowStockThreshold}
+            onOpen={() => setDetailProduct(p)}
+          />
+        )}
+        search={{
+          value: filters.searchTerm,
+          onChange: (v) => setFilters({ ...filters, searchTerm: v }),
+          placeholder: 'Nombre, descripción, IMEI, SKU…',
+        }}
+        filters={[
+          {
+            id: 'category',
+            label: 'Categoría',
+            placeholder: 'Todas las categorías',
+            value: filters.categoryFilter === 'all' ? '' : filters.categoryFilter,
+            options: PRODUCT_CATEGORIES.map((c) => ({ value: c.value, label: c.label })),
+            onChange: (v) => setFilters({ ...filters, categoryFilter: v || 'all' }),
+          },
+          {
+            id: 'branch',
+            label: 'Sucursal',
+            placeholder: 'Todas las sucursales',
+            value: filters.branchFilter === 'all' ? '' : filters.branchFilter,
+            options: branches.map((b) => ({ value: b.id, label: b.name })),
+            onChange: (v) => setFilters({ ...filters, branchFilter: v || 'all' }),
+          },
+          {
+            id: 'stock',
+            label: 'Estado de stock',
+            placeholder: 'Todo el stock',
+            value: filters.stockFilter === 'all' ? '' : filters.stockFilter,
+            options: [
+              { value: 'low', label: 'Stock bajo' },
+              { value: 'in', label: 'Stock normal' },
+              { value: 'out', label: 'Agotado' },
+            ],
+            onChange: (v) => setFilters({ ...filters, stockFilter: v || 'all' }),
+          },
+        ]}
+        onClearFilters={() =>
+          setFilters({ searchTerm: filters.searchTerm, categoryFilter: 'all', branchFilter: 'all', stockFilter: 'all' })
+        }
+        primaryAction={
+          availableBranches.length > 0
+            ? { label: 'Nuevo producto', icon: Plus, onClick: () => setDialogOpen(true) }
+            : undefined
+        }
+        onExport={isAdmin ? handleExport : undefined}
+        secondaryActions={
+          isAdmin ? (
+            <IconButton
+              icon={History}
+              label="Historial de transacciones"
+              variant="secondary"
+              size={isMobile ? 'lg' : 'sm'}
+              disabled={loadingTransactions}
+              onClick={loadTransactionHistory}
+              style={isMobile ? { width: 'var(--tap-target)', height: 'var(--control-height-lg)' } : undefined}
+            />
+          ) : undefined
+        }
+        tableTitle="Inventario"
+        tableSubtitle={`${filteredProducts.length} ${filteredProducts.length === 1 ? 'producto' : 'productos'}${
+          lowStockCount ? ` · ${lowStockCount} con stock bajo` : ''
+        }`}
+        countLabel={(shown, total) => `Mostrando ${shown} de ${total} productos`}
+        endLabel={(total) => `Fin de la lista · ${total} productos`}
+        empty={{
+          icon: PackageSearch,
+          title: products.length === 0 ? 'Sin productos' : 'Sin resultados',
+          description:
+            products.length === 0
+              ? 'Aún no hay productos en el inventario. Crea el primero para empezar a vender.'
+              : 'Ningún producto coincide con la búsqueda o los filtros aplicados.',
+        }}
+        banner={
+          userRole === 'asesor' && availableBranches.length === 0 ? (
+            <Alert variant="warning" title="Sin sucursales asignadas">
+              Pide a tu administrador que te asigne una sucursal para poder crear productos.
+            </Alert>
+          ) : undefined
+        }
+      />
+
+      <ResponsiveDetail
+        open={detailProduct != null}
+        onClose={() => setDetailProduct(null)}
+        kind="Detalle de producto"
+        title={detailProduct?.name ?? ''}
+        meta={
+          detailProduct
+            ? `${categoryLabel(detailProduct.category)} · ${branchName(detailProduct.branchId)}`
+            : undefined
+        }
+        actions={detailActions}
+      >
+        {detailProduct && (
+          <>
+            {isLowStock(detailProduct, lowStockThreshold) && (
+              <Alert variant="warning" title="Stock bajo">
+                Quedan {getAvailableStock(detailProduct)} unidades y el mínimo configurado es{' '}
+                {detailProduct.minStock ?? lowStockThreshold}. Programa una compra al proveedor.
+              </Alert>
+            )}
+            <KeyValue
+              layout="stacked"
+              columns={detailColumns}
+              items={[
+                { label: 'Precio de venta', value: formatPrice(detailProduct.price), mono: true },
+                { label: 'Costo', value: detailProduct.cost ? formatPrice(detailProduct.cost) : '—', mono: true },
+                {
+                  label: 'Margen',
+                  value: getMarginPercentage(detailProduct) ? `${getMarginPercentage(detailProduct)}%` : '—',
+                  mono: true,
+                },
+                { label: 'Stock actual', value: getAvailableStock(detailProduct), mono: true },
+                { label: 'Stock mínimo', value: detailProduct.minStock ?? lowStockThreshold, mono: true },
+                { label: 'Sucursal', value: branchName(detailProduct.branchId) },
+                { label: 'Almacenamiento', value: detailProduct.storage || '—' },
+                { label: 'RAM', value: detailProduct.ram || '—' },
+                { label: 'Color', value: detailProduct.color || '—' },
+                {
+                  label: 'Control por unidad',
+                  value: detailProduct.trackByUnit ? 'Sí · por IMEI/serie' : 'No · por cantidad',
+                },
+                {
+                  label: 'Variantes',
+                  value: detailProduct.hasVariants
+                    ? `${detailProduct.variants?.length ?? 0} activas`
+                    : 'Sin variantes',
+                },
+                {
+                  label: 'Creado',
+                  value: detailProduct.createdAt
+                    ? new Date(detailProduct.createdAt).toLocaleDateString('es-CO')
+                    : '—',
+                  mono: true,
+                },
+              ]}
+            />
+            {detailProduct.description && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span
+                  style={{
+                    fontSize: 'var(--text-caption)',
+                    letterSpacing: 'var(--tr-caption)',
+                    textTransform: 'uppercase',
+                    fontWeight: 'var(--fw-semibold)',
+                    color: 'var(--text-tertiary)',
+                  }}
+                >
+                  Descripción
+                </span>
+                <span style={{ fontSize: 'var(--text-small)', color: 'var(--text-secondary)', textWrap: 'pretty' }}>
+                  {detailProduct.description}
+                </span>
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {detailProduct.trackByUnit && (
+                <Button fullWidth onClick={() => { openUnitsDialog(detailProduct); setDetailProduct(null) }}>
+                  Unidades
+                </Button>
+              )}
+              {detailProduct.hasVariants && (
+                <Button fullWidth onClick={() => { openVariantsDialog(detailProduct); setDetailProduct(null) }}>
+                  Variantes
+                </Button>
+              )}
+              {!detailProduct.trackByUnit && !detailProduct.hasVariants && (
+                <Button fullWidth onClick={() => { openAddStockDialog(detailProduct); setDetailProduct(null) }}>
+                  Agregar stock
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+      </ResponsiveDetail>
+
+      {/* Nuevo / editar producto */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingProduct ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
+            <DialogDescription>
+              {editingProduct
+                ? 'Actualiza la información del producto'
+                : 'Crea un nuevo producto en tu inventario'}
+            </DialogDescription>
+          </DialogHeader>
+          <ProductForm
+            product={editingProduct}
+            branches={availableBranches}
+            onSubmit={handleSubmitProduct}
+            onCancel={closeDialog}
+            isSubmitting={isSubmitting}
             userRole={userRole}
           />
-        ))}
-      </div>
-
-      {/* Empty States */}
-      {products.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          No hay productos registrados. ¡Agrega tu primer producto!
-        </div>
-      )}
-
-      {products.length > 0 && filteredProducts.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          No se encontraron productos con los filtros aplicados.
-        </div>
-      )}
-
-      {/* Pagination */}
-      {filteredProducts.length > ITEMS_PER_PAGE && (
-        <div className="mt-8 flex justify-center">
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                />
-              </PaginationItem>
-
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                const showPage =
-                  page === 1 ||
-                  page === totalPages ||
-                  (page >= currentPage - 1 && page <= currentPage + 1)
-
-                if (!showPage) {
-                  if (page === currentPage - 2 || page === currentPage + 2) {
-                    return (
-                      <PaginationItem key={page}>
-                        <span className="px-2">...</span>
-                      </PaginationItem>
-                    )
-                  }
-                  return null
-                }
-
-                return (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      onClick={() => setCurrentPage(page)}
-                      isActive={currentPage === page}
-                      className="cursor-pointer"
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                )
-              })}
-
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Units Management Dialog */}
       <Dialog open={unitsDialogOpen} onOpenChange={setUnitsDialogOpen}>
@@ -1238,6 +1409,6 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { projectId } from '../utils/supabase/info'
-import { Plus, Trash2, ShoppingCart, Printer, Package, Check, User, Search, X } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, Printer, Package, Check, User, Search, X, ReceiptText } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -8,7 +8,15 @@ import { Textarea } from './ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { toast } from 'sonner@2.0.3'
-import { SaleCard } from './sales/SaleCard'
+// Oryon se importa con alias: esta vista aún usa los primitivos shadcn en el punto de venta
+// y los nombres chocarían.
+import { Button as OryonButton, Badge as OryonBadge, type Column } from './oryon'
+import { ListPage } from './patterns/ListPage'
+import { ResponsiveDetail } from './layout/ResponsiveDetail'
+import { useShell } from './layout/AppShell'
+import { usePageHeader } from './layout/PageHeaderContext'
+import { SaleListCard } from './sales/SaleListCard'
+import { SaleDetailPanel } from './sales/SaleDetailPanel'
 import {
   Dialog,
   DialogContent,
@@ -24,14 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select'
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from './ui/pagination'
 import { Checkbox } from './ui/checkbox'
 import {
   Command,
@@ -146,6 +146,7 @@ interface SalesProps {
 }
 
 export function Sales({ accessToken, userName, userRole, userProfile }: SalesProps) {
+  const { compact } = useShell()
   const [products, setProducts] = useState<Product[]>([])
   const [sales, setSales] = useState<Sale[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
@@ -186,8 +187,9 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   const [filterDateTo, setFilterDateTo] = useState('')
   
   // Paginación
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 15
+  const [searchTerm, setSearchTerm] = useState('')
+  // Factura abierta en el drawer (escritorio) o en la hoja inferior (móvil).
+  const [detailSale, setDetailSale] = useState<Sale | null>(null)
 
   useEffect(() => {
     fetchProducts()
@@ -196,11 +198,6 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
     fetchCompanySettings()
     fetchBranches()
   }, [])
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [filterStatus, filterPaymentType, filterDateFrom, filterDateTo])
 
   const fetchBranches = async () => {
     try {
@@ -889,6 +886,18 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   const filterSales = () => {
     let filtered = sales
 
+    // Búsqueda de texto: la vista no tenía ninguna, así que en un teléfono con cien
+    // facturas paginadas no había forma de encontrar una por número o cliente.
+    const q = searchTerm.trim().toLowerCase()
+    if (q) {
+      filtered = filtered.filter(sale =>
+        (sale.invoiceNumber || `FACT-${sale.id}`).toLowerCase().includes(q) ||
+        sale.customerName?.toLowerCase().includes(q) ||
+        sale.customerPhone?.toLowerCase().includes(q) ||
+        sale.notes?.toLowerCase().includes(q)
+      )
+    }
+
     // Filter by status
     if (filterStatus !== 'all') {
       filtered = filtered.filter(sale => {
@@ -931,36 +940,85 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   const selectedProduct = products.find(p => p.id === parseInt(selectedProductId))
   const availableUnits = selectedProduct?.units?.filter(u => u.status === 'available') || []
   const filteredSales = filterSales()
+
+  const formatMoney = (n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`
+
+  usePageHeader({
+    title: 'Ventas',
+    subtitle: loading
+      ? 'Cargando facturas…'
+      : `${filteredSales.length} de ${sales.length} ${sales.length === 1 ? 'venta' : 'ventas'}`,
+    eyebrow: 'Caja',
+    onRefresh: fetchSales,
+    refreshing: loading,
+  })
+
+  const saleColumns: Column<Sale>[] = [
+    {
+      key: 'invoiceNumber',
+      label: 'Factura',
+      mono: true,
+      width: 110,
+      render: (v) => v.invoiceNumber || `FACT-${v.id}`,
+    },
+    {
+      key: 'createdAt',
+      label: 'Fecha',
+      mono: true,
+      muted: true,
+      render: (v) => {
+        const d = new Date(v.createdAt)
+        return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-CO')
+      },
+    },
+    { key: 'customerName', label: 'Cliente' },
+    { key: 'paymentMethod', label: 'Pago', muted: true, render: (v) => v.paymentMethod || '—' },
+    {
+      key: 'status',
+      label: 'Estado',
+      render: (v) => {
+        if (v.status === 'cancelled') return <OryonBadge tone="danger">Anulada</OryonBadge>
+        const credit = getCreditStatus(v)
+        if (credit) return <OryonBadge tone={credit.status === 'overdue' ? 'danger' : 'warning'}>{credit.label}</OryonBadge>
+        return <OryonBadge tone="success">Activa</OryonBadge>
+      },
+    },
+    { key: 'total', label: 'Total', mono: true, align: 'right', render: (v) => formatMoney(v.total) },
+    {
+      key: 'totalCost',
+      label: 'Costo',
+      mono: true,
+      align: 'right',
+      hideOnCompact: true,
+      render: (v) => (v.totalCost ? formatMoney(v.totalCost) : '—'),
+    },
+    {
+      key: 'margin',
+      label: 'Margen',
+      mono: true,
+      align: 'right',
+      hideOnCompact: true,
+      render: (v) => {
+        if (!v.totalCost || !v.total) return '—'
+        return `${(((v.total - v.totalCost) / v.total) * 100).toFixed(1).replace('.', ',')}%`
+      },
+    },
+  ]
   
   // Filter products by selected branch
   const productsForSelectedBranch = selectedBranchId 
     ? products.filter(p => (p as any).branchId === selectedBranchId)
     : products
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredSales.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedSales = filteredSales.slice(startIndex, endIndex)
-
   if (loading) {
     return <div className="p-8">Cargando...</div>
   }
 
   return (
-    <div className="p-4 sm:p-8">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-8 gap-3">
-        <div>
-          <h2 className="text-2xl sm:text-3xl mb-1 sm:mb-2">Ventas</h2>
-          <p className="text-sm sm:text-base text-gray-600">Punto de venta y registro de transacciones</p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto h-10 sm:h-auto">
-              <ShoppingCart size={20} className="mr-2" />
-              Nueva Venta
-            </Button>
-          </DialogTrigger>
+    <>
+      {/* El título y la acción principal los aporta el shell y ListPage: aquí solo queda
+          el punto de venta, que vive en su propio diálogo. */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle className="text-lg sm:text-xl">Nueva Venta</DialogTitle>
@@ -1380,8 +1438,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
               )}
             </div>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       {/* Unit Selection Dialog */}
       <Dialog open={unitSelectionOpen} onOpenChange={setUnitSelectionOpen}>
@@ -1645,170 +1702,132 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
         </DialogContent>
       </Dialog>
 
-      {/* Sales History */}
-      <div className="grid gap-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-xl">Historial de Ventas</h3>
-        </div>
+      <ListPage<Sale>
+        rows={filteredSales}
+        columns={saleColumns}
+        rowKey="id"
+        pageSize={12}
+        selectedId={detailSale?.id ?? null}
+        onRowClick={(sale) => setDetailSale((cur) => (cur?.id === sale.id ? null : sale))}
+        renderCard={(sale) => {
+          const credit = getCreditStatus(sale)
+          return (
+            <SaleListCard
+              sale={sale}
+              creditLabel={
+                credit ? { text: credit.label, overdue: credit.status === 'overdue' } : null
+              }
+              onOpen={() => setDetailSale(sale)}
+            />
+          )
+        }}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Factura, cliente, teléfono, nota…',
+        }}
+        filters={[
+          {
+            id: 'status',
+            label: 'Estado',
+            placeholder: 'Todas',
+            value: filterStatus === 'all' ? '' : filterStatus,
+            options: [
+              { value: 'active', label: 'Activas' },
+              { value: 'cancelled', label: 'Anuladas' },
+            ],
+            onChange: (v) => setFilterStatus(v || 'all'),
+          },
+          {
+            id: 'payment',
+            label: 'Tipo de pago',
+            placeholder: 'Todos',
+            value: filterPaymentType === 'all' ? '' : filterPaymentType,
+            options: [
+              { value: 'cash', label: 'Contado' },
+              { value: 'credit', label: 'Crédito' },
+              { value: 'overdue', label: 'En mora' },
+            ],
+            onChange: (v) => setFilterPaymentType(v || 'all'),
+          },
+          {
+            id: 'from',
+            label: 'Fecha desde',
+            placeholder: 'Desde',
+            value: filterDateFrom,
+            options: [],
+            onChange: setFilterDateFrom,
+            type: 'date',
+          },
+          {
+            id: 'to',
+            label: 'Fecha hasta',
+            placeholder: 'Hasta',
+            value: filterDateTo,
+            options: [],
+            onChange: setFilterDateTo,
+            type: 'date',
+          },
+        ]}
+        onClearFilters={() => {
+          setFilterStatus('all')
+          setFilterPaymentType('all')
+          setFilterDateFrom('')
+          setFilterDateTo('')
+        }}
+        primaryAction={{ label: 'Nueva venta', icon: ShoppingCart, onClick: () => setDialogOpen(true) }}
+        tableTitle="Facturas emitidas"
+        tableSubtitle={`${filteredSales.length} de ${sales.length} ${sales.length === 1 ? 'venta' : 'ventas'} · ${formatMoney(
+          filteredSales.filter((v) => v.status !== 'cancelled').reduce((a, v) => a + (v.total || 0), 0)
+        )} facturado`}
+        countLabel={(shown, total) => `Mostrando ${shown} de ${total} facturas`}
+        endLabel={(total) => `Fin de la lista · ${total} facturas`}
+        empty={{
+          icon: ReceiptText,
+          title: sales.length === 0 ? 'Sin ventas' : 'Sin resultados',
+          description:
+            sales.length === 0
+              ? 'Aún no se ha registrado ninguna venta. Crea la primera desde "Nueva venta".'
+              : 'Ninguna venta coincide con el rango de fechas o los filtros aplicados.',
+        }}
+      />
 
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Filtros</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-4">
-              <div>
-                <Label>Estado</Label>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas</SelectItem>
-                    <SelectItem value="active">Activas</SelectItem>
-                    <SelectItem value="cancelled">Anuladas</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label>Tipo de Pago</Label>
-                <Select value={filterPaymentType} onValueChange={setFilterPaymentType}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="cash">Contado</SelectItem>
-                    <SelectItem value="credit">Crédito</SelectItem>
-                    <SelectItem value="overdue">En Mora</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Fecha Desde</Label>
-                <Input
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={(e) => setFilterDateFrom(e.target.value)}
-                  className="mt-2"
-                />
-              </div>
-
-              <div>
-                <Label>Fecha Hasta</Label>
-                <Input
-                  type="date"
-                  value={filterDateTo}
-                  onChange={(e) => setFilterDateTo(e.target.value)}
-                  className="mt-2"
-                />
-              </div>
-            </div>
-
-            {(filterStatus !== 'all' || filterPaymentType !== 'all' || filterDateFrom || filterDateTo) && (
-              <div className="mt-4 flex justify-between items-center">
-                <p className="text-sm text-gray-600">
-                  Mostrando {filteredSales.length} de {sales.length} facturas
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
+      <ResponsiveDetail
+        open={detailSale != null}
+        onClose={() => setDetailSale(null)}
+        kind="Venta"
+        title={detailSale ? detailSale.invoiceNumber || `FACT-${detailSale.id}` : ''}
+        meta={
+          detailSale
+            ? `${detailSale.customerName} · ${new Date(detailSale.createdAt).toLocaleDateString('es-CO')}`
+            : undefined
+        }
+        actions={
+          detailSale && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <OryonButton fullWidth iconLeft={Printer} onClick={() => handlePrintInvoice(detailSale)}>
+                Imprimir
+              </OryonButton>
+              {userRole === 'admin' && detailSale.status !== 'cancelled' && (
+                <OryonButton
+                  variant="danger"
+                  fullWidth
+                  iconLeft={X}
                   onClick={() => {
-                    setFilterStatus('all')
-                    setFilterPaymentType('all')
-                    setFilterDateFrom('')
-                    setFilterDateTo('')
-                    setCurrentPage(1)
+                    setSelectedSale(detailSale)
+                    setCancelDialogOpen(true)
+                    setDetailSale(null)
                   }}
                 >
-                  Limpiar Filtros
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {filteredSales.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center text-gray-500">
-              No hay ventas registradas con los filtros aplicados
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {paginatedSales.map(sale => (
-              <SaleCard
-                key={sale.id}
-                sale={sale}
-                onPrintInvoice={handlePrintInvoice}
-                onCancelSale={(sale) => {
-                  setSelectedSale(sale)
-                  setCancelDialogOpen(true)
-                }}
-                canCancel={userRole === 'admin'}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {filteredSales.length > itemsPerPage && (
-          <div className="mt-6 flex justify-center">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                  />
-                </PaginationItem>
-                
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                  // Show first page, last page, current page, and pages around current
-                  const showPage = 
-                    page === 1 || 
-                    page === totalPages || 
-                    (page >= currentPage - 1 && page <= currentPage + 1)
-                  
-                  if (!showPage) {
-                    // Show ellipsis
-                    if (page === currentPage - 2 || page === currentPage + 2) {
-                      return (
-                        <PaginationItem key={page}>
-                          <span className="px-2">...</span>
-                        </PaginationItem>
-                      )
-                    }
-                    return null
-                  }
-                  
-                  return (
-                    <PaginationItem key={page}>
-                      <PaginationLink
-                        onClick={() => setCurrentPage(page)}
-                        isActive={currentPage === page}
-                        className="cursor-pointer"
-                      >
-                        {page}
-                      </PaginationLink>
-                    </PaginationItem>
-                  )
-                })}
-                
-                <PaginationItem>
-                  <PaginationNext 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        )}
-      </div>
+                  Anular venta
+                </OryonButton>
+              )}
+            </div>
+          )
+        }
+      >
+        {detailSale && <SaleDetailPanel sale={detailSale} columns={compact ? 1 : 2} creditStatus={getCreditStatus(detailSale)} />}
+      </ResponsiveDetail>
 
       {/* New Customer Dialog */}
       <Dialog open={newCustomerDialogOpen} onOpenChange={setNewCustomerDialogOpen}>
@@ -1950,6 +1969,6 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }

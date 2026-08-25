@@ -10,6 +10,7 @@ import { projectId } from '../../utils/supabase/info'
 import { toast } from 'sonner'
 import { PaymentReceipt } from '../PaymentReceipt'
 import wompiService from '../../services/WompiService'
+import { getSupabaseClient } from "../../utils/supabase/client";
 
 interface ExtendLicenseSectionProps {
   accessToken: string
