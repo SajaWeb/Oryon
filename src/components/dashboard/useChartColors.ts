@@ -8,6 +8,8 @@ export interface ChartColors {
   series4: string
   grid: string
   axis: string
+  /** Paleta categórica para series sin significado semántico (porciones de un donut). */
+  categorical: string[]
 }
 
 function read(name: string, fallback: string): string {
@@ -24,6 +26,15 @@ function resolve(): ChartColors {
     series4: read('--state-diagnosis', '#6C7BFF'),
     grid: read('--border-subtle', '#202527'),
     axis: read('--text-tertiary', '#6E787C'),
+    categorical: [
+      read('--accent-400', '#35E0FF'),
+      read('--state-diagnosis', '#6C7BFF'),
+      read('--state-repair', '#FFB020'),
+      read('--state-ready', '#3FD98A'),
+      read('--state-waiting', '#FF6B3D'),
+      read('--state-delivered', '#5C7F82'),
+      read('--state-cancelled', '#FF4D42'),
+    ],
   }
 }
 

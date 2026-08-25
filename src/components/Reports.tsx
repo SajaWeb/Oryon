@@ -29,6 +29,7 @@ import { MetricCard, Tabs, type TabItem } from './oryon'
 import { PageBody } from './layout/PageBody'
 import { usePageHeader } from './layout/PageHeaderContext'
 import { useShell } from './layout/AppShell'
+import { useChartColors } from './dashboard/useChartColors'
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { ExportButton } from './ExportButton'
 import { formatCurrency, formatDate, formatDateTime } from '../utils/export'
@@ -37,7 +38,6 @@ interface ReportsProps {
   accessToken: string
 }
 
-const COLORS = ['var(--chart-1)', 'var(--chart-2)', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
 
 const statusLabels: Record<string, string> = {
   received: 'Recibido',
@@ -61,6 +61,9 @@ const money = (n: number) => `$${Math.round(n || 0).toLocaleString('es-CO')}`
 
 export function Reports({ accessToken }: ReportsProps) {
   const { isMobile, compact } = useShell()
+  // Recharts pinta en SVG: los atributos fill/stroke no resuelven var(), necesitan el
+  // color ya calculado. Este hook lo relee cuando cambia el tema.
+  const chart = useChartColors()
   const [tab, setTab] = useState('profits')
   const [loading, setLoading] = useState(true)
   const [salesByDay, setSalesByDay] = useState<any[]>([])
@@ -303,8 +306,8 @@ export function Reports({ accessToken }: ReportsProps) {
                         <YAxis tick={{ fontSize: 12 }} />
                         <Tooltip />
                         <Legend wrapperStyle={{ fontSize: '12px' }} />
-                        <Bar dataKey="ingresos" fill="var(--chart-2)" name="Ingresos ($)" />
-                        <Bar dataKey="ganancia" fill="var(--chart-1)" name="Ganancia ($)" />
+                        <Bar dataKey="ingresos" fill={chart.series2} name="Ingresos ($)" />
+                        <Bar dataKey="ganancia" fill={chart.series1} name="Ganancia ($)" />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -495,14 +498,14 @@ export function Reports({ accessToken }: ReportsProps) {
                     <Line 
                       type="monotone" 
                       dataKey="ingresos" 
-                      stroke="var(--chart-1)" 
+                      stroke={chart.series1} 
                       strokeWidth={2}
                       name="Ingresos ($)"
                     />
                     <Line 
                       type="monotone" 
                       dataKey="ganancia" 
-                      stroke="var(--chart-2)" 
+                      stroke={chart.series2} 
                       strokeWidth={2}
                       name="Ganancia ($)"
                     />
@@ -565,11 +568,11 @@ export function Reports({ accessToken }: ReportsProps) {
                         labelLine={false}
                         label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                         outerRadius={70}
-                        fill="var(--chart-4)"
+                        fill={chart.series4}
                         dataKey="value"
                       >
                         {paymentMethods.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          <Cell key={`cell-${index}`} fill={chart.categorical[index % chart.categorical.length]} />
                         ))}
                       </Pie>
                       <Tooltip />
@@ -708,11 +711,11 @@ export function Reports({ accessToken }: ReportsProps) {
                         labelLine={false}
                         label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                         outerRadius={70}
-                        fill="var(--chart-4)"
+                        fill={chart.series4}
                         dataKey="value"
                       >
                         {repairsByStatus.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          <Cell key={`cell-${index}`} fill={chart.categorical[index % chart.categorical.length]} />
                         ))}
                       </Pie>
                       <Tooltip />
