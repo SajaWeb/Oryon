@@ -69,5 +69,11 @@ En el panel de Supabase:
    `/reset-password`, `/confirm-email` y `/welcome`.
 4. **Authentication → Rate limits**: ajustar los de registro, OTP y envío de correo.
 
-En Resend: verificar el dominio (SPF/DKIM). Sin eso los correos salen desde
-`onboarding@resend.dev` y acaban en spam.
+En Resend hace falta un dominio verificado (SPF/DKIM) — para Oryon es
+**oryonsas.com**, ya verificado en el plan gratuito, y `RESEND_FROM_EMAIL` sale de
+ahí. No hay respaldo a `onboarding@resend.dev`: ese remitente compartido solo
+entrega a la dirección con la que se registró la cuenta de Resend, así que caer en
+él haría que el código de un cliente se perdiera sin dejar rastro. Si falta
+`RESEND_FROM_EMAIL`, el hook falla con un error visible en vez de fingir que envió.
+
+Cuotas del plan gratuito de Resend: 3.000 correos al mes y **100 al día**.

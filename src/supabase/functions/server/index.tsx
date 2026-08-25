@@ -85,11 +85,14 @@ async function verifyAuth(authHeader: string | null) {
  */
 async function sendResendEmail(options: { to: string; subject: string; html: string; from?: string }) {
   const apiKey = Deno.env.get('RESEND_API_KEY')
-  const from = options.from || Deno.env.get('RESEND_FROM_EMAIL') || 'Oryon <onboarding@resend.dev>'
+  /* Sin remitente del dominio verificado no se envía: onboarding@resend.dev solo
+     entrega al dueño de la cuenta de Resend, así que un aviso a un empleado se
+     perdería en silencio. */
+  const from = options.from || Deno.env.get('RESEND_FROM_EMAIL')
 
-  if (!apiKey) {
-    console.warn('RESEND_API_KEY no configurada: no se envió el correo a', options.to)
-    return { success: false, error: 'RESEND_API_KEY no configurada' }
+  if (!apiKey || !from) {
+    console.warn('Resend sin configurar (falta API key o remitente): no se envió el correo a', options.to)
+    return { success: false, error: 'Resend no está configurado' }
   }
 
   try {

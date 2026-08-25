@@ -61,11 +61,18 @@ async function sendWithResend(to: string, email: RenderedEmail) {
   const apiKey = Deno.env.get('RESEND_API_KEY')
   if (!apiKey) throw new Error('RESEND_API_KEY no configurada')
 
+  /* Sin remitente propio NO se cae a onboarding@resend.dev: ese remitente
+     compartido solo entrega a la dirección con la que se registró la cuenta de
+     Resend, así que el código de verificación de un cliente se perdería sin dejar
+     rastro. Mejor que el registro falle con un error visible. */
+  const from = Deno.env.get('RESEND_FROM_EMAIL')
+  if (!from) throw new Error('RESEND_FROM_EMAIL no configurada (dominio verificado en Resend)')
+
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: Deno.env.get('RESEND_FROM_EMAIL') ?? 'Oryon <onboarding@resend.dev>',
+      from,
       to: [to],
       subject: email.subject,
       html: email.html,
