@@ -1,336 +1,91 @@
-# Guía de Autenticación - Oryon App
+# Autenticación — Oryon
 
-## 🔐 Métodos de Autenticación Disponibles
+## Métodos
 
-Oryon App soporta múltiples métodos de autenticación para máxima flexibilidad:
+- **Correo y contraseña**, con verificación obligatoria por código de 6 dígitos.
+- **Google OAuth**, que además pide el nombre del taller la primera vez.
 
-### 1. Email y Contraseña (Tradicional)
-- ✅ Registro con email corporativo
-- ✅ Inicio de sesión con credenciales
-- ✅ Recuperación de contraseña por email
-- ✅ Sin configuración adicional requerida (excepto para recuperación de contraseña)
+Ambos pasan por Supabase Auth con flujo **PKCE** (`src/utils/supabase/client.tsx`).
 
-### 2. Google OAuth (Recomendado)
-- ✅ Inicio de sesión con un clic
-- ✅ Sin contraseñas que recordar
-- ✅ Configuración inicial de perfil empresarial
-- ⚠️ Requiere configuración en Google Cloud Console
+## Pantallas
 
-## 📋 Flujos Completos
+Todas viven en `src/components/auth/` sobre el design system Oryon
+(`src/components/oryon/`) y comparten `AuthLayout`.
 
-### Flujo 1: Registro con Email
+| Ruta | Componente |
+|---|---|
+| `/login` | `Login` |
+| `/register` | `Register` |
+| `/verify-email?email=` | `VerifyEmail` — código de 6 dígitos |
+| `/forgot-password` | `ForgotPassword` |
+| `/reset-password` | `ResetPassword` |
+| `/confirm-email` | `ConfirmEmail` — enlaces de cambio de correo y legacy |
+| `/welcome` | `Welcome` |
 
-```
-Usuario → Pantalla de Registro
-    ↓
-Ingresa:
-  - Nombre de la empresa
-  - Email
-  - Contraseña
-  - Nombre del contacto
-  - Teléfono
-    ↓
-Backend crea:
-  - Usuario en Supabase Auth
-  - Registro de empresa en BD
-  - Registro de usuario en BD
-  - Licencia de prueba (7 días)
-    ↓
-Usuario es redirigido al Login
-    ↓
-Inicia sesión con email/password
-    ↓
-Accede al dashboard
-```
+El enrutado sigue siendo la cadena de `if` de `src/App.tsx`; no hay router.
 
-**Ventajas**:
-- Control total sobre las credenciales
-- No depende de terceros
-- Ideal para empresas con políticas de seguridad estrictas
-
-**Desventajas**:
-- Usuario debe recordar contraseña
-- Requiere configurar servidor SMTP para recuperación
-
----
-
-### Flujo 2: Registro con Google
+## Registro con correo
 
 ```
-Usuario → Pantalla de Registro
-    ↓
-Click en "Continuar con Google"
-    ↓
-Redirigido a Google para autenticación
-    ↓
-Google valida identidad
-    ↓
-Usuario es redirigido a Oryon App
-    ↓
-Pantalla de "Configuración Inicial"
-Ingresa:
-  - Nombre de la empresa
-  - Nombre del contacto
-  - Teléfono
-    ↓
-Backend completa registro:
-  - Asocia cuenta de Google
-  - Crea empresa en BD
-  - Crea usuario en BD
-  - Licencia de prueba (7 días)
-    ↓
-Accede al dashboard
+Register  →  supabase.auth.signUp({ email, password,
+                options: { data: { name, companyName }, captchaToken } })
+          →  Supabase crea la cuenta SIN confirmar y dispara el Send Email Hook
+/verify-email
+          →  supabase.auth.verifyOtp({ email, token, type: 'signup' })  → sesión
+          →  POST /auth/provision  → empresa + sucursal «Principal» + perfil
+/welcome  →  panel
 ```
 
-**Ventajas**:
-- Experiencia más rápida (1 clic)
-- Sin contraseñas que recordar
-- Mayor seguridad (2FA de Google)
-- Recuperación automática por Google
+`/auth/provision` es idempotente, exige sesión y **exige `email_confirmed_at`**. Es
+lo que sustituye al viejo `/auth/signup`, que era anónimo y creaba usuarios con
+`email_confirm: true` — o sea, nunca se verificaba ningún correo.
 
-**Desventajas**:
-- Requiere configuración inicial en Google Cloud
-- Depende de que Google esté disponible
+## Registro con Google
 
----
+Google entrega correo y nombre, nunca el del taller. Cuando `/auth/provision`
+responde `needsCompanyName: true`, `App.tsx` muestra `GoogleSetup`. Antes esa
+pantalla era inalcanzable y el cliente rellenaba el hueco con `companyId: 1`,
+metiendo al usuario nuevo dentro de la empresa de otro.
 
-### Flujo 3: Login Existente - Email
+## Recuperación
 
-```
-Usuario → Pantalla de Login
-    ↓
-Ingresa email y contraseña
-    ↓
-Supabase Auth valida credenciales
-    ↓
-Backend verifica:
-  - Usuario existe en BD
-  - Usuario está activo
-  - Licencia vigente
-    ↓
-Retorna:
-  - Token de acceso
-  - Datos del usuario
-  - Rol del usuario
-  - Info de licencia
-    ↓
-Usuario accede según su rol:
-  - Admin → Dashboard
-  - Asesor → Ventas
-  - Técnico → Reparaciones
-```
+Enlace al correo → `/reset-password?token_hash=…&type=recovery` →
+`verifyOtp({ type: 'recovery' })` → `updateUser({ password })` → se cierra la sesión
+de recuperación para forzar un login con la contraseña nueva.
 
----
+## Mensajes de error
 
-### Flujo 4: Login Existente - Google
+`src/components/auth/authErrors.ts` es el único sitio que traduce errores de
+Supabase a español. Compara primero por `code` y solo cae al texto cuando el error
+viene de una versión que no lo trae. No repartir `includes('...')` por las pantallas.
 
-```
-Usuario → Pantalla de Login
-    ↓
-Click en "Continuar con Google"
-    ↓
-Redirigido a Google
-    ↓
-Google valida identidad
-    ↓
-Usuario es redirigido a Oryon App
-    ↓
-Backend verifica:
-  - Usuario existe en BD
-  - Usuario está activo
-  - Licencia vigente
-    ↓
-Si usuario YA completó setup antes:
-  ↓
-  Accede directamente al dashboard
-    
-Si usuario es NUEVO (primera vez con Google):
-  ↓
-  Pantalla de "Configuración Inicial"
-  ↓
-  Completa datos de empresa
-  ↓
-  Accede al dashboard
-```
+Sobre «usuario existente»: Supabase lo oculta a propósito. Con la protección de
+enumeración desactivada devuelve `user_already_exists`; con ella activada devuelve
+un usuario sintético sin identidades. `isExistingUser()` cubre los dos casos.
+Mostrarlo hace del registro un oráculo de cuentas: la contrapartida son Turnstile y
+los límites por IP.
 
----
+## Anti-bots
 
-### Flujo 5: Recuperación de Contraseña (NUEVO)
+Cloudflare Turnstile, nativo en Supabase Auth. `src/components/auth/Turnstile.tsx`
+carga el script solo en estas pantallas. **El token es de un solo uso**: hay que
+llamar a `reset()` tras cada intento, salga bien o mal.
 
-```
-Usuario → Pantalla de Login
-    ↓
-Click en "¿Olvidaste tu contraseña?"
-    ↓
-Pantalla de Recuperación
-    ↓
-Ingresa su email
-    ↓
-Supabase envía email con link único
-    ↓
-Usuario recibe email
-    ↓
-Click en link del email
-    ↓
-Redirigido a /#/reset-password
-    ↓
-Pantalla de Nueva Contraseña
-    ↓
-Ingresa:
-  - Nueva contraseña (min 6 caracteres)
-  - Confirmar contraseña
-    ↓
-Supabase actualiza contraseña
-    ↓
-Mensaje de éxito
-    ↓
-Auto-redirigido al Login (3 segundos)
-    ↓
-Inicia sesión con nueva contraseña
-```
+- `VITE_TURNSTILE_SITE_KEY` — clave de sitio, pública, en `.env`.
+- Clave secreta — **Authentication → Attack Protection**, nunca en el repo.
 
-**Importante**:
-- El link de recuperación expira en 24 horas
-- Solo funciona para usuarios registrados con email/password
-- Usuarios de Google usan la recuperación nativa de Google
-- Requiere servidor SMTP configurado en Supabase
+Sin clave de sitio el captcha se desactiva solo y el formulario sigue funcionando.
 
----
+## Contraseñas
 
-## 🔧 Configuración Necesaria
+Mínimo 8 caracteres. `src/utils/password-strength.ts` puntúa de 0 a 3 y devuelve un
+consejo accionable; rechaza las de la lista de comunes y las que contienen el
+correo, el nombre o el del taller. El medidor es `PasswordMeter` y el ojo para
+revelar es `PasswordInput`, ambos en `src/components/oryon/forms.tsx`.
 
-### Para Email/Password:
-- ✅ **Funciona de inmediato** (sin configuración)
-- ⚠️ Para recuperación de contraseña: Configurar SMTP (ver `EMAIL_SETUP.md`)
+## Sesión
 
-### Para Google OAuth:
-- ⚠️ **Requiere configuración**:
-  1. Crear proyecto en Google Cloud Console
-  2. Habilitar Google+ API
-  3. Configurar pantalla de consentimiento
-  4. Crear credenciales OAuth 2.0
-  5. Configurar en Supabase Auth
-  
-**Ver instrucciones detalladas en**: `GOOGLE_OAUTH_SETUP.md`
-
----
-
-## 🛡️ Seguridad
-
-### Contraseñas:
-- ✅ Hashing automático por Supabase Auth (bcrypt)
-- ✅ Mínimo 6 caracteres requeridos
-- ✅ No se almacenan en texto plano
-- ✅ Recuperación segura por email
-
-### Sesiones:
-- ✅ Tokens JWT firmados
-- ✅ Expiración automática
-- ✅ Verificación en cada request
-- ✅ Logout limpia tokens
-
-### Google OAuth:
-- ✅ OAuth 2.0 estándar de industria
-- ✅ Tokens manejados por Supabase
-- ✅ No se almacenan credenciales de Google
-- ✅ Soporte para 2FA de Google
-
----
-
-## 👥 Sistema de Roles
-
-Una vez autenticado, el usuario tiene un rol asignado:
-
-### Admin (Administrador):
-- ✅ Acceso completo a todos los módulos
-- ✅ Gestión de licencias
-- ✅ Configuración de empresa
-- ✅ Reportes y dashboard
-- ✅ Gestión de usuarios (próximamente)
-
-### Asesor:
-- ✅ Crear y gestionar ventas
-- ✅ Crear y gestionar productos
-- ✅ Crear órdenes de servicio
-- ✅ Cambiar estado de órdenes
-- ❌ No acceso a: Dashboard, Clientes, Reportes, Configuración
-
-### Técnico:
-- ✅ Ver órdenes de servicio
-- ✅ Cambiar estado de órdenes
-- ✅ Agregar notas e imágenes
-- ❌ No acceso a: Otros módulos
-
----
-
-## 🔄 Gestión de Sesiones
-
-### Persistencia:
-- Las sesiones persisten en el navegador
-- El usuario permanece logueado hasta que:
-  - Cierre sesión manualmente
-  - El token expire (configurable en Supabase)
-  - La cuenta sea desactivada
-
-### Verificación:
-- Cada vez que el usuario abre la app:
-  1. Se verifica si hay sesión activa
-  2. Se valida el token con el backend
-  3. Se confirma que el usuario sigue activo
-  4. Se carga la info de licencia actualizada
-
-### Multi-dispositivo:
-- Un usuario puede estar logueado en múltiples dispositivos
-- Cada dispositivo tiene su propia sesión
-- Al cerrar sesión en un dispositivo no afecta otros
-
----
-
-## 📱 Próximas Funcionalidades
-
-- [ ] Autenticación de 2 factores (2FA) nativa
-- [ ] Login con Microsoft/Office 365
-- [ ] Login con Apple
-- [ ] Gestión de usuarios subordinados (empleados)
-- [ ] Auditoría de inicios de sesión
-- [ ] Notificaciones de sesiones nuevas
-- [ ] Límite de dispositivos simultáneos
-
----
-
-## 🆘 Problemas Comunes
-
-### "No puedo iniciar sesión"
-1. Verifica tu email y contraseña
-2. Revisa que tu cuenta esté activa
-3. Confirma que la licencia no haya expirado
-4. Intenta recuperar tu contraseña
-
-### "No recibo el email de recuperación"
-1. Revisa spam/correo no deseado
-2. Confirma que SMTP esté configurado (ver `EMAIL_SETUP.md`)
-3. Verifica que el email sea el correcto
-4. Espera hasta 5 minutos
-
-### "Google OAuth no funciona"
-1. Confirma que esté configurado en Supabase
-2. Revisa la configuración en Google Cloud Console
-3. Verifica las URLs de redirección
-4. Ver guía completa: `GOOGLE_OAUTH_SETUP.md`
-
-### "Mi cuenta está desactivada"
-- Contacta al administrador de tu empresa
-- Solo admins pueden reactivar cuentas
-
----
-
-## 📞 Soporte
-
-Para problemas técnicos o dudas sobre autenticación:
-- Revisa los archivos de documentación
-- Verifica los logs en la consola del navegador
-- Contacta al equipo de soporte
-
----
-
-**Última actualización**: Noviembre 2025
+«Mantener sesión» decide dónde se guarda: marcado, `localStorage`; sin marcar,
+`sessionStorage`, y se pierde al cerrar la pestaña. Lo implementa el adaptador de
+almacenamiento conmutable de `src/utils/supabase/client.tsx`; hay que llamar a
+`setSessionPersistence()` **antes** de iniciar sesión.

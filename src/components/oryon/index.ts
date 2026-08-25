@@ -14,7 +14,16 @@ export { Button, IconButton } from './controls'
 export type { ButtonVariant, ButtonSize } from './controls'
 export { Card, Badge, Alert, EmptyState } from './surfaces'
 export type { BadgeTone, AlertVariant } from './surfaces'
-export { Input, Select, Switch } from './forms'
+export {
+  Input,
+  Select,
+  Switch,
+  FormField,
+  Checkbox,
+  PasswordInput,
+  PasswordMeter,
+  OTPInput,
+} from './forms'
 export type { SelectOption } from './forms'
 export { SidebarNav, Tabs } from './navigation'
 export type { NavEntry, TabItem } from './navigation'

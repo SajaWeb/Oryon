@@ -3,12 +3,17 @@ import { getSupabaseClient } from "./utils/supabase/client";
 import { projectId } from "./utils/supabase/info";
 import { registerServiceWorker } from "./utils/registerServiceWorker";
 import { ThemeProvider } from "./utils/ThemeContext";
-import { Login } from "./components/Login";
-import { Register } from "./components/Register";
-import { GoogleSetup } from "./components/GoogleSetup";
-import { ForgotPassword } from "./components/ForgotPassword";
-import { ResetPassword } from "./components/ResetPassword";
-import { ConfirmEmail } from "./components/ConfirmEmail";
+import {
+  ConfirmEmail,
+  ForgotPassword,
+  GoogleSetup,
+  Login,
+  Register,
+  ResetPassword,
+  VerifyEmail,
+  Welcome,
+  provisionAccount,
+} from "./components/auth";
 import { Dashboard } from "./components/Dashboard";
 import { Products } from "./components/products";
 import { Repairs } from "./components/repairs";
@@ -48,11 +53,19 @@ export default function App() {
   const isInitialConfirmEmailRoute = initialPath.startsWith("/confirm-email") || isEmailConfirmationHash;
   const isInitialResetPasswordRoute = initialPath.startsWith("/reset-password") || isPasswordRecoveryHash;
   const isInitialPaymentCallbackRoute = initialPath.startsWith("/payment-callback");
-  const isPublicRoute = isInitialTrackingRoute || isInitialConfirmEmailRoute || isInitialResetPasswordRoute || isInitialPaymentCallbackRoute;
+  const isInitialVerifyEmailRoute = initialPath.startsWith("/verify-email");
+  const isPublicRoute =
+    isInitialTrackingRoute ||
+    isInitialConfirmEmailRoute ||
+    isInitialResetPasswordRoute ||
+    isInitialPaymentCallbackRoute ||
+    isInitialVerifyEmailRoute;
 
-  const [authView, setAuthView] = useState<
-    "login" | "register" | "forgot-password" | "reset-password"
-  >("login");
+  /* Correo a la espera de su código de seis dígitos. Vive también en la URL
+     (/verify-email?email=) para que recargar la pestaña no pierda el paso. */
+  const [pendingEmail, setPendingEmail] = useState<string>(
+    () => new URLSearchParams(window.location.search).get("email") ?? ""
+  );
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(!isPublicRoute);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -88,6 +101,7 @@ export default function App() {
   const isConfirmEmailPage = effectiveRoute.startsWith("/confirm-email") || isEmailConfirmationHash;
   const isResetPasswordPage = effectiveRoute.startsWith("/reset-password") || isPasswordRecoveryHash;
   const isPaymentCallbackPage = effectiveRoute.startsWith("/payment-callback");
+  const isVerifyEmailPage = effectiveRoute.startsWith("/verify-email");
   const isSuperAdminRoute = effectiveRoute.startsWith("/superadmin");
 
   useEffect(() => {
@@ -172,17 +186,32 @@ export default function App() {
         }
       } catch (err) {}
 
-      // Fallback a metadata si no está en KV
+      /* Sin perfil en KV la cuenta existe en Auth pero no tiene taller: es el
+         primer login tras verificar, o alguien que acaba de entrar con Google.
+         Antes se inventaba un perfil con companyId: 1 y el usuario aterrizaba
+         dentro de la empresa de otro. Ahora se aprovisiona de verdad. */
       if (!profile) {
-        profile = {
-          userId: user.id,
-          id: user.id,
-          email: user.email,
-          name: user.user_metadata?.name || user.email?.split("@")[0] || "Usuario",
-          role: user.user_metadata?.role || "admin",
-          companyId: user.user_metadata?.companyId || 1,
-          isSuperAdmin: user.user_metadata?.role === "superadmin" || user.user_metadata?.isSuperAdmin === true
-        };
+        const provisioned = await provisionAccount(token);
+
+        if (provisioned.needsCompanyName) {
+          setAccessToken(token);
+          setGoogleUserInfo({
+            email: user.email,
+            name: user.user_metadata?.full_name || user.user_metadata?.name || "",
+          });
+          setNeedsGoogleSetup(true);
+          setIsLoading(false);
+          return;
+        }
+
+        if (!provisioned.success || !provisioned.user) {
+          console.error("No se pudo aprovisionar la cuenta:", provisioned.error);
+          setIsAuthenticated(false);
+          setIsLoading(false);
+          return;
+        }
+
+        profile = provisioned.user;
       }
 
       // Si es Super Admin, redirigir al portal exclusivo
@@ -302,8 +331,11 @@ export default function App() {
     };
   }, [isAuthenticated, accessToken]);
 
-  const handleRegisterSuccess = () => {
-    setAuthView("login");
+  /* Tras signUp la cuenta existe pero no está confirmada: el siguiente paso es
+     el código, no el login. El correo va en la URL para sobrevivir a un F5. */
+  const handleRegistered = (email: string) => {
+    setPendingEmail(email);
+    navigate(`/verify-email?email=${encodeURIComponent(email)}`);
   };
 
   const handleLogout = async () => {
@@ -532,12 +564,7 @@ export default function App() {
     return (
       <ThemeProvider>
         <Toaster position="top-right" />
-        <ConfirmEmail
-          onConfirmSuccess={() => {
-            navigate("/login");
-            setAuthView("login");
-          }}
-        />
+        <ConfirmEmail onConfirmSuccess={() => navigate("/login")} />
       </ThemeProvider>
     );
   }
@@ -547,25 +574,50 @@ export default function App() {
     return (
       <ThemeProvider>
         <Toaster position="top-right" />
-        <ResetPassword
-          onResetSuccess={() => {
-            navigate("/login");
-            setAuthView("login");
-          }}
-        />
+        <ResetPassword onResetSuccess={() => navigate("/login")} />
       </ThemeProvider>
     );
   }
 
-  // Setup Google
+  // RUTAS PÚBLICAS 6: código de verificación del registro
+  if (isVerifyEmailPage) {
+    return (
+      <ThemeProvider>
+        <Toaster position="top-right" />
+        {pendingEmail ? (
+          <VerifyEmail
+            email={pendingEmail}
+            onVerified={async (token) => {
+              await verifySession(token);
+              navigate("/welcome");
+            }}
+            onBackToLogin={() => navigate("/login")}
+          />
+        ) : (
+          // Enlace directo sin ?email=: no hay a quién verificar.
+          <Login
+            onLoginSuccess={handleLoginSuccess}
+            onSwitchToRegister={() => navigate("/register")}
+            onSwitchToForgotPassword={() => navigate("/forgot-password")}
+            onNeedsVerification={handleRegistered}
+          />
+        )}
+      </ThemeProvider>
+    );
+  }
+
+  // Falta el nombre del taller para terminar de crear la cuenta de Google
   if (needsGoogleSetup && accessToken && googleUserInfo) {
     return (
-      <GoogleSetup
-        accessToken={accessToken}
-        userEmail={googleUserInfo.email}
-        userName={googleUserInfo.name}
-        onSetupComplete={handleGoogleSetupComplete}
-      />
+      <ThemeProvider>
+        <Toaster position="top-right" />
+        <GoogleSetup
+          accessToken={accessToken}
+          userEmail={googleUserInfo.email}
+          userName={googleUserInfo.name}
+          onSetupComplete={handleGoogleSetupComplete}
+        />
+      </ThemeProvider>
     );
   }
 
@@ -590,14 +642,9 @@ export default function App() {
           <Toaster position="top-right" />
           <Login
             onLoginSuccess={handleLoginSuccess}
-            onSwitchToRegister={() => {
-              navigate("/register");
-              setAuthView("register");
-            }}
-            onSwitchToForgotPassword={() => {
-              navigate("/forgot-password");
-              setAuthView("forgot-password");
-            }}
+            onSwitchToRegister={() => navigate("/register")}
+            onSwitchToForgotPassword={() => navigate("/forgot-password")}
+            onNeedsVerification={handleRegistered}
           />
         </ThemeProvider>
       );
@@ -608,12 +655,9 @@ export default function App() {
         <ThemeProvider>
           <Toaster position="top-right" />
           <Register
-            onRegisterSuccess={handleRegisterSuccess}
-            onSwitchToLogin={() => {
-              navigate("/login");
-              setAuthView("login");
-            }}
-            navigate={navigate}
+            onRegistered={handleRegistered}
+            onSwitchToLogin={() => navigate("/login")}
+            onSwitchToForgotPassword={() => navigate("/forgot-password")}
           />
         </ThemeProvider>
       );
@@ -623,12 +667,7 @@ export default function App() {
       return (
         <ThemeProvider>
           <Toaster position="top-right" />
-          <ForgotPassword
-            onBackToLogin={() => {
-              navigate("/login");
-              setAuthView("login");
-            }}
-          />
+          <ForgotPassword onBackToLogin={() => navigate("/login")} />
         </ThemeProvider>
       );
     }
@@ -638,15 +677,19 @@ export default function App() {
       <ThemeProvider>
         <Toaster position="top-right" />
         <HomePage
-          onNavigateToLogin={() => {
-            navigate("/login");
-            setAuthView("login");
-          }}
-          onNavigateToRegister={() => {
-            navigate("/register");
-            setAuthView("register");
-          }}
+          onNavigateToLogin={() => navigate("/login")}
+          onNavigateToRegister={() => navigate("/register")}
         />
+      </ThemeProvider>
+    );
+  }
+
+  // Bienvenida: primer aterrizaje tras verificar el correo
+  if (effectiveRoute.startsWith("/welcome")) {
+    return (
+      <ThemeProvider>
+        <Toaster position="top-right" />
+        <Welcome companyName={companyData?.name} onEnter={() => navigate("/")} />
       </ThemeProvider>
     );
   }

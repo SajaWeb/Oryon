@@ -376,7 +376,7 @@ export function License({
           legal_id: userProfile?.documentNumber || "",
           legal_id_type: userProfile?.documentType || "CC",
         },
-      });
+      }, accessToken);
 
       setLoading(false);
     } catch (error: any) {

@@ -190,7 +190,7 @@ export function ExpiredLicenseGate({
           legal_id: userProfile?.documentNumber || '',
           legal_id_type: userProfile?.documentType || 'CC',
         },
-      })
+      }, accessToken)
       setLoading(false)
     } catch (error: any) {
       console.error('Error al procesar pago en pasarela:', error)

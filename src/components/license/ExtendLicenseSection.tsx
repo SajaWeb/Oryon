@@ -191,7 +191,7 @@ export function ExtendLicenseSection({
         reference,
         customer_email: '',
         redirect_url: redirectUrl
-      })
+      }, accessToken)
 
       setLoading(false)
     } catch (error: any) {

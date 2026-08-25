@@ -8,14 +8,37 @@ import * as kv from './kv_store.tsx'
 
 const app = new Hono()
 
-// Configure CORS with explicit settings
+/**
+ * CORS con lista blanca.
+ *
+ * Antes era `origin: '*'` con `credentials: true` sobre una API que corre con la
+ * service-role key. Además de demasiado permisivo, es una combinación que los
+ * navegadores rechazan: con comodín no se permiten credenciales.
+ *
+ * ALLOWED_ORIGINS es una lista separada por comas. Los orígenes de desarrollo van
+ * siempre, porque no llegan a producción por otra vía.
+ */
+const DEV_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3002',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+]
+
+const ALLOWED_ORIGINS = [
+  ...(Deno.env.get('ALLOWED_ORIGINS') ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
+  ...DEV_ORIGINS,
+]
+
 app.use('*', cors({
-  origin: '*',
+  origin: (origin) => (ALLOWED_ORIGINS.includes(origin) ? origin : null),
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'apikey', 'x-client-info', 'prefer', 'X-Requested-With'],
   exposeHeaders: ['Content-Length', 'X-Request-Id'],
   maxAge: 600,
-  credentials: true,
 }))
 app.use('*', logger(console.log))
 
@@ -48,6 +71,47 @@ async function verifyAuth(authHeader: string | null) {
   
   return { error: null, user }
 }
+
+/**
+ * Envío transaccional por Resend.
+ *
+ * Los correos de autenticación (verificación, recuperación, cambio de correo) NO
+ * pasan por aquí: los emite Supabase Auth y los maqueta la función
+ * `auth-email-hook`. Esto queda para los avisos del producto —alta de empleado,
+ * alta de superadministrador—, que no dependen de ningún token.
+ *
+ * Sin RESEND_API_KEY no se lanza excepción: un aviso que no sale no debe tumbar
+ * la operación que lo originó.
+ */
+async function sendResendEmail(options: { to: string; subject: string; html: string; from?: string }) {
+  const apiKey = Deno.env.get('RESEND_API_KEY')
+  const from = options.from || Deno.env.get('RESEND_FROM_EMAIL') || 'Oryon <onboarding@resend.dev>'
+
+  if (!apiKey) {
+    console.warn('RESEND_API_KEY no configurada: no se envió el correo a', options.to)
+    return { success: false, error: 'RESEND_API_KEY no configurada' }
+  }
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: [options.to], subject: options.subject, html: options.html }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      console.error('Resend rechazó el envío:', data)
+      return { success: false, error: data.message || 'Error de Resend' }
+    }
+    return { success: true, id: data.id }
+  } catch (err: any) {
+    console.error('Fallo llamando a Resend:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+/** Origen público de la app; los enlaces de los correos cuelgan de aquí. */
+const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://oryonsas.com').replace(/\/$/, '')
 
 // Get user profile with company info
 async function getUserProfile(userId: string) {
@@ -587,12 +651,17 @@ async function verifySuperAdmin(authHeader: string | null) {
     return { error: 'Unauthorized', user: null, userProfile: null }
   }
   const userProfile = await getUserProfile(user.id)
-  const isSuper = (userProfile && (userProfile.role === 'superadmin' || userProfile.isSuperAdmin === true)) ||
-                  (user.user_metadata?.role === 'superadmin' || user.user_metadata?.isSuperAdmin === true)
+  /* El rol sale ÚNICAMENTE del perfil en KV, que solo escribe este servidor.
+     `user_metadata` lo escribe el propio usuario con
+     supabase.auth.updateUser({ data: { role: 'superadmin' } }) desde la consola
+     del navegador: confiar en él era una escalada de privilegios de una línea. */
+  const isSuper = Boolean(
+    userProfile && (userProfile.role === 'superadmin' || userProfile.isSuperAdmin === true)
+  )
   if (!isSuper) {
     return { error: 'Super Admin access required. Workshop users cannot access this endpoint.', user, userProfile: null }
   }
-  return { error: null, user, userProfile: userProfile || { userId: user.id, email: user.email, name: user.user_metadata?.name || 'Super Admin', role: 'superadmin', isSuperAdmin: true } }
+  return { error: null, user, userProfile }
 }
 
 // 1. Estadísticas globales para Super Admin
@@ -1046,7 +1115,7 @@ const handleSuperAdminCreateUser = async (c: any) => {
             <p style="margin:0;"><strong>Rol:</strong> Superadministrador Maestro</p>
           </div>
           <div style="text-align:center;margin:20px 0;">
-            <a href="http://localhost:3002/superadmin" style="background:#2563eb;color:#fff!important;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block;">Ingresar al Panel Super Admin</a>
+            <a href="${SITE_URL}/superadmin" style="background:#2563eb;color:#fff!important;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block;">Ingresar al Panel Super Admin</a>
           </div>
         </div>
       </div>
@@ -1188,228 +1257,19 @@ const handleSuperAdminInitialSetup = async (c: any) => {
 app.post('/superadmin/setup/initial', handleSuperAdminInitialSetup)
 app.post('/make-server-4d437e50/superadmin/setup/initial', handleSuperAdminInitialSetup)
 
-// ==================== EMAIL SERVICE (RESEND) & PASSWORD RECOVERY ====================
+/* ==================== RECUPERACIÓN DE CONTRASEÑA ====================
 
-// Helper para enviar correo con Resend desde el backend
-async function sendResendEmail(options: { to: string; subject: string; html: string; from?: string }) {
-  const apiKey = Deno.env.get('RESEND_API_KEY') || 're_123456789_tu_api_key_aqui'
-  const from = options.from || Deno.env.get('RESEND_FROM_EMAIL') || 'Oryon <onboarding@resend.dev>'
+   Se retiró el sistema propio (`/auth/forgot-password`, `/auth/reset-password-confirm`
+   y el helper sendResendEmail). Generaba un token y un código de seis dígitos con
+   Math.random(), los guardaba en el KV una hora, no limitaba los intentos —seis
+   dígitos sin límite se agotan en un rato— y devolvía el enlace de restablecimiento
+   dentro de la propia respuesta HTTP cuando fallaba el envío.
 
-  if (!apiKey || apiKey.includes('tu_api_key')) {
-    console.warn('⚠️ RESEND_API_KEY no configurada en el backend.')
-    return { success: false, error: 'RESEND_API_KEY no configurada' }
-  }
-
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from,
-        to: [options.to],
-        subject: options.subject,
-        html: options.html
-      })
-    })
-
-    const data = await res.json()
-    if (!res.ok) {
-      console.error('Error al enviar correo con Resend:', data)
-      return { success: false, error: data.message || 'Error de Resend' }
-    }
-
-    return { success: true, id: data.id }
-  } catch (err: any) {
-    console.error('Error en llamada a Resend:', err)
-    return { success: false, error: err.message }
-  }
-}
-
-// 12. Solicitud de Recuperación de Contraseña con Resend
-const handleForgotPassword = async (c: any) => {
-  try {
-    const { email, origin } = await c.req.json()
-    if (!email) {
-      return c.json({ success: false, error: 'El correo electrónico es requerido' }, 400)
-    }
-
-    const cleanEmail = email.trim().toLowerCase()
-
-    // Buscar usuario en KV o Supabase Auth
-    const allUsersRaw = await kv.getByPrefix('user:')
-    const allUsers = allUsersRaw.map((u: any) => typeof u === 'string' ? JSON.parse(u) : u)
-    const user = allUsers.find((u: any) => u && u.email && u.email.toLowerCase() === cleanEmail)
-
-    let targetUserId = user?.id || user?.userId
-    let targetName = user?.name || cleanEmail.split('@')[0]
-
-    if (!targetUserId) {
-      const { data: userList } = await supabase.auth.admin.listUsers()
-      const authUser = userList?.users?.find((u: any) => u.email?.toLowerCase() === cleanEmail)
-      if (authUser) {
-        targetUserId = authUser.id
-        targetName = authUser.user_metadata?.name || authUser.user_metadata?.full_name || cleanEmail.split('@')[0]
-      }
-    }
-
-    if (!targetUserId) {
-      return c.json({
-        success: true,
-        message: 'Si el correo está registrado, recibirás un enlace de recuperación en los próximos minutos.'
-      })
-    }
-
-    // Generar Token seguro y Código de 6 dígitos
-    const token = crypto.randomUUID()
-    const code = Math.floor(100000 + Math.random() * 900000).toString()
-    const expiresAt = Date.now() + (60 * 60 * 1000) // 1 hora
-
-    const resetPayload = {
-      token,
-      code,
-      email: cleanEmail,
-      userId: targetUserId,
-      name: targetName,
-      expiresAt,
-      createdAt: new Date().toISOString()
-    }
-
-    // Guardar en KV
-    await kv.set(`password_reset:${token}`, JSON.stringify(resetPayload))
-    await kv.set(`password_reset_code:${cleanEmail}`, JSON.stringify(resetPayload))
-
-    const baseUrl = origin || 'http://localhost:3002'
-    const resetLink = `${baseUrl}/reset-password?token=${token}&email=${encodeURIComponent(cleanEmail)}`
-
-    // Plantilla HTML moderna para Resend
-    const html = `
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 24px 12px; margin: 0; }
-        .container { max-width: 520px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; border: 1px solid #334155; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-        .logo { font-size: 22px; font-weight: 800; color: #3b82f6; text-align: center; margin-bottom: 20px; }
-        .title { font-size: 19px; font-weight: 700; color: #f8fafc; text-align: center; margin-bottom: 12px; }
-        .text { font-size: 14px; line-height: 1.6; color: #cbd5e1; margin-bottom: 16px; }
-        .btn-box { text-align: center; margin: 26px 0; }
-        .btn { display: inline-block; background-color: #2563eb; color: #ffffff !important; text-decoration: none; padding: 13px 26px; border-radius: 9px; font-weight: 700; font-size: 14px; }
-        .code-box { background-color: #0f172a; border: 1px dashed #475569; border-radius: 10px; padding: 14px; text-align: center; margin: 20px 0; }
-        .code { font-size: 26px; font-weight: 900; letter-spacing: 5px; color: #60a5fa; font-family: monospace; }
-        .footer { font-size: 11px; color: #64748b; text-align: center; margin-top: 28px; border-top: 1px solid #334155; padding-top: 14px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="logo">⚡ ORYON</div>
-        <div class="title">Recuperación de Contraseña</div>
-        <p class="text">Hola <strong>${targetName}</strong>,</p>
-        <p class="text">Recibimos una solicitud para restablecer la contraseña asociada a tu cuenta de Oryon (${cleanEmail}).</p>
-        
-        <div class="btn-box">
-          <a href="${resetLink}" class="btn" target="_blank">Restablecer mi Contraseña</a>
-        </div>
-
-        <div class="code-box">
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;">O utiliza este código de seguridad</div>
-          <div class="code">${code}</div>
-        </div>
-
-        <p style="font-size:11px;color:#fbbf24;margin-top:16px;">⏳ Este enlace y código son válidos durante 60 minutos. Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
-
-        <div class="footer">
-          © ${new Date().getFullYear()} Oryon. Plataforma de Gestión y Facturación de Talleres.
-        </div>
-      </div>
-    </body>
-    </html>
-    `
-
-    const emailResult = await sendResendEmail({
-      to: cleanEmail,
-      subject: '🔐 Restablece tu contraseña de Oryon',
-      html
-    })
-
-    return c.json({
-      success: true,
-      message: 'Correo de recuperación enviado con éxito mediante Resend',
-      emailSent: emailResult.success,
-      resetLink: emailResult.success ? undefined : resetLink
-    })
-  } catch (err: any) {
-    console.error('Error in handleForgotPassword:', err)
-    return c.json({ success: false, error: err.message }, 500)
-  }
-}
-
-app.post('/auth/forgot-password', handleForgotPassword)
-app.post('/make-server-4d437e50/auth/forgot-password', handleForgotPassword)
-
-// 13. Confirmar cambio de contraseña
-const handleResetPasswordConfirm = async (c: any) => {
-  try {
-    const { token, code, email, password } = await c.req.json()
-
-    if (!password || password.length < 6) {
-      return c.json({ success: false, error: 'La nueva contraseña debe tener mínimo 6 caracteres' }, 400)
-    }
-
-    let payload: any = null
-
-    if (token) {
-      const dataStr = await kv.get(`password_reset:${token}`)
-      if (dataStr) payload = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr
-    } else if (email && code) {
-      const dataStr = await kv.get(`password_reset_code:${email.trim().toLowerCase()}`)
-      if (dataStr) {
-        const stored = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr
-        if (stored.code === code.trim()) {
-          payload = stored
-        }
-      }
-    }
-
-    if (!payload) {
-      return c.json({ success: false, error: 'El enlace o código de recuperación es inválido o ha expirado.' }, 400)
-    }
-
-    if (Date.now() > payload.expiresAt) {
-      return c.json({ success: false, error: 'El enlace de recuperación ha expirado. Por favor solicita uno nuevo.' }, 400)
-    }
-
-    // Actualizar contraseña en Supabase Auth
-    const { error: updateError } = await supabase.auth.admin.updateUserById(payload.userId, {
-      password
-    })
-
-    if (updateError) {
-      return c.json({ success: false, error: updateError.message }, 500)
-    }
-
-    // Limpiar tokens de KV
-    if (payload.token) await kv.del(`password_reset:${payload.token}`)
-    if (payload.email) await kv.del(`password_reset_code:${payload.email}`)
-
-    return c.json({
-      success: true,
-      message: '¡Tu contraseña ha sido actualizada con éxito! Ya puedes iniciar sesión.'
-    })
-  } catch (err: any) {
-    console.error('Error in handleResetPasswordConfirm:', err)
-    return c.json({ success: false, error: err.message }, 500)
-  }
-}
-
-app.post('/auth/reset-password-confirm', handleResetPasswordConfirm)
-app.post('/make-server-4d437e50/auth/reset-password-confirm', handleResetPasswordConfirm)
-
-
-
+   Ahora lo lleva Supabase Auth: resetPasswordForEmail emite el token, el hook
+   `auth-email-hook` lo maqueta con la marca y lo envía por Resend, y el enlace se
+   canjea con verifyOtp({ type: 'recovery' }). Expiración, un solo uso y límites
+   de envío dejan de ser código nuestro.
+   ==================================================================== */
 
 // Helper to upload image to Cloudinary
 async function uploadToCloudinary(base64Image: string, folder: string = 'repairs') {
@@ -1456,58 +1316,17 @@ async function uploadToCloudinary(base64Image: string, folder: string = 'repairs
   return result.secure_url
 }
 
-// ==================== SYSTEM DATABASE WIPE & RESET ====================
-const handleSystemResetDatabase = async (c: any) => {
-  try {
-    console.log('⚠️ INITIATING COMPLETE DATABASE & AUTH RESET...')
+/* ==================== BORRADO TOTAL ====================
 
-    // 1. Delete all records from KV Store table
-    const { error: kvError } = await supabase
-      .from('kv_store_4d437e50')
-      .delete()
-      .neq('key', '___non_existent_key_for_all___')
+   Se retiró `POST /system/reset-database`. No tenía ninguna verificación: borraba
+   la tabla KV entera y recorría supabase.auth.admin.listUsers() eliminando a todos
+   los usuarios. Cualquiera que conociera la URL de la función podía vaciar el
+   producto, y después `/superadmin/setup/initial` —que solo comprueba que no exista
+   ya un superadmin— quedaba libre para tomar el control.
 
-    if (kvError) {
-      console.error('Error wiping KV table:', kvError)
-    }
-
-    // 2. Delete all users from Supabase Auth
-    let deletedUsersCount = 0
-    try {
-      const { data: userList, error: listError } = await supabase.auth.admin.listUsers({
-        page: 1,
-        perPage: 1000
-      })
-
-      if (!listError && userList?.users) {
-        for (const user of userList.users) {
-          try {
-            await supabase.auth.admin.deleteUser(user.id)
-            deletedUsersCount++
-          } catch (delErr) {
-            console.warn(`Could not delete user ${user.id}:`, delErr)
-          }
-        }
-      }
-    } catch (authErr) {
-      console.error('Error wiping auth users:', authErr)
-    }
-
-    console.log(`✅ System database reset completed: ${deletedUsersCount} users removed from Auth, KV store cleared.`)
-
-    return c.json({
-      success: true,
-      message: 'Base de datos y usuarios reseteados completamente con éxito.',
-      deletedUsersCount
-    })
-  } catch (err: any) {
-    console.error('Error resetting database:', err)
-    return c.json({ success: false, error: err.message }, 500)
-  }
-}
-
-app.post('/system/reset-database', handleSystemResetDatabase)
-app.post('/make-server-4d437e50/system/reset-database', handleSystemResetDatabase)
+   Nada en src/ lo llamaba. Si hace falta reiniciar un entorno, es un script local
+   contra la service-role key, no un endpoint HTTP.
+   ======================================================== */
 
 // Health check endpoint
 app.get('/make-server-4d437e50/health', (c) => {
@@ -1558,42 +1377,112 @@ app.post('/make-server-4d437e50/upload-images', async (c) => {
 // ==================== AUTH ====================
 
 // Sign up - creates company, branch, and admin user
-app.post('/make-server-4d437e50/auth/signup', async (c) => {
+/* ==================== ALTA DE CUENTA ====================
+
+   Se retiraron `POST /auth/signup` y `POST /auth/google-setup`.
+
+   El primero era anónimo y llamaba a supabase.auth.admin.createUser con
+   `email_confirm: true` —"auto-confirm since we don't have email server"—, así que
+   ninguna cuenta se verificaba nunca y un bot podía crear empresas en bucle.
+
+   Ahora al usuario lo crea Supabase Auth desde el navegador (signUp + verifyOtp) y
+   este endpoint solo hace lo que necesita privilegios: crear la empresa, la
+   sucursal Principal y el perfil. Exige sesión y correo verificado, y es
+   idempotente, así que se puede llamar en cada arranque.
+   ======================================================== */
+
+/**
+ * Ventana deslizante sobre el KV.
+ *
+ * No sustituye a los límites de Supabase Auth (registro, OTP, envío de correo),
+ * que se configuran en el panel; cubre lo que es nuestro.
+ */
+async function rateLimit(key: string, max: number, windowMs: number) {
+  const kvKey = `ratelimit:${key}`
+  const now = Date.now()
   try {
-    const { email, password, name, companyName } = await c.req.json()
-    
-    // Create auth user
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true // Auto-confirm since we don't have email server
-    })
-    
-    if (authError || !authData.user) {
-      console.log('Error creating auth user:', authError)
-      return c.json({ success: false, error: authError?.message || 'Failed to create user' }, 400)
+    const raw = await kv.get(kvKey)
+    const entry = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null
+
+    if (!entry || now > entry.resetAt) {
+      await kv.set(kvKey, JSON.stringify({ count: 1, resetAt: now + windowMs }))
+      return { ok: true, retryAfter: 0 }
     }
-    
-    // Create company with 7 days trial on basic plan
+    if (entry.count >= max) {
+      return { ok: false, retryAfter: Math.ceil((entry.resetAt - now) / 1000) }
+    }
+    await kv.set(kvKey, JSON.stringify({ count: entry.count + 1, resetAt: entry.resetAt }))
+    return { ok: true, retryAfter: 0 }
+  } catch (err) {
+    // Un fallo del contador no puede dejar a nadie fuera de su propia cuenta.
+    console.error('rateLimit:', err)
+    return { ok: true, retryAfter: 0 }
+  }
+}
+
+const handleProvision = async (c: any) => {
+  try {
+    const { error: authError, user } = await verifyAuth(c.req.header('Authorization'))
+    if (authError || !user) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401)
+    }
+
+    // Ya tiene taller: se devuelve tal cual, sin tocar nada.
+    const existing = await getUserProfile(user.id)
+    if (existing) {
+      const currentCompany = await kv.get(`company:${existing.companyId}`)
+      return c.json({
+        success: true,
+        user: existing,
+        company: currentCompany
+          ? typeof currentCompany === 'string' ? JSON.parse(currentCompany) : currentCompany
+          : null,
+      })
+    }
+
+    /* Sin correo verificado no se crea nada. Es la barrera que antes no existía:
+       con `email_confirm: true` toda cuenta nacía confirmada por decreto. */
+    if (!user.email_confirmed_at) {
+      return c.json({ success: false, error: 'Verifica tu correo antes de continuar' }, 403)
+    }
+
+    const limit = await rateLimit(`provision:${user.id}`, 5, 60 * 60 * 1000)
+    if (!limit.ok) {
+      return c.json(
+        { success: false, error: 'Demasiados intentos. Espera un momento.' },
+        429,
+        { 'Retry-After': String(limit.retryAfter) }
+      )
+    }
+
+    const body = await c.req.json().catch(() => ({}))
+    const metadata = user.user_metadata ?? {}
+    const companyName = String(body.companyName ?? metadata.companyName ?? '').trim()
+    const name = String(
+      body.name ?? metadata.name ?? metadata.full_name ?? user.email?.split('@')[0] ?? 'Usuario'
+    ).trim()
+
+    /* Google entrega correo y nombre, nunca el del taller. Sin él no se inventa
+       una empresa: se pide. Antes el cliente rellenaba el hueco con companyId: 1,
+       es decir, metía al usuario nuevo en la empresa de otro. */
+    if (!companyName) {
+      return c.json({ success: true, needsCompanyName: true })
+    }
+
     const companyId = await getNextId('company')
     const trialEndsAt = new Date()
     trialEndsAt.setDate(trialEndsAt.getDate() + 7)
-    
-    const licenseExpiry = new Date()
-    licenseExpiry.setDate(licenseExpiry.getDate() + 7) // Same as trial for initial setup
-    
+
     const company = {
       id: companyId,
       name: companyName,
       planId: 'basico',
       trialEndsAt: trialEndsAt.toISOString(),
-      licenseExpiry: licenseExpiry.toISOString(),
+      licenseExpiry: trialEndsAt.toISOString(),
       createdAt: new Date().toISOString()
     }
-    
     await kv.set(`company:${companyId}`, JSON.stringify(company))
-    
-    // Create default branch (Principal)
+
     const branchId = `branch_${companyId}_1`
     const branch = {
       id: branchId,
@@ -1604,123 +1493,162 @@ app.post('/make-server-4d437e50/auth/signup', async (c) => {
       isMain: true,
       createdAt: new Date().toISOString()
     }
-    
     await kv.set(`branch:${branchId}`, JSON.stringify(branch))
     await kv.set(`company:${companyId}:branches`, JSON.stringify([branchId]))
-    
-    // Create user profile (admin doesn't have branchId)
+
     const userProfile = {
-      userId: authData.user.id,
-      email,
+      userId: user.id,
+      email: user.email,
       name,
       companyId,
       role: 'admin',
       active: true,
+      authProvider: user.app_metadata?.provider ?? 'email',
       createdAt: new Date().toISOString()
     }
-    
-    await kv.set(`user:${authData.user.id}`, JSON.stringify(userProfile))
-    
-    console.log('Company created with trial plan:', {
-      companyId,
-      planId: 'basico',
-      trialEndsAt: trialEndsAt.toISOString(),
-      defaultBranch: branchId
-    })
-    
-    return c.json({ 
-      success: true, 
-      message: 'Account created successfully',
-      company,
-      branch,
-      user: userProfile
-    })
+    await kv.set(`user:${user.id}`, JSON.stringify(userProfile))
+
+    console.log('Taller aprovisionado:', { companyId, userId: user.id, branchId })
+
+    return c.json({ success: true, company, branch, user: userProfile })
   } catch (error) {
-    console.log('Error in signup:', error)
+    console.log('Error en /auth/provision:', error)
     return c.json({ success: false, error: String(error) }, 500)
   }
-})
+}
 
-// Google OAuth - Create profile, company, and branch for first-time Google users
-app.post('/make-server-4d437e50/auth/google-setup', async (c) => {
+app.post('/auth/provision', handleProvision)
+app.post('/make-server-4d437e50/auth/provision', handleProvision)
+
+/* ==================== CHECKOUT DE WOMPI ====================
+
+   El navegador ya no toca ninguna credencial de la pasarela.
+
+   Antes WompiService.ts llevaba la llave privada incrustada como valor por defecto
+   (`prv_test_...`) y calculaba la firma de integridad en el cliente con
+   VITE_WOMPI_INTEGRITY_SECRET. Las dos viajaban dentro del bundle, así que estaban
+   publicadas; y una firma de integridad que el comprador puede recalcular no prueba
+   nada sobre el monto, que es justo para lo que existe.
+
+   Aquí el servidor valida el monto, crea el enlace con la llave privada y firma con
+   el secreto. El cliente solo recibe la URL a la que ir.
+   ============================================================ */
+
+const WOMPI_ENVIRONMENT = Deno.env.get('WOMPI_ENVIRONMENT') ?? 'sandbox'
+const WOMPI_API_URL = WOMPI_ENVIRONMENT === 'production'
+  ? 'https://production.wompi.co/v1'
+  : 'https://sandbox.wompi.co/v1'
+
+async function wompiIntegritySignature(reference: string, amountInCents: number, currency: string) {
+  const secret = Deno.env.get('WOMPI_INTEGRITY_SECRET')
+  if (!secret) return null
+  const data = new TextEncoder().encode(`${reference}${amountInCents}${currency}${secret}`)
+  const hash = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** El redirect solo puede volver a un origen nuestro. */
+function isAllowedRedirect(url: string) {
   try {
-    const { error, user } = await verifyAuth(c.req.header('Authorization'))
-    
-    if (error || !user) {
+    return ALLOWED_ORIGINS.includes(new URL(url).origin)
+  } catch {
+    return false
+  }
+}
+
+const handleWompiCheckout = async (c: any) => {
+  try {
+    const { error: authError, user } = await verifyAuth(c.req.header('Authorization'))
+    if (authError || !user) {
       return c.json({ success: false, error: 'Unauthorized' }, 401)
     }
-    
-    // Check if user already has a profile
-    const existingProfile = await getUserProfile(user.id)
-    if (existingProfile) {
-      return c.json({ success: true, message: 'Profile already exists', user: existingProfile })
+
+    const limit = await rateLimit(`wompi-checkout:${user.id}`, 20, 60 * 60 * 1000)
+    if (!limit.ok) {
+      return c.json({ success: false, error: 'Demasiadas solicitudes de pago seguidas.' }, 429)
     }
-    
-    const { name, companyName } = await c.req.json()
-    
-    // Create company with 7 days trial on basic plan
-    const companyId = await getNextId('company')
-    const trialEndsAt = new Date()
-    trialEndsAt.setDate(trialEndsAt.getDate() + 7)
-    
-    const company = {
-      id: companyId,
-      name: companyName || `Empresa de ${name}`,
-      planId: 'basico',
-      trialEndsAt: trialEndsAt.toISOString(),
-      createdAt: new Date().toISOString()
+
+    const body = await c.req.json()
+    const reference = String(body.reference ?? '').trim()
+    const amountInCents = Number(body.amount_in_cents)
+    const currency = String(body.currency ?? 'COP').toUpperCase()
+    const redirectUrl = String(body.redirect_url ?? '')
+
+    if (!/^[A-Za-z0-9._-]{6,64}$/.test(reference)) {
+      return c.json({ success: false, error: 'Referencia de pago inválida' }, 400)
     }
-    
-    await kv.set(`company:${companyId}`, JSON.stringify(company))
-    
-    // Create default branch (Principal)
-    const branchId = `branch_${companyId}_1`
-    const branch = {
-      id: branchId,
-      companyId,
-      name: 'Principal',
-      address: '',
-      phone: '',
-      isMain: true,
-      createdAt: new Date().toISOString()
+    if (!Number.isInteger(amountInCents) || amountInCents <= 0) {
+      return c.json({ success: false, error: 'Monto inválido' }, 400)
     }
-    
-    await kv.set(`branch:${branchId}`, JSON.stringify(branch))
-    await kv.set(`company:${companyId}:branches`, JSON.stringify([branchId]))
-    
-    // Create user profile
-    const userProfile = {
-      userId: user.id,
-      email: user.email,
-      name: name || user.user_metadata?.full_name || user.email?.split('@')[0],
-      companyId,
-      role: 'admin',
-      active: true,
-      authProvider: 'google',
-      createdAt: new Date().toISOString()
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      return c.json({ success: false, error: 'Moneda inválida' }, 400)
     }
-    
-    await kv.set(`user:${user.id}`, JSON.stringify(userProfile))
-    
-    console.log('Google setup completed with trial plan:', {
-      companyId,
-      planId: 'basico',
-      trialEndsAt: trialEndsAt.toISOString(),
-      defaultBranch: branchId
+    if (!isAllowedRedirect(redirectUrl)) {
+      return c.json({ success: false, error: 'URL de retorno no permitida' }, 400)
+    }
+
+    const privateKey = Deno.env.get('WOMPI_PRIVATE_KEY')
+    const publicKey = Deno.env.get('WOMPI_PUBLIC_KEY')
+
+    // 1. Enlace alojado de Wompi: no depende de iframes ni del widget.
+    if (privateKey) {
+      try {
+        const res = await fetch(`${WOMPI_API_URL}/payment_links`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${privateKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: String(body.name ?? `Suscripción Oryon - Ref: ${reference}`).slice(0, 120),
+            description: String(body.description ?? 'Suscripción Oryon').slice(0, 240),
+            single_use: false,
+            collect_shipping: false,
+            currency,
+            amount_in_cents: amountInCents,
+            redirect_url: redirectUrl,
+          }),
+        })
+        const data = await res.json()
+        const linkId = data?.data?.id
+        if (res.ok && linkId) {
+          return c.json({ success: true, url: `https://checkout.wompi.co/l/${linkId}` })
+        }
+        console.error('Wompi rechazó el payment link:', data)
+      } catch (err) {
+        console.error('Fallo creando el payment link de Wompi:', err)
+      }
+    }
+
+    // 2. Respaldo: Web Checkout con la firma calculada aquí.
+    if (!publicKey) {
+      return c.json({ success: false, error: 'La pasarela de pagos no está configurada' }, 503)
+    }
+
+    const params = new URLSearchParams({
+      'public-key': publicKey,
+      currency,
+      'amount-in-cents': String(amountInCents),
+      reference,
+      'redirect-url': redirectUrl,
     })
-    
-    return c.json({ 
-      success: true, 
-      message: 'Profile created successfully',
-      company,
-      branch,
-      user: userProfile
-    })
+
+    const signature = await wompiIntegritySignature(reference, amountInCents, currency)
+    if (signature) params.append('signature:integrity', signature)
+
+    if (body.customer_email) params.append('customer-data:email', String(body.customer_email))
+    const customer = body.customer_data ?? {}
+    if (customer.full_name) params.append('customer-data:full-name', String(customer.full_name))
+    if (customer.phone_number) params.append('customer-data:phone-number', String(customer.phone_number))
+    if (customer.legal_id) params.append('customer-data:legal-id', String(customer.legal_id))
+    if (customer.legal_id_type) params.append('customer-data:legal-id-type', String(customer.legal_id_type))
+
+    return c.json({ success: true, url: `https://checkout.wompi.co/p/?${params.toString()}` })
   } catch (error) {
-    console.log('Error in Google setup:', error)
+    console.log('Error en /payments/wompi/checkout:', error)
     return c.json({ success: false, error: String(error) }, 500)
   }
-})
+}
+
+app.post('/payments/wompi/checkout', handleWompiCheckout)
+app.post('/make-server-4d437e50/payments/wompi/checkout', handleWompiCheckout)
 
 // Get current session
 app.get('/make-server-4d437e50/auth/session', async (c) => {
@@ -1919,7 +1847,7 @@ app.post('/make-server-4d437e50/company/users', async (c) => {
             <p style="margin:0;"><strong>Contraseña inicial:</strong> <code>${password}</code></p>
           </div>
           <div style="text-align:center;margin:20px 0;">
-            <a href="http://localhost:3002/login" style="background:#2563eb;color:#fff!important;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block;">Iniciar Sesión en Oryon</a>
+            <a href="${SITE_URL}/login" style="background:#2563eb;color:#fff!important;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block;">Iniciar Sesión en Oryon</a>
           </div>
           <p style="font-size:11px;color:#94a3b8;margin-top:20px;border-top:1px solid #334155;padding-top:12px;">Por seguridad, te recomendamos cambiar tu contraseña una vez ingreses al sistema.</p>
         </div>
