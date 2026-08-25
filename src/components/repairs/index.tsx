@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ClipboardList, DollarSign, History, Pencil, Plus, Printer, Tag, Trash2 } from 'lucide-react'
 import { toast } from 'sonner@2.0.3'
 
 // Hooks
@@ -6,7 +7,6 @@ import { useRepairs } from './hooks/useRepairs'
 import { useBranches } from './hooks/useBranches'
 import { useCustomers } from './hooks/useCustomers'
 import { useCompanySettings } from './hooks/useCompanySettings'
-import { usePagination } from './hooks/usePagination'
 import { useRepairDialogs } from './hooks/useRepairDialogs'
 
 // Actions
@@ -14,26 +14,29 @@ import { createRepair, updateRepairStatus, createInvoiceForRepair } from './acti
 import { handlePrintServiceOrder, handlePrintDeviceLabel, handlePrintInvoiceFromRepair } from './actions/printActions'
 
 // UI Components
-import { RepairsHeader } from './ui/RepairsHeader'
-import { RepairsList } from './ui/RepairsList'
-import { RepairsPagination } from './ui/RepairsPagination'
 import { BranchAlert } from './ui/BranchAlert'
+import { RepairListCard } from './ui/RepairListCard'
+import { RepairDetailPanel } from './ui/RepairDetailPanel'
+import { Button, StatusBadge, normalizeState, type Column } from '../oryon'
+import { ListPage } from '../patterns/ListPage'
+import { ResponsiveDetail } from '../layout/ResponsiveDetail'
+import { useShell } from '../layout/AppShell'
+import { usePageHeader } from '../layout/PageHeaderContext'
 import { TrackingAlert } from './ui/TrackingAlert'
 import { LoadingState } from './ui/LoadingState'
 import { ErrorState } from './ui/ErrorState'
 
 // Dialogs
-import { RepairFilters } from './RepairFilters'
 import { NewRepairDialog } from './NewRepairDialog'
-import { RepairDetailsDialog } from './RepairDetailsDialog'
 import { StatusChangeDialog } from './StatusChangeDialog'
 import { StatusHistoryDialog } from './StatusHistoryDialog'
 import { ImagePreviewDialog } from './ImagePreviewDialog'
 import { InvoiceDialog } from './InvoiceDialog'
 
 // Types and Utils
-import { RepairFormData, InvoiceFormData } from './types'
+import { RepairFormData, InvoiceFormData, Repair } from './types'
 import { filterRepairs } from './utils'
+import { statusLabels } from './constants'
 
 interface UserProfile {
   id: string
@@ -53,6 +56,8 @@ interface RepairsProps {
 }
 
 export function Repairs({ accessToken, userName, userRole, userProfile }: RepairsProps) {
+  const { compact, isMobile } = useShell()
+
   // Filter state
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -64,22 +69,20 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
   const { identificationTypes, fetchCompanySettings } = useCompanySettings(accessToken)
   const dialogs = useRepairDialogs()
 
-  // Filtered and paginated repairs
+  // La paginación (y la carga incremental de móvil) las resuelve useListState dentro de
+  // ListPage, así que aquí solo queda el filtrado.
   const filteredRepairs = filterRepairs(repairs, searchTerm, filterStatus)
-  const { 
-    currentPage, 
-    totalPages, 
-    paginatedItems, 
-    goToPage, 
-    nextPage, 
-    previousPage,
-    setCurrentPage 
-  } = usePagination(filteredRepairs)
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchTerm, filterStatus, setCurrentPage])
+  usePageHeader({
+    title: 'Reparaciones',
+    subtitle: loading
+      ? 'Cargando órdenes…'
+      : `${filteredRepairs.length} de ${repairs.length} ${repairs.length === 1 ? 'orden' : 'órdenes'}`,
+    eyebrow: 'Órdenes de trabajo',
+    onRefresh: fetchRepairs,
+    refreshing: loading,
+  })
+
 
   // Load initial data
   useEffect(() => {
@@ -216,46 +219,190 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
     return <ErrorState error={error} accessToken={accessToken} />
   }
 
+  const canInvoice = userRole === 'admin' || userRole === 'administrador' || userRole === 'asesor'
+  const selected = dialogs.selectedRepair
+
+  const columns: Column<Repair>[] = [
+    { key: 'id', label: 'OT', mono: true, width: 70, render: (r) => `#${r.id}` },
+    {
+      key: 'status',
+      label: 'Estado',
+      render: (r) => <StatusBadge status={normalizeState(r.status)} label={statusLabels[r.status]} size="sm" />,
+    },
+    { key: 'device', label: 'Equipo', render: (r) => `${r.deviceBrand} ${r.deviceModel}` },
+    { key: 'customerName', label: 'Cliente' },
+    { key: 'problem', label: 'Falla reportada', muted: true, hideOnCompact: true },
+    {
+      key: 'branch',
+      label: 'Sucursal',
+      muted: true,
+      hideOnCompact: true,
+      render: (r) => branches.find((b) => b.id === r.branchId)?.name || '—',
+    },
+    {
+      key: 'receivedDate',
+      label: 'Recibido',
+      mono: true,
+      muted: true,
+      hideOnCompact: true,
+      render: (r) => {
+        const d = new Date(r.receivedDate)
+        return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-CO')
+      },
+    },
+    {
+      key: 'estimatedCost',
+      label: 'Costo est.',
+      mono: true,
+      align: 'right',
+      render: (r) => `$${Number(r.estimatedCost || 0).toLocaleString('es-CO')}`,
+    },
+  ]
+
+  const statusChips = (
+    <div style={{ display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 }}>
+      {[{ value: 'all', label: 'Todas' }, ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))].map(
+        (chip) => {
+          const active = filterStatus === chip.value
+          return (
+            <button
+              key={chip.value}
+              type="button"
+              onClick={() => setFilterStatus(chip.value)}
+              style={{
+                flex: '0 0 auto',
+                height: 30,
+                padding: '0 10px',
+                fontSize: 'var(--text-small)',
+                fontWeight: active ? 'var(--fw-medium)' : 'var(--fw-regular)',
+                color: active ? 'var(--text-accent)' : 'var(--text-secondary)',
+                background: active ? 'var(--accent-subtle)' : 'var(--surface-card)',
+                border: `var(--border-width) solid ${active ? 'var(--accent-subtle-border)' : 'var(--border-default)'}`,
+                borderRadius: 'var(--radius-md)',
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+              }}
+            >
+              {chip.label}
+            </button>
+          )
+        },
+      )}
+    </div>
+  )
+
   return (
-    <div className="p-4 sm:p-8">
-      <RepairsHeader onNewRepair={() => dialogs.setDialogOpen(true)} />
-
-      <RepairFilters
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        filterStatus={filterStatus}
-        onFilterStatusChange={setFilterStatus}
+    <>
+      <ListPage<Repair>
+        rows={filteredRepairs}
+        columns={columns}
+        rowKey="id"
+        pageSize={12}
+        selectedId={dialogs.detailDialogOpen ? selected?.id ?? null : null}
+        onRowClick={(r) => dialogs.openDetailDialog(r)}
+        renderCard={(r) => <RepairListCard repair={r} onOpen={() => dialogs.openDetailDialog(r)} />}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Cliente, teléfono, marca, IMEI, #OT…',
+        }}
+        filters={[
+          {
+            id: 'status',
+            label: 'Estado',
+            placeholder: 'Todos los estados',
+            value: filterStatus === 'all' ? '' : filterStatus,
+            options: Object.entries(statusLabels).map(([value, label]) => ({ value, label })),
+            onChange: (v) => setFilterStatus(v || 'all'),
+          },
+        ]}
+        onClearFilters={() => setFilterStatus('all')}
+        primaryAction={{ label: 'Nueva orden', icon: Plus, onClick: () => dialogs.setDialogOpen(true) }}
+        tableTitle="Órdenes de trabajo"
+        tableSubtitle={`${filteredRepairs.length} de ${repairs.length} ${repairs.length === 1 ? 'orden' : 'órdenes'}`}
+        countLabel={(shown, total) => `Mostrando ${shown} de ${total} órdenes`}
+        endLabel={(total) => `Fin de la lista · ${total} órdenes`}
+        empty={{
+          icon: ClipboardList,
+          title: repairs.length === 0 ? 'Sin órdenes' : 'Sin resultados',
+          description:
+            repairs.length === 0
+              ? 'Aún no hay órdenes de trabajo. Crea la primera al recibir un equipo.'
+              : 'Ninguna orden coincide con el estado o la búsqueda.',
+        }}
+        chips={isMobile ? statusChips : undefined}
+        banner={
+          <>
+            {userRole !== 'admin' && userProfile && <BranchAlert userProfile={userProfile} />}
+            <TrackingAlert />
+          </>
+        }
       />
 
-      {userRole !== 'admin' && userProfile && (
-        <BranchAlert userProfile={userProfile} />
-      )}
-
-      <TrackingAlert />
-
-      <RepairsList
-        repairs={paginatedItems}
-        onViewDetails={dialogs.openDetailDialog}
-        onChangeStatus={dialogs.openStatusDialog}
-        onCreateInvoice={dialogs.openInvoiceDialog}
-        onDelete={handleDelete}
-        canDelete={canDelete}
-        branches={branches}
-        userRole={userRole}
-        searchTerm={searchTerm}
-        filterStatus={filterStatus}
-      />
-
-      {/* Pagination */}
-      {filteredRepairs.length > 15 && (
-        <RepairsPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={goToPage}
-          onPrevious={previousPage}
-          onNext={nextPage}
-        />
-      )}
+      <ResponsiveDetail
+        open={dialogs.detailDialogOpen && selected != null}
+        onClose={() => dialogs.setDetailDialogOpen(false)}
+        kind="Orden de trabajo"
+        title={selected ? `Orden #${selected.id}` : ''}
+        meta={selected ? `${selected.deviceBrand} ${selected.deviceModel} · ${selected.customerName}` : undefined}
+        actions={
+          selected && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <Button
+                variant="primary"
+                fullWidth
+                iconLeft={Pencil}
+                onClick={() => dialogs.openStatusDialog(selected)}
+              >
+                Cambiar estado
+              </Button>
+              <Button fullWidth iconLeft={History} onClick={() => dialogs.openHistoryDialog(selected)}>
+                Historial
+              </Button>
+              <Button fullWidth iconLeft={Printer} onClick={() => handlePrintServiceOrder(selected, accessToken)}>
+                Imprimir OT
+              </Button>
+              <Button fullWidth iconLeft={Tag} onClick={() => handlePrintDeviceLabel(selected, accessToken)}>
+                Etiqueta
+              </Button>
+              {selected.status === 'completed' && !selected.invoiced && canInvoice && (
+                <Button
+                  variant="primary"
+                  fullWidth
+                  iconLeft={DollarSign}
+                  style={{ gridColumn: '1 / -1' }}
+                  onClick={() => dialogs.openInvoiceDialog(selected)}
+                >
+                  Facturar reparación
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  variant="danger"
+                  fullWidth
+                  iconLeft={Trash2}
+                  style={{ gridColumn: '1 / -1' }}
+                  onClick={() => {
+                    handleDelete(selected.id)
+                    dialogs.setDetailDialogOpen(false)
+                  }}
+                >
+                  Eliminar orden
+                </Button>
+              )}
+            </div>
+          )
+        }
+      >
+        {selected && (
+          <RepairDetailPanel
+            repair={selected}
+            branches={branches}
+            columns={compact ? 1 : 2}
+            onImageClick={dialogs.openImagePreview}
+          />
+        )}
+      </ResponsiveDetail>
 
       {/* Dialogs */}
       <NewRepairDialog
@@ -266,20 +413,6 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
         branches={getAvailableBranches(userRole, userProfile)}
         userRole={userRole}
         onSubmit={handleSubmitNewRepair}
-      />
-
-      <RepairDetailsDialog
-        open={dialogs.detailDialogOpen}
-        onOpenChange={dialogs.setDetailDialogOpen}
-        repair={dialogs.selectedRepair}
-        onChangeStatus={() => dialogs.openStatusDialog(dialogs.selectedRepair!)}
-        onViewHistory={() => dialogs.openHistoryDialog(dialogs.selectedRepair!)}
-        onCreateInvoice={() => dialogs.openInvoiceDialog(dialogs.selectedRepair!)}
-        onImageClick={dialogs.openImagePreview}
-        onPrintServiceOrder={() => handlePrintServiceOrder(dialogs.selectedRepair!, accessToken)}
-        onPrintDeviceLabel={() => handlePrintDeviceLabel(dialogs.selectedRepair!, accessToken)}
-        branches={branches}
-        userRole={userRole}
       />
 
       <StatusChangeDialog
@@ -308,6 +441,6 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
         repair={dialogs.selectedRepair}
         onSubmit={handleCreateInvoice}
       />
-    </div>
+    </>
   )
 }
