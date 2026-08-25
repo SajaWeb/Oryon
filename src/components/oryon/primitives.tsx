@@ -291,25 +291,47 @@ export interface KeyValueItem {
 export function KeyValue({
   items,
   columns = 1,
+  layout = 'row',
   style,
 }: {
   items: KeyValueItem[]
   columns?: 1 | 2
+  /**
+   * `row` — etiqueta a la izquierda y valor a la derecha. Es el formato de las fichas de
+   * la landing, donde los valores son cortos.
+   * `stacked` — etiqueta encima del valor, separadas por una línea de 1px. Es la ficha
+   * técnica del detalle de OT: aguanta IMEI, direcciones y descripciones sin recortarlos,
+   * que en un drawer de 320px es la diferencia entre leerlo y no leerlo.
+   */
+  layout?: 'row' | 'stacked'
   style?: CSSProperties
 }) {
+  const stacked = layout === 'stacked'
+
   return (
     <div
       style={{
         display: 'grid',
         gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-        gap: columns === 2 ? '10px 24px' : 10,
+        gap: stacked ? '0 24px' : columns === 2 ? '10px 24px' : 10,
         ...style,
       }}
     >
       {items.map((it, i) => (
         <div
           key={i}
-          style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}
+          style={
+            stacked
+              ? {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  minWidth: 0,
+                  padding: '8px 0',
+                  borderBottom: 'var(--border-width) solid var(--border-subtle)',
+                }
+              : { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }
+          }
         >
           <span
             style={{
@@ -329,8 +351,10 @@ export function KeyValue({
               fontSize: it.mono ? 'var(--text-mono-size)' : 'var(--text-body)',
               fontVariantNumeric: it.mono ? 'tabular-nums' : 'normal',
               color: 'var(--text-primary)',
-              textAlign: 'right',
+              textAlign: stacked ? 'left' : 'right',
               minWidth: 0,
+              // Un IMEI de 15 dígitos no tiene dónde partir: sin esto se sale de la caja.
+              overflowWrap: 'anywhere',
             }}
           >
             {it.value}
@@ -353,13 +377,17 @@ export interface Column<T> {
   align?: 'left' | 'right' | 'center'
   width?: number
   render?: (row: T) => ReactNode
+  /** Se cae en tablet (escritorio compacto). El diseño reduce así de 9 a 5 columnas. */
+  hideOnCompact?: boolean
 }
 
 export function DataTable<T extends Record<string, any>>({
   columns,
   rows,
   dense = false,
+  compact = false,
   onRowClick,
+  selectedId,
   rowKey = 'id',
   emptyMessage = 'Sin resultados',
   style,
@@ -367,12 +395,17 @@ export function DataTable<T extends Record<string, any>>({
   columns: Column<T>[]
   rows: T[]
   dense?: boolean
+  /** Tablet: descarta las columnas marcadas con `hideOnCompact`. */
+  compact?: boolean
   onRowClick?: (row: T) => void
+  /** Fila abierta en el drawer de detalle: se resalta con --accent-subtle. */
+  selectedId?: string | number | null
   rowKey?: string
   emptyMessage?: ReactNode
   style?: CSSProperties
 }) {
   const h = dense ? 32 : 'var(--row-height)'
+  const cols = compact ? columns.filter((c) => !c.hideOnCompact) : columns
 
   return (
     <div style={{ width: '100%', overflowX: 'auto', ...style }}>
@@ -385,7 +418,7 @@ export function DataTable<T extends Record<string, any>>({
       >
         <thead>
           <tr>
-            {columns.map((c) => (
+            {cols.map((c) => (
               <th
                 key={c.key}
                 style={{
@@ -412,7 +445,7 @@ export function DataTable<T extends Record<string, any>>({
           {rows.length === 0 && (
             <tr>
               <td
-                colSpan={columns.length}
+                colSpan={cols.length}
                 style={{
                   height: 88,
                   textAlign: 'center',
@@ -429,9 +462,10 @@ export function DataTable<T extends Record<string, any>>({
               key={r[rowKey] ?? i}
               onClick={onRowClick ? () => onRowClick(r) : undefined}
               className="oryon-row"
+              data-selected={selectedId != null && selectedId === r[rowKey] ? 'true' : undefined}
               style={{ cursor: onRowClick ? 'pointer' : 'default' }}
             >
-              {columns.map((c) => (
+              {cols.map((c) => (
                 <td
                   key={c.key}
                   style={{

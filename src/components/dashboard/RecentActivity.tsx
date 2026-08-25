@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
+import { ReceiptText, Wrench } from 'lucide-react'
 import { projectId } from '../../utils/supabase/info'
-import { Wrench, ShoppingCart, Clock, CheckCircle } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { ScrollArea } from '../ui/scroll-area'
-import { StatusBadge } from '../oryon'
+import { Card, DataTable, EmptyState } from '../oryon'
+import { useShell } from '../layout/AppShell'
 
+/**
+ * Actividad reciente. En escritorio es una tabla (hora · operación · referencia · monto),
+ * en móvil una línea de tiempo con chip de icono por tipo de operación — así lo separan los
+ * dos documentos de diseño.
+ */
 interface Activity {
   id: string
   type: 'repair' | 'sale'
@@ -15,157 +19,152 @@ interface Activity {
   amount?: number
 }
 
-interface RecentActivityProps {
-  accessToken: string
+const money = (n: number) => `$${Number(n).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
+
+/** Hora corta para la tabla; en el taller la fecha del día se da por supuesta. */
+function shortTime(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  const sameDay = d.toDateString() === new Date().toDateString()
+  return sameDay
+    ? d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit' })
 }
 
-export function RecentActivity({ accessToken }: RecentActivityProps) {
+export function RecentActivity({ accessToken }: { accessToken: string }) {
+  const { isMobile } = useShell()
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchRecentActivity()
-  }, [])
+    let cancelled = false
 
-  const fetchRecentActivity = async () => {
-    try {
-      if (!accessToken) {
-        console.error('❌ No access token available for recent activity request')
-        return
-      }
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/stats/recent-activity`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
+    const fetchRecentActivity = async () => {
+      try {
+        if (!accessToken) return
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/stats/recent-activity`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        )
+        if (!response.ok) {
+          console.error('Recent activity API error:', response.status)
+          return
         }
-      )
-      
-      if (!response.ok) {
-        console.error('❌ Recent activity API error:', response.status)
-        const errorText = await response.text()
-        console.error('❌ Error details:', errorText)
-        return
+        const data = await response.json()
+        if (!cancelled && data.success) setActivities(data.activities || [])
+      } catch (error) {
+        console.error('Error fetching recent activity:', error)
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      
-      const data = await response.json()
-      if (data.success) {
-        setActivities(data.activities || [])
-      }
-    } catch (error) {
-      console.error('Error fetching recent activity:', error)
-    } finally {
-      setLoading(false)
     }
-  }
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'repair':
-        return <Wrench className="text-[var(--state-repair)]" size={18} />
-      case 'sale':
-        return <ShoppingCart className="text-[var(--state-ready)]" size={18} />
-      default:
-        return <Clock className="text-[var(--text-tertiary)]" size={18} />
+    fetchRecentActivity()
+    return () => {
+      cancelled = true
     }
-  }
+  }, [accessToken])
 
-  /* El mapa anterior se indexaba por etiquetas en español ('Recibido'), pero el
-     backend manda claves en inglés ('received', 'waiting_parts'), así que nunca
-     acertaba y la insignia mostraba la clave cruda. StatusBadge normaliza ambas
-     formas contra los siete estados del sistema de diseño. */
-  const getStatusBadge = (status?: string) => {
-    if (!status) return null
-    return <StatusBadge status={status} size="sm" />
-  }
+  const subtitle = loading
+    ? 'Cargando…'
+    : `Últimas ${activities.length} ${activities.length === 1 ? 'operación registrada' : 'operaciones registradas'}`
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    
-    if (diffMins < 1) return 'Hace un momento'
-    if (diffMins < 60) return `Hace ${diffMins} min`
-    
-    const diffHours = Math.floor(diffMins / 60)
-    if (diffHours < 24) return `Hace ${diffHours}h`
-    
-    const diffDays = Math.floor(diffHours / 24)
-    if (diffDays < 7) return `Hace ${diffDays}d`
-    
-    return date.toLocaleDateString()
-  }
-
-  if (loading) {
+  if (!loading && activities.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Actividad Reciente</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="py-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-            <p className="text-sm text-gray-600">Cargando actividad...</p>
-          </div>
-        </CardContent>
+      <Card title="Actividad reciente">
+        <EmptyState
+          icon={Wrench}
+          title="Sin movimientos"
+          description="Aún no se registran operaciones. Aparecerán aquí en cuanto se cree una OT o una venta."
+        />
+      </Card>
+    )
+  }
+
+  if (isMobile) {
+    return (
+      <Card title="Actividad reciente" subtitle={subtitle}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {activities.map((a, i) => {
+            const sale = a.type === 'sale'
+            const Icon = sale ? ReceiptText : Wrench
+            const tone = sale ? 'var(--success)' : 'var(--warning)'
+            const bg = sale ? 'var(--success-subtle)' : 'var(--warning-subtle)'
+            return (
+              <div
+                key={a.id}
+                style={{
+                  display: 'flex',
+                  gap: 11,
+                  padding: '9px 0',
+                  borderBottom:
+                    i === activities.length - 1 ? 'none' : 'var(--border-width) solid var(--border-subtle)',
+                }}
+              >
+                <span
+                  style={{
+                    display: 'grid',
+                    placeItems: 'center',
+                    flex: '0 0 auto',
+                    width: 26,
+                    height: 26,
+                    background: bg,
+                    borderRadius: 'var(--radius-md)',
+                  }}
+                >
+                  <Icon size={13} color={tone} strokeWidth={1.8} />
+                </span>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)', textWrap: 'pretty' }}>
+                    {a.title}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 'var(--text-mono-sm)',
+                      color: 'var(--text-tertiary)',
+                    }}
+                  >
+                    {a.subtitle}
+                    {a.amount ? ` · ${money(a.amount)}` : ''}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    flex: '0 0 auto',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 'var(--text-mono-sm)',
+                    color: 'var(--text-disabled)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {shortTime(a.timestamp)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
       </Card>
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock size={20} />
-          Actividad Reciente
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {activities.length === 0 ? (
-          <div className="py-8 text-center text-gray-500">
-            <p>No hay actividad reciente</p>
-          </div>
-        ) : (
-          <ScrollArea className="h-[300px] pr-4">
-            <div className="space-y-3">
-              {activities.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
-                >
-                  <div className="mt-1">
-                    {getActivityIcon(activity.type)}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{activity.title}</p>
-                        <p className="text-sm text-gray-600 truncate">{activity.subtitle}</p>
-                      </div>
-                      {activity.status && getStatusBadge(activity.status)}
-                    </div>
-                    
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs text-gray-500">
-                        {formatTimestamp(activity.timestamp)}
-                      </span>
-                      {activity.amount && (
-                        <span className="text-xs text-green-600 font-medium">
-                          ${activity.amount.toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        )}
-      </CardContent>
+    <Card padding={0} title="Actividad reciente" subtitle={subtitle}>
+      <DataTable
+        dense
+        emptyMessage="Sin movimientos registrados."
+        rows={activities.map((a) => ({
+          ...a,
+          time: shortTime(a.timestamp),
+          amountF: a.amount ? money(a.amount) : '—',
+        }))}
+        columns={[
+          { key: 'time', label: 'Hora', mono: true, width: 80 },
+          { key: 'title', label: 'Operación' },
+          { key: 'subtitle', label: 'Referencia', muted: true, hideOnCompact: true },
+          { key: 'amountF', label: 'Monto', mono: true, align: 'right' },
+        ]}
+      />
     </Card>
   )
 }

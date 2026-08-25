@@ -1,7 +1,9 @@
-import { Bell, Building2, Search } from 'lucide-react'
+import { Bell, Building2, PanelLeft, RefreshCw, Search } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
+import { usePageHeaderValue } from './layout/PageHeaderContext'
 
-const VIEW_TITLES: Record<string, { title: string; breadcrumb: string }> = {
+/** Título y eyebrow de cada vista. Lo comparten la topbar de escritorio y el header móvil. */
+export const VIEW_TITLES: Record<string, { title: string; breadcrumb: string }> = {
   dashboard: { title: 'Dashboard', breadcrumb: 'Resumen' },
   products: { title: 'Productos', breadcrumb: 'Inventario' },
   repairs: { title: 'Reparaciones', breadcrumb: 'Órdenes de trabajo' },
@@ -15,15 +17,20 @@ const VIEW_TITLES: Record<string, { title: string; breadcrumb: string }> = {
 interface AppTopbarProps {
   currentView: string
   userProfile: any
+  /** Solo en escritorio: en tablet el rail está colapsado a la fuerza y no se ofrece. */
+  onToggleSidebar?: () => void
+  collapsed?: boolean
 }
 
 /**
  * Topbar de 52px. Es la pieza que faltaba del shell: hasta ahora el contenido
  * empezaba pegado al borde de la ventana y la marca solo vivía en el sidebar.
  */
-export function AppTopbar({ currentView, userProfile }: AppTopbarProps) {
+export function AppTopbar({ currentView, userProfile, onToggleSidebar, collapsed }: AppTopbarProps) {
   const meta = VIEW_TITLES[currentView] || { title: currentView, breadcrumb: 'Oryon' }
   const branch = userProfile?.companyName || 'Oryon'
+  // La vista puede matizar la cabecera: subtítulo vivo ("actualizado 10:28") y refresco.
+  const page = usePageHeaderValue()
 
   return (
     <header
@@ -38,6 +45,31 @@ export function AppTopbar({ currentView, userProfile }: AppTopbarProps) {
         borderBottom: 'var(--border-width) solid var(--border-subtle)',
       }}
     >
+      {onToggleSidebar && (
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'}
+          title={collapsed ? 'Expandir menú' : 'Contraer menú'}
+          className="oryon-nav-item"
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            flex: '0 0 auto',
+            width: 32,
+            height: 32,
+            marginRight: -4,
+            color: 'var(--text-secondary)',
+            background: 'transparent',
+            border: 0,
+            borderRadius: 'var(--radius-sm)',
+            cursor: 'pointer',
+          }}
+        >
+          <PanelLeft size={16} />
+        </button>
+      )}
+
       <div style={{ minWidth: 0 }}>
         <div
           style={{
@@ -63,6 +95,23 @@ export function AppTopbar({ currentView, userProfile }: AppTopbarProps) {
           {meta.title}
         </div>
       </div>
+
+      {page.subtitle && (
+        <span
+          className="hidden lg:block"
+          style={{
+            minWidth: 0,
+            maxWidth: 320,
+            fontSize: 'var(--text-small)',
+            color: 'var(--text-tertiary)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {page.subtitle}
+        </span>
+      )}
 
       {/* Buscador global: OT, cliente o IMEI — los tres identificadores del taller. */}
       <div className="hidden md:block" style={{ flex: 1, maxWidth: 340, position: 'relative' }}>
@@ -98,6 +147,34 @@ export function AppTopbar({ currentView, userProfile }: AppTopbarProps) {
       <div style={{ flex: 1 }} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {page.onRefresh && (
+          <button
+            type="button"
+            onClick={page.onRefresh}
+            disabled={page.refreshing}
+            aria-label="Actualizar"
+            title="Actualizar"
+            className="oryon-nav-item"
+            style={{
+              display: 'grid',
+              placeItems: 'center',
+              width: 32,
+              height: 32,
+              color: 'var(--text-secondary)',
+              background: 'transparent',
+              border: 0,
+              borderRadius: 'var(--radius-sm)',
+              cursor: page.refreshing ? 'default' : 'pointer',
+              opacity: page.refreshing ? 0.6 : 1,
+            }}
+          >
+            <RefreshCw
+              size={16}
+              style={page.refreshing ? { animation: 'oryon-spin 900ms linear infinite' } : undefined}
+            />
+          </button>
+        )}
+
         <ThemeToggle />
 
         <button

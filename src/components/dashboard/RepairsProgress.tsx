@@ -1,173 +1,146 @@
 import { useEffect, useState } from 'react'
 import { projectId } from '../../utils/supabase/info'
-import { Wrench, CheckCircle } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { Progress } from '../ui/progress'
+import { Card, DataTable, StatusBadge, type OTState } from '../oryon'
+import { useShell } from '../layout/AppShell'
 import { statusLabels } from '../repairs/constants'
 
+/**
+ * Estado de reparaciones. Los dos documentos de diseño lo resuelven distinto y aquí se
+ * respeta: en escritorio es una tabla densa (estado · órdenes · % ) porque compite con la
+ * gráfica de ingresos por el mismo ancho; en móvil son barras de progreso, que a 390px se
+ * leen de un vistazo sin scroll horizontal.
+ */
 interface RepairsProgressProps {
   accessToken: string
 }
 
-interface RepairStats {
-  total: number
-  received: number
-  diagnosing: number
-  waiting_parts: number
-  repairing: number
-  completed: number
-  delivered: number
-  cancelled: number
+interface Bucket {
+  id: string
+  label: string
+  ds: OTState
+  count: number
 }
 
+const EMPTY = { received: 0, diagnosing: 0, waiting_parts: 0, repairing: 0, completed: 0 }
+
 export function RepairsProgress({ accessToken }: RepairsProgressProps) {
-  const [stats, setStats] = useState<RepairStats>({
-    total: 0,
-    received: 0,
-    diagnosing: 0,
-    waiting_parts: 0,
-    repairing: 0,
-    completed: 0,
-    delivered: 0,
-    cancelled: 0
-  })
+  const { isMobile } = useShell()
+  const [counts, setCounts] = useState(EMPTY)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchRepairStats()
-  }, [])
+    let cancelled = false
 
-  const fetchRepairStats = async () => {
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/repairs`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
-        }
-      )
-      const data = await response.json()
-      if (data.success) {
-        const repairs = data.repairs.map((r: string) => JSON.parse(r))
-        
-        // Count active repairs (excluding delivered and cancelled)
-        const activeRepairs = repairs.filter((r: any) => 
-          r.status !== 'delivered' && r.status !== 'cancelled'
+    const fetchRepairStats = async () => {
+      try {
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/repairs`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
         )
-        
-        const newStats = {
-          total: activeRepairs.length,
-          received: activeRepairs.filter((r: any) => r.status === 'received').length,
-          diagnosing: activeRepairs.filter((r: any) => r.status === 'diagnosing').length,
-          waiting_parts: activeRepairs.filter((r: any) => r.status === 'waiting_parts').length,
-          repairing: activeRepairs.filter((r: any) => r.status === 'repairing').length,
-          completed: activeRepairs.filter((r: any) => r.status === 'completed').length,
-          delivered: repairs.filter((r: any) => r.status === 'delivered').length,
-          cancelled: repairs.filter((r: any) => r.status === 'cancelled').length
-        }
-        
-        setStats(newStats)
+        const data = await response.json()
+        if (cancelled || !data.success) return
+
+        const repairs = data.repairs.map((r: string) => JSON.parse(r))
+        const active = repairs.filter((r: any) => r.status !== 'delivered' && r.status !== 'cancelled')
+        const by = (status: string) => active.filter((r: any) => r.status === status).length
+
+        setCounts({
+          received: by('received'),
+          diagnosing: by('diagnosing'),
+          waiting_parts: by('waiting_parts'),
+          repairing: by('repairing'),
+          completed: by('completed'),
+        })
+      } catch (error) {
+        console.error('Error fetching repair stats:', error)
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-    } catch (error) {
-      console.error('Error fetching repair stats:', error)
-    } finally {
-      setLoading(false)
     }
-  }
 
-  const getStatusPercentage = (count: number) => {
-    if (stats.total === 0) return 0
-    return Math.round((count / stats.total) * 100)
-  }
+    fetchRepairStats()
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
 
-  const statusData = [
-    { label: statusLabels.received, count: stats.received, color: 'bg-[var(--state-queued)]' },
-    { label: statusLabels.diagnosing, count: stats.diagnosing, color: 'bg-[var(--state-diagnosis)]' },
-    { label: statusLabels.waiting_parts, count: stats.waiting_parts, color: 'bg-[var(--state-waiting)]' },
-    { label: statusLabels.repairing, count: stats.repairing, color: 'bg-[var(--state-repair)]' },
-    { label: statusLabels.completed, count: stats.completed, color: 'bg-[var(--state-ready)]' }
+  const total = Object.values(counts).reduce((a, b) => a + b, 0)
+
+  const buckets: Bucket[] = [
+    { id: 'received', label: statusLabels.received, ds: 'cola', count: counts.received },
+    { id: 'diagnosing', label: statusLabels.diagnosing, ds: 'diagnostico', count: counts.diagnosing },
+    { id: 'waiting_parts', label: statusLabels.waiting_parts, ds: 'esperando', count: counts.waiting_parts },
+    { id: 'repairing', label: statusLabels.repairing, ds: 'reparacion', count: counts.repairing },
+    { id: 'completed', label: statusLabels.completed, ds: 'listo', count: counts.completed },
   ]
 
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wrench size={20} />
-            Estado de Reparaciones
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="py-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-2"></div>
-            <p className="text-sm text-gray-600">Cargando...</p>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100))
+  const subtitle = loading ? 'Cargando…' : `${total} ${total === 1 ? 'orden activa' : 'órdenes activas'}`
 
-  if (stats.total === 0) {
+  if (isMobile) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wrench size={20} />
-            Estado de Reparaciones
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="py-8 text-center text-gray-500">
-            <CheckCircle className="mx-auto mb-2 text-gray-400" size={48} />
-            <p>No hay reparaciones activas</p>
-          </div>
-        </CardContent>
+      <Card title="Estado de reparaciones" subtitle={subtitle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+          {buckets.map((b) => (
+            <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontSize: 'var(--text-small)', color: 'var(--text-secondary)' }}>{b.label}</span>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 'var(--text-mono-sm)',
+                    fontWeight: 'var(--fw-medium)',
+                    color: 'var(--text-primary)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {b.count} ({pct(b.count)}%)
+                </span>
+              </div>
+              <div style={{ height: 6, background: 'var(--bg-sunken)', borderRadius: 'var(--radius-pill)', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${pct(b.count)}%`,
+                    height: '100%',
+                    background: `var(--state-${dsToVar(b.ds)})`,
+                    transition: 'width var(--duration) var(--ease)',
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </Card>
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Wrench size={20} />
-          Estado de Reparaciones
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-600">Reparaciones activas</span>
-            <span className="font-medium">{stats.total}</span>
-          </div>
-          
-          {statusData.map((status) => (
-            <div key={status.label} className="space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">{status.label}</span>
-                <span className="font-medium">
-                  {status.count} ({getStatusPercentage(status.count)}%)
-                </span>
-              </div>
-              <Progress 
-                value={getStatusPercentage(status.count)} 
-                className="h-2"
-                indicatorClassName={status.color}
-              />
-            </div>
-          ))}
-          
-          {(stats.delivered > 0 || stats.cancelled > 0) && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <span>Entregadas: {stats.delivered}</span>
-                <span>Canceladas: {stats.cancelled}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </CardContent>
+    <Card padding={0} title="Estado de reparaciones" subtitle={subtitle}>
+      <DataTable
+        dense
+        rowKey="id"
+        emptyMessage="Sin OT en cola · todas las órdenes están cerradas."
+        rows={buckets.map((b) => ({ ...b, n: String(b.count), p: `${pct(b.count)}%` }))}
+        columns={[
+          { key: 'label', label: 'Estado', render: (r: any) => <StatusBadge status={r.ds} label={r.label} size="sm" /> },
+          { key: 'n', label: 'Órdenes', mono: true, align: 'right' },
+          { key: 'p', label: '%', mono: true, align: 'right', muted: true },
+        ]}
+      />
     </Card>
   )
+}
+
+/** Los estados del design system no comparten nombre con los custom properties de color. */
+function dsToVar(ds: OTState): string {
+  const map: Record<OTState, string> = {
+    cola: 'queued',
+    diagnostico: 'diagnosis',
+    reparacion: 'repair',
+    esperando: 'waiting',
+    listo: 'ready',
+    entregado: 'delivered',
+    cancelado: 'cancelled',
+  }
+  return map[ds]
 }

@@ -340,6 +340,23 @@
   to { transform: rotate(360deg); }
 }
 
+/* Movimiento del shell: el drawer de detalle entra desde la derecha en escritorio y la
+   hoja sube desde abajo en móvil. Una sola curva, nada de bounce ni parallax. */
+@keyframes oryon-drawer {
+  from { transform: translateX(24px); opacity: .4; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes oryon-sheet {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes oryon-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* Retícula de plano técnico: la única textura del sistema. Sin gradientes. */
 .oryon-grid-texture {
   background-image:

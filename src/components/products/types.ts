@@ -97,6 +97,8 @@ export interface ProductFilters {
   searchTerm: string
   categoryFilter: string
   branchFilter: string
+  /** 'all' | 'low' | 'in' | 'out' — el filtro de estado de stock del diseño. */
+  stockFilter: string
 }
 
 export interface UserProfile {

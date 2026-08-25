@@ -87,6 +87,9 @@
   --accent-subtle:        var(--accent-950);
   --accent-subtle-border: #0d5566;
   --focus-ring: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent-400);
+  /* Único uso de transparencia del sistema junto al color-mix de los badges:
+     el velo de modal y de hoja inferior. Nunca backdrop-filter. */
+  --overlay: rgba(7, 9, 9, .72);
 
   color-scheme: dark;
 }
@@ -136,6 +139,11 @@
   --sidebar-width-collapsed: 56px;
   --topbar-height: 52px;
   --content-max: 1440px;
+
+  /* Layout móvil: el diseño de teléfono no es el de escritorio encogido, tiene sus
+     propias medidas. 44px es el mínimo táctil que se exige a cualquier control. */
+  --bottomnav-height: 60px;
+  --tap-target: 44px;
 
   /* --- Forma: esquinas casi rectas (herramienta de precisión, no app de consumo).
      Nada supera 6px salvo el pill del punto de estado y del switch.
@@ -194,6 +202,7 @@
   --accent-subtle:        var(--accent-50);
   --accent-subtle-border: var(--accent-100);
   --focus-ring: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent-700);
+  --overlay: rgba(11, 13, 14, .45);
 
   --state-queued:    #4b5457; --state-queued-fg:    #343a3d;
   --state-diagnosis: #4453d6; --state-diagnosis-fg: #333fa8;
