@@ -66,8 +66,8 @@ export function InventoryAdjustment({
   return (
     <div className="space-y-4">
       {/* Current Stock Info */}
-      <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-        <p className="text-sm text-blue-800 dark:text-blue-200">
+      <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-3">
+        <p className="text-sm text-primary">
           <strong>Stock actual:</strong> {currentStock} unidades
         </p>
       </div>
@@ -105,7 +105,7 @@ export function InventoryAdjustment({
           disabled={isLoading}
         />
         {adjustmentData.quantity && (
-          <p className="text-xs text-gray-600 mt-1">
+          <p className="text-xs text-ink-secondary mt-1">
             Nuevo stock: {newStock >= 0 ? newStock : 0} unidades
           </p>
         )}
@@ -123,15 +123,15 @@ export function InventoryAdjustment({
           required
           disabled={isLoading}
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-ink-tertiary mt-1">
           Describe por qué estás realizando este ajuste
         </p>
       </div>
 
       {/* Warning for subtract */}
       {adjustmentData.type === 'subtract' && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+        <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-3">
+          <p className="text-sm text-warning">
             ⚠️ <strong>Atención:</strong> Estás quitando stock del inventario. Asegúrate de ingresar el motivo correcto.
           </p>
         </div>

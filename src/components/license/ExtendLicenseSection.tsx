@@ -281,7 +281,7 @@ export function ExtendLicenseSection({
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-bold text-sm text-foreground">{option.label}</span>
                       {option.badge && (
-                        <Badge className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5">
+                        <Badge className="bg-success text-on-success text-[10px] px-1.5 py-0.5">
                           {option.badge}
                         </Badge>
                       )}
@@ -299,7 +299,7 @@ export function ExtendLicenseSection({
                         {formatPrice(price.perMonth)} / mes
                       </p>
                       {option.discount > 0 && (
-                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        <p className="text-[11px] text-success font-medium">
                           Ahorras {formatPrice(price.discountAmount)}
                         </p>
                       )}
@@ -330,7 +330,7 @@ export function ExtendLicenseSection({
                     <span className="text-muted-foreground">Precio sin descuento:</span>
                     <span className="line-through text-muted-foreground">{formatPrice(pricing.totalBeforeDiscount)}</span>
                   </div>
-                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium">
+                  <div className="flex justify-between text-success font-medium">
                     <span>Descuento aplicado ({selectedOption.discount}%):</span>
                     <span>-{formatPrice(pricing.discountAmount)}</span>
                   </div>
@@ -343,7 +343,7 @@ export function ExtendLicenseSection({
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Nueva fecha de vencimiento:</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatDate(newExpiryDate)}</span>
+                <span className="font-bold text-success">{formatDate(newExpiryDate)}</span>
               </div>
             </div>
           </div>

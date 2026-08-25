@@ -217,64 +217,64 @@ export function Reports({ accessToken }: ReportsProps) {
                 <Card>
                   <CardHeader className="p-4">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <ArrowUpCircle size={16} className="text-green-600" />
+                      <ArrowUpCircle size={16} className="text-success" />
                       Ingresos Totales
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
-                    <div className="text-2xl sm:text-3xl text-green-600">
+                    <div className="text-2xl sm:text-3xl text-success">
                       ${profitData.totalRevenue.toFixed(0)}
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-600 mt-1">Últimos 30 días</p>
+                    <p className="text-xs sm:text-sm text-ink-secondary mt-1">Últimos 30 días</p>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader className="p-4">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <ArrowDownCircle size={16} className="text-red-600" />
+                      <ArrowDownCircle size={16} className="text-danger" />
                       Costos Totales
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
-                    <div className="text-2xl sm:text-3xl text-red-600">
+                    <div className="text-2xl sm:text-3xl text-danger">
                       ${profitData.totalCost.toFixed(0)}
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-600 mt-1">Costo de mercancía</p>
+                    <p className="text-xs sm:text-sm text-ink-secondary mt-1">Costo de mercancía</p>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader className="p-4">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <PiggyBank size={16} className="text-blue-600" />
+                      <PiggyBank size={16} className="text-primary" />
                       Ganancia Neta
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
-                    <div className="text-2xl sm:text-3xl text-blue-600">
+                    <div className="text-2xl sm:text-3xl text-primary">
                       ${profitData.totalProfit.toFixed(0)}
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-600 mt-1">Ingresos - Costos</p>
+                    <p className="text-xs sm:text-sm text-ink-secondary mt-1">Ingresos - Costos</p>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader className="p-4">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Percent size={16} className="text-purple-600" />
+                      <Percent size={16} className="text-[var(--state-diagnosis)]" />
                       Margen de Ganancia
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
                     <div className={`text-2xl sm:text-3xl ${
-                      profitData.profitMargin >= 30 ? 'text-green-600' : 
-                      profitData.profitMargin >= 20 ? 'text-yellow-600' : 
-                      'text-orange-600'
+                      profitData.profitMargin >= 30 ? 'text-success' : 
+                      profitData.profitMargin >= 20 ? 'text-warning' : 
+                      'text-[var(--state-waiting)]'
                     }`}>
                       {profitData.profitMargin.toFixed(1)}%
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                    <p className="text-xs sm:text-sm text-ink-secondary mt-1">
                       {profitData.profitMargin >= 30 ? 'Excelente' : 
                        profitData.profitMargin >= 20 ? 'Bueno' : 
                        'Mejorar'}
@@ -287,7 +287,7 @@ export function Reports({ accessToken }: ReportsProps) {
               <Card>
                 <CardHeader className="p-4 sm:p-6">
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="text-green-600" size={20} />
+                    <TrendingUp className="text-success" size={20} />
                     <CardTitle className="text-base sm:text-lg">Tendencia de Ganancias (Últimos 7 Días)</CardTitle>
                   </div>
                   <CardDescription className="text-xs sm:text-sm">
@@ -308,7 +308,7 @@ export function Reports({ accessToken }: ReportsProps) {
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <p className="text-center text-gray-500 py-8 text-sm">No hay datos de ganancias</p>
+                    <p className="text-center text-ink-tertiary py-8 text-sm">No hay datos de ganancias</p>
                   )}
                 </CardContent>
               </Card>
@@ -319,7 +319,7 @@ export function Reports({ accessToken }: ReportsProps) {
                 <Card>
                   <CardHeader className="p-4 sm:p-6">
                     <div className="flex items-center gap-2">
-                      <PiggyBank className="text-blue-600" size={20} />
+                      <PiggyBank className="text-primary" size={20} />
                       <div>
                         <CardTitle className="text-base sm:text-lg">Desglose de Ganancias</CardTitle>
                         <CardDescription className="text-xs sm:text-sm">Análisis detallado</CardDescription>
@@ -328,44 +328,44 @@ export function Reports({ accessToken }: ReportsProps) {
                   </CardHeader>
                   <CardContent className="p-4 sm:p-6">
                     <div className="space-y-4">
-                      <div className="p-3 sm:p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="p-3 sm:p-4 bg-[var(--success-subtle)] rounded-lg border border-[color-mix(in_srgb,var(--success)_30%,transparent)]">
                         <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm text-gray-700">Ingresos Brutos</span>
-                          <span className="text-green-600">${profitData.totalRevenue.toFixed(2)}</span>
+                          <span className="text-sm text-ink-secondary">Ingresos Brutos</span>
+                          <span className="text-success">${profitData.totalRevenue.toFixed(2)}</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div className="bg-green-600 h-2 rounded-full" style={{ width: '100%' }}></div>
+                        <div className="w-full bg-surface-hover rounded-full h-2">
+                          <div className="bg-success h-2 rounded-full" style={{ width: '100%' }}></div>
                         </div>
                       </div>
 
-                      <div className="p-3 sm:p-4 bg-red-50 rounded-lg border border-red-200">
+                      <div className="p-3 sm:p-4 bg-[var(--danger-subtle)] rounded-lg border border-[color-mix(in_srgb,var(--danger)_30%,transparent)]">
                         <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm text-gray-700">Costos de Mercancía</span>
-                          <span className="text-red-600">-${profitData.totalCost.toFixed(2)}</span>
+                          <span className="text-sm text-ink-secondary">Costos de Mercancía</span>
+                          <span className="text-danger">-${profitData.totalCost.toFixed(2)}</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="w-full bg-surface-hover rounded-full h-2">
                           <div 
-                            className="bg-red-600 h-2 rounded-full" 
+                            className="bg-danger h-2 rounded-full" 
                             style={{ width: `${(profitData.totalCost / profitData.totalRevenue) * 100}%` }}
                           ></div>
                         </div>
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p className="text-xs text-ink-secondary mt-1">
                           {((profitData.totalCost / profitData.totalRevenue) * 100).toFixed(1)}% de los ingresos
                         </p>
                       </div>
 
-                      <div className="p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="p-3 sm:p-4 bg-[var(--accent-subtle)] rounded-lg border border-[var(--accent-subtle-border)]">
                         <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium text-gray-700">Ganancia Neta</span>
-                          <span className="text-blue-600 font-medium">${profitData.totalProfit.toFixed(2)}</span>
+                          <span className="text-sm font-medium text-ink-secondary">Ganancia Neta</span>
+                          <span className="text-primary font-medium">${profitData.totalProfit.toFixed(2)}</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="w-full bg-surface-hover rounded-full h-2">
                           <div 
-                            className="bg-blue-600 h-2 rounded-full" 
+                            className="bg-primary h-2 rounded-full" 
                             style={{ width: `${profitData.profitMargin}%` }}
                           ></div>
                         </div>
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p className="text-xs text-ink-secondary mt-1">
                           {profitData.profitMargin.toFixed(1)}% de margen
                         </p>
                       </div>
@@ -377,7 +377,7 @@ export function Reports({ accessToken }: ReportsProps) {
                 <Card>
                   <CardHeader className="p-4 sm:p-6">
                     <div className="flex items-center gap-2">
-                      <AlertTriangle className="text-orange-600" size={20} />
+                      <AlertTriangle className="text-[var(--state-waiting)]" size={20} />
                       <div>
                         <CardTitle className="text-base sm:text-lg">Análisis y Recomendaciones</CardTitle>
                         <CardDescription className="text-xs sm:text-sm">Mejora tus ganancias</CardDescription>
@@ -387,8 +387,8 @@ export function Reports({ accessToken }: ReportsProps) {
                   <CardContent className="p-4 sm:p-6">
                     <div className="space-y-3">
                       {profitData.profitMargin < 20 && (
-                        <Alert className="bg-orange-50 border-orange-200">
-                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                        <Alert className="bg-[color-mix(in_srgb,var(--state-waiting)_12%,transparent)] border-[color-mix(in_srgb,var(--state-waiting)_30%,transparent)]">
+                          <AlertTriangle className="h-4 w-4 text-[var(--state-waiting)]" />
                           <AlertDescription className="text-sm">
                             <strong>Margen bajo:</strong> Tu margen de ganancia está por debajo del 20%. 
                             Considera revisar tus precios de venta o negociar mejores costos con proveedores.
@@ -397,8 +397,8 @@ export function Reports({ accessToken }: ReportsProps) {
                       )}
 
                       {profitData.profitMargin >= 20 && profitData.profitMargin < 30 && (
-                        <Alert className="bg-yellow-50 border-yellow-200">
-                          <AlertCircle className="h-4 w-4 text-yellow-600" />
+                        <Alert className="bg-[var(--warning-subtle)] border-[color-mix(in_srgb,var(--warning)_30%,transparent)]">
+                          <AlertCircle className="h-4 w-4 text-warning" />
                           <AlertDescription className="text-sm">
                             <strong>Margen aceptable:</strong> Tu margen de ganancia es bueno, pero hay espacio para mejora. 
                             Analiza tus productos más rentables para optimizar tu inventario.
@@ -407,8 +407,8 @@ export function Reports({ accessToken }: ReportsProps) {
                       )}
 
                       {profitData.profitMargin >= 30 && (
-                        <Alert className="bg-green-50 border-green-200">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        <Alert className="bg-[var(--success-subtle)] border-[color-mix(in_srgb,var(--success)_30%,transparent)]">
+                          <CheckCircle className="h-4 w-4 text-success" />
                           <AlertDescription className="text-sm">
                             <strong>Excelente margen:</strong> Tu margen de ganancia es muy saludable. 
                             Mantén esta tendencia y considera expandir tu línea de productos más rentables.
@@ -416,9 +416,9 @@ export function Reports({ accessToken }: ReportsProps) {
                         </Alert>
                       )}
 
-                      <div className="p-3 bg-blue-50 rounded-lg text-sm">
-                        <p className="font-medium text-blue-900 mb-2">💡 Consejos para mejorar:</p>
-                        <ul className="space-y-1 text-blue-800 text-xs sm:text-sm">
+                      <div className="p-3 bg-[var(--accent-subtle)] rounded-lg text-sm">
+                        <p className="font-medium text-primary mb-2">💡 Consejos para mejorar:</p>
+                        <ul className="space-y-1 text-primary text-xs sm:text-sm">
                           <li>• Negocia descuentos por volumen con proveedores</li>
                           <li>• Identifica y enfócate en productos de alto margen</li>
                           <li>• Reduce productos de baja rotación que ocupan capital</li>
@@ -427,18 +427,18 @@ export function Reports({ accessToken }: ReportsProps) {
                         </ul>
                       </div>
 
-                      <div className="p-3 bg-purple-50 rounded-lg text-sm">
-                        <p className="font-medium text-purple-900 mb-1">📊 Métricas clave:</p>
+                      <div className="p-3 bg-[color-mix(in_srgb,var(--state-diagnosis)_12%,transparent)] rounded-lg text-sm">
+                        <p className="font-medium text-[var(--state-diagnosis)] mb-1">📊 Métricas clave:</p>
                         <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
                           <div>
-                            <p className="text-gray-600">Ganancia por venta:</p>
-                            <p className="font-medium text-purple-900">
+                            <p className="text-ink-secondary">Ganancia por venta:</p>
+                            <p className="font-medium text-[var(--state-diagnosis)]">
                               ${salesByDay.length > 0 ? (profitData.totalProfit / salesByDay.reduce((sum, day) => sum + day.ventas, 0) || 0).toFixed(2) : '0.00'}
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-600">ROI (aprox):</p>
-                            <p className="font-medium text-purple-900">
+                            <p className="text-ink-secondary">ROI (aprox):</p>
+                            <p className="font-medium text-[var(--state-diagnosis)]">
                               {profitData.totalCost > 0 ? ((profitData.totalProfit / profitData.totalCost) * 100).toFixed(1) : '0'}%
                             </p>
                           </div>
@@ -450,8 +450,8 @@ export function Reports({ accessToken }: ReportsProps) {
               </div>
 
               {profitData.totalProfit <= 0 && (
-                <Alert className="bg-red-50 border-red-200">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                <Alert className="bg-[var(--danger-subtle)] border-[color-mix(in_srgb,var(--danger)_30%,transparent)]">
+                  <AlertTriangle className="h-4 w-4 text-danger" />
                   <AlertDescription className="text-sm">
                     <strong>⚠️ Alerta Crítica:</strong> No estás generando ganancias. Es urgente que revises:
                     <ul className="mt-2 ml-4 space-y-1">
@@ -465,8 +465,8 @@ export function Reports({ accessToken }: ReportsProps) {
             </>
           ) : (
             <div className="py-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p className="text-sm text-gray-600">Calculando ganancias...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-fill)] mx-auto mb-2"></div>
+              <p className="text-sm text-ink-secondary">Calculando ganancias...</p>
             </div>
           )}
         </div>
@@ -479,7 +479,7 @@ export function Reports({ accessToken }: ReportsProps) {
           <Card>
             <CardHeader className="p-4 sm:p-6">
               <div className="flex items-center gap-2">
-                <TrendingUp className="text-blue-600" size={20} />
+                <TrendingUp className="text-primary" size={20} />
                 <CardTitle className="text-base sm:text-lg">Tendencia de Ventas (Últimos 7 Días)</CardTitle>
               </div>
             </CardHeader>
@@ -509,7 +509,7 @@ export function Reports({ accessToken }: ReportsProps) {
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="text-center text-gray-500 py-8 text-sm">No hay datos de ventas</p>
+                <p className="text-center text-ink-tertiary py-8 text-sm">No hay datos de ventas</p>
               )}
             </CardContent>
           </Card>
@@ -519,7 +519,7 @@ export function Reports({ accessToken }: ReportsProps) {
             <Card>
               <CardHeader className="p-4 sm:p-6">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="text-green-600" size={20} />
+                  <TrendingUp className="text-success" size={20} />
                   <CardTitle className="text-base sm:text-lg">Productos Más Vendidos</CardTitle>
                 </div>
                 <CardDescription className="text-xs sm:text-sm">Top 10 por ingresos</CardDescription>
@@ -528,19 +528,19 @@ export function Reports({ accessToken }: ReportsProps) {
                 {topProducts.length > 0 ? (
                   <div className="space-y-3">
                     {topProducts.map((product, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg">
+                      <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-sunken rounded-lg">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs sm:text-sm truncate">{product.name}</p>
-                          <p className="text-xs text-gray-600">{product.quantity} vendidos</p>
+                          <p className="text-xs text-ink-secondary">{product.quantity} vendidos</p>
                         </div>
                         <div className="text-right ml-2">
-                          <p className="text-sm sm:text-base text-green-600">${product.revenue.toFixed(0)}</p>
+                          <p className="text-sm sm:text-base text-success">${product.revenue.toFixed(0)}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center text-gray-500 py-8 text-sm">No hay datos</p>
+                  <p className="text-center text-ink-tertiary py-8 text-sm">No hay datos</p>
                 )}
               </CardContent>
             </Card>
@@ -549,7 +549,7 @@ export function Reports({ accessToken }: ReportsProps) {
             <Card>
               <CardHeader className="p-4 sm:p-6">
                 <div className="flex items-center gap-2">
-                  <CreditCard className="text-purple-600" size={20} />
+                  <CreditCard className="text-[var(--state-diagnosis)]" size={20} />
                   <CardTitle className="text-base sm:text-lg">Métodos de Pago</CardTitle>
                 </div>
                 <CardDescription className="text-xs sm:text-sm">Distribución de pagos</CardDescription>
@@ -576,7 +576,7 @@ export function Reports({ accessToken }: ReportsProps) {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="text-center text-gray-500 py-8 text-sm">No hay datos</p>
+                  <p className="text-center text-ink-tertiary py-8 text-sm">No hay datos</p>
                 )}
               </CardContent>
             </Card>
@@ -589,8 +589,8 @@ export function Reports({ accessToken }: ReportsProps) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Low Rotation Alert */}
           {lowRotationProducts.length > 0 && (
-            <Alert className="bg-orange-50 border-orange-200">
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <Alert className="bg-[color-mix(in_srgb,var(--state-waiting)_12%,transparent)] border-[color-mix(in_srgb,var(--state-waiting)_30%,transparent)]">
+              <AlertTriangle className="h-4 w-4 text-[var(--state-waiting)]" />
               <AlertDescription className="text-sm">
                 <strong>Acción Requerida:</strong> Tienes {lowRotationProducts.length} productos con baja rotación. 
                 Considera crear promociones para aumentar las ventas.
@@ -602,7 +602,7 @@ export function Reports({ accessToken }: ReportsProps) {
             <CardHeader className="p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Gift className="text-orange-600" size={20} />
+                  <Gift className="text-[var(--state-waiting)]" size={20} />
                   <div>
                     <CardTitle className="text-base sm:text-lg">Productos de Baja Rotación</CardTitle>
                     <CardDescription className="text-xs sm:text-sm">Productos que necesitan promoción</CardDescription>
@@ -617,7 +617,7 @@ export function Reports({ accessToken }: ReportsProps) {
               {lowRotationProducts.length > 0 ? (
                 <div className="space-y-3">
                   {lowRotationProducts.map((product, index) => (
-                    <div key={index} className="p-3 sm:p-4 border rounded-lg hover:bg-gray-50">
+                    <div key={index} className="p-3 sm:p-4 border rounded-lg hover:bg-sunken">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm sm:text-base truncate">{product.name}</p>
@@ -628,14 +628,14 @@ export function Reports({ accessToken }: ReportsProps) {
                         </div>
                         <div className="text-left sm:text-right">
                           <p className="text-sm sm:text-base">${product.price}</p>
-                          <p className="text-xs text-orange-600">
+                          <p className="text-xs text-[var(--state-waiting)]">
                             {product.lastSold 
                               ? `${product.daysWithoutSale} días sin venta` 
                               : 'Nunca vendido'}
                           </p>
                         </div>
                       </div>
-                      <div className="mt-2 p-2 bg-blue-50 rounded text-xs sm:text-sm text-blue-900">
+                      <div className="mt-2 p-2 bg-[var(--accent-subtle)] rounded text-xs sm:text-sm text-primary">
                         💡 Sugerencia: Ofrece un {Math.min(30, Math.floor(product.daysWithoutSale / 2))}% de descuento
                       </div>
                     </div>
@@ -643,7 +643,7 @@ export function Reports({ accessToken }: ReportsProps) {
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-gray-500 text-sm">¡Excelente! Todos tus productos tienen buena rotación</p>
+                  <p className="text-ink-tertiary text-sm">¡Excelente! Todos tus productos tienen buena rotación</p>
                 </div>
               )}
             </CardContent>
@@ -656,8 +656,8 @@ export function Reports({ accessToken }: ReportsProps) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Ready Repairs Alert */}
           {readyRepairs.length > 0 && (
-            <Alert className="bg-green-50 border-green-200">
-              <PhoneCall className="h-4 w-4 text-green-600" />
+            <Alert className="bg-[var(--success-subtle)] border-[color-mix(in_srgb,var(--success)_30%,transparent)]">
+              <PhoneCall className="h-4 w-4 text-success" />
               <AlertDescription className="text-sm">
                 <strong>Llamadas Pendientes:</strong> Hay {readyRepairs.length} equipos listos para entregar. 
                 Contacta a los clientes para agilizar la entrega.
@@ -670,18 +670,18 @@ export function Reports({ accessToken }: ReportsProps) {
             <Card>
               <CardHeader className="p-4 sm:p-6">
                 <div className="flex items-center gap-2">
-                  <Clock className="text-blue-600" size={20} />
+                  <Clock className="text-primary" size={20} />
                   <CardTitle className="text-base sm:text-lg">Tiempo Promedio de Reparación</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="p-4 sm:p-6">
                 <div className="text-center">
-                  <div className="text-4xl sm:text-5xl text-blue-600 mb-2">
+                  <div className="text-4xl sm:text-5xl text-primary mb-2">
                     {avgRepairTime.toFixed(1)}
                   </div>
-                  <p className="text-sm sm:text-base text-gray-600">días promedio</p>
+                  <p className="text-sm sm:text-base text-ink-secondary">días promedio</p>
                   {avgRepairTime > 7 && (
-                    <p className="mt-3 text-xs sm:text-sm text-orange-600">
+                    <p className="mt-3 text-xs sm:text-sm text-[var(--state-waiting)]">
                       ⚠️ Considera optimizar tus procesos para reducir tiempos
                     </p>
                   )}
@@ -693,7 +693,7 @@ export function Reports({ accessToken }: ReportsProps) {
             <Card>
               <CardHeader className="p-4 sm:p-6">
                 <div className="flex items-center gap-2">
-                  <Activity className="text-orange-600" size={20} />
+                  <Activity className="text-[var(--state-waiting)]" size={20} />
                   <CardTitle className="text-base sm:text-lg">Estado de Reparaciones</CardTitle>
                 </div>
               </CardHeader>
@@ -719,7 +719,7 @@ export function Reports({ accessToken }: ReportsProps) {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="text-center text-gray-500 py-8 text-sm">No hay reparaciones</p>
+                  <p className="text-center text-ink-tertiary py-8 text-sm">No hay reparaciones</p>
                 )}
               </CardContent>
             </Card>
@@ -730,7 +730,7 @@ export function Reports({ accessToken }: ReportsProps) {
             <Card>
               <CardHeader className="p-4 sm:p-6">
                 <div className="flex items-center gap-2">
-                  <Wrench className="text-purple-600" size={20} />
+                  <Wrench className="text-[var(--state-diagnosis)]" size={20} />
                   <div>
                     <CardTitle className="text-base sm:text-lg">Reparaciones Más Comunes</CardTitle>
                     <CardDescription className="text-xs sm:text-sm">Optimiza tu inventario de repuestos</CardDescription>
@@ -740,7 +740,7 @@ export function Reports({ accessToken }: ReportsProps) {
               <CardContent className="p-4 sm:p-6">
                 <div className="space-y-2">
                   {commonRepairTypes.map((type: any, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded">
+                    <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-sunken rounded">
                       <p className="text-xs sm:text-sm flex-1 min-w-0 truncate">{type.type}</p>
                       <Badge variant="secondary" className="ml-2 text-xs">{type.count} casos</Badge>
                     </div>
@@ -755,14 +755,14 @@ export function Reports({ accessToken }: ReportsProps) {
             <CardHeader className="p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <PhoneCall className="text-green-600" size={20} />
+                  <PhoneCall className="text-success" size={20} />
                   <div>
                     <CardTitle className="text-base sm:text-lg">Equipos Listos para Entregar</CardTitle>
                     <CardDescription className="text-xs sm:text-sm">Contacta estos clientes</CardDescription>
                   </div>
                 </div>
                 {readyRepairs.length > 0 && (
-                  <Badge className="bg-green-100 text-green-800 w-fit text-xs">
+                  <Badge className="bg-[var(--success-subtle)] text-success w-fit text-xs">
                     {readyRepairs.length} pendiente{readyRepairs.length !== 1 ? 's' : ''}
                   </Badge>
                 )}
@@ -772,11 +772,11 @@ export function Reports({ accessToken }: ReportsProps) {
               {readyRepairs.length > 0 ? (
                 <div className="space-y-3">
                   {readyRepairs.map((repair) => (
-                    <div key={repair.id} className="p-3 sm:p-4 border rounded-lg hover:bg-gray-50">
+                    <div key={repair.id} className="p-3 sm:p-4 border rounded-lg hover:bg-sunken">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm sm:text-base">{repair.customerName}</p>
-                          <p className="text-xs sm:text-sm text-gray-600">
+                          <p className="text-xs sm:text-sm text-ink-secondary">
                             {repair.deviceBrand} {repair.deviceType}
                           </p>
                         </div>
@@ -794,7 +794,7 @@ export function Reports({ accessToken }: ReportsProps) {
                       </div>
                       <a 
                         href={`tel:${repair.customerPhone}`}
-                        className="flex items-center gap-2 text-xs sm:text-sm text-blue-600 hover:underline"
+                        className="flex items-center gap-2 text-xs sm:text-sm text-primary hover:underline"
                       >
                         <PhoneCall size={14} />
                         {repair.customerPhone}
@@ -803,7 +803,7 @@ export function Reports({ accessToken }: ReportsProps) {
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-gray-500 py-8 text-sm">
+                <p className="text-center text-ink-tertiary py-8 text-sm">
                   No hay equipos listos pendientes de entrega
                 </p>
               )}
@@ -817,8 +817,8 @@ export function Reports({ accessToken }: ReportsProps) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Inactive Customers Alert */}
           {inactiveCustomers.length > 0 && (
-            <Alert className="bg-blue-50 border-blue-200">
-              <Users className="h-4 w-4 text-blue-600" />
+            <Alert className="bg-[var(--accent-subtle)] border-[var(--accent-subtle-border)]">
+              <Users className="h-4 w-4 text-primary" />
               <AlertDescription className="text-sm">
                 <strong>Oportunidad de Reactivación:</strong> Tienes {inactiveCustomers.length} clientes inactivos. 
                 Contacta los más valiosos con ofertas especiales.
@@ -831,7 +831,7 @@ export function Reports({ accessToken }: ReportsProps) {
             <Card>
               <CardHeader className="p-4 sm:p-6">
                 <div className="flex items-center gap-2">
-                  <Users className="text-green-600" size={20} />
+                  <Users className="text-success" size={20} />
                   <div>
                     <CardTitle className="text-base sm:text-lg">Mejores Clientes</CardTitle>
                     <CardDescription className="text-xs sm:text-sm">Por valor de compras</CardDescription>
@@ -842,22 +842,22 @@ export function Reports({ accessToken }: ReportsProps) {
                 {topCustomers.length > 0 ? (
                   <div className="space-y-3">
                     {topCustomers.map((customer: any, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg">
+                      <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-sunken rounded-lg">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs sm:text-sm truncate">{customer.name}</p>
-                          <p className="text-xs text-gray-600">
+                          <p className="text-xs text-ink-secondary">
                             {customer.purchaseCount} compra{customer.purchaseCount !== 1 ? 's' : ''}
                             {customer.repairCount ? ` • ${customer.repairCount} reparación${customer.repairCount !== 1 ? 'es' : ''}` : ''}
                           </p>
                         </div>
                         <div className="text-right ml-2">
-                          <p className="text-sm sm:text-base text-green-600">${customer.totalSpent.toFixed(0)}</p>
+                          <p className="text-sm sm:text-base text-success">${customer.totalSpent.toFixed(0)}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center text-gray-500 py-8 text-sm">No hay datos</p>
+                  <p className="text-center text-ink-tertiary py-8 text-sm">No hay datos</p>
                 )}
               </CardContent>
             </Card>
@@ -866,7 +866,7 @@ export function Reports({ accessToken }: ReportsProps) {
             <Card>
               <CardHeader className="p-4 sm:p-6">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="text-orange-600" size={20} />
+                  <AlertTriangle className="text-[var(--state-waiting)]" size={20} />
                   <div>
                     <CardTitle className="text-base sm:text-lg">Clientes Inactivos</CardTitle>
                     <CardDescription className="text-xs sm:text-sm">+60 días sin actividad</CardDescription>
@@ -877,11 +877,11 @@ export function Reports({ accessToken }: ReportsProps) {
                 {inactiveCustomers.length > 0 ? (
                   <div className="space-y-3">
                     {inactiveCustomers.map((customer: any, index) => (
-                      <div key={index} className="p-3 sm:p-4 border rounded-lg hover:bg-gray-50">
+                      <div key={index} className="p-3 sm:p-4 border rounded-lg hover:bg-sunken">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm sm:text-base truncate">{customer.name}</p>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-ink-secondary">
                               Gastó ${customer.totalSpent.toFixed(0)} en total
                             </p>
                           </div>
@@ -889,14 +889,14 @@ export function Reports({ accessToken }: ReportsProps) {
                             {customer.daysInactive} días
                           </Badge>
                         </div>
-                        <div className="p-2 bg-purple-50 rounded text-xs sm:text-sm text-purple-900">
+                        <div className="p-2 bg-[color-mix(in_srgb,var(--state-diagnosis)_12%,transparent)] rounded text-xs sm:text-sm text-[var(--state-diagnosis)]">
                           💡 Ofrece un descuento del 15% para reactivar
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center text-gray-500 py-8 text-sm">
+                  <p className="text-center text-ink-tertiary py-8 text-sm">
                     ¡Excelente! Todos tus clientes están activos
                   </p>
                 )}

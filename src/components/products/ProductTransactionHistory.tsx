@@ -22,16 +22,16 @@ interface ProductTransactionHistoryProps {
 }
 
 const actionLabels: Record<ProductTransaction['action'], { label: string; color: string; icon: string }> = {
-  create: { label: 'Producto Creado', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', icon: '➕' },
-  edit: { label: 'Producto Editado', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: '✏️' },
-  adjust_inventory: { label: 'Ajuste de Inventario', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: '📊' },
-  transfer: { label: 'Traslado', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', icon: '🔄' },
-  add_unit: { label: 'Unidad Agregada', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200', icon: '📱' },
-  add_variant: { label: 'Variante Agregada', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200', icon: '🎨' },
-  update_variant: { label: 'Variante Actualizada', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: '🔄' },
-  delete: { label: 'Producto Eliminado', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', icon: '🗑️' },
-  delete_unit: { label: 'Unidad Eliminada', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', icon: '❌' },
-  delete_variant: { label: 'Variante Eliminada', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', icon: '❌' }
+  create: { label: 'Producto Creado', color: 'bg-[var(--success-subtle)] text-success', icon: '➕' },
+  edit: { label: 'Producto Editado', color: 'bg-[var(--accent-subtle)] text-primary', icon: '✏️' },
+  adjust_inventory: { label: 'Ajuste de Inventario', color: 'bg-[color-mix(in_srgb,var(--state-diagnosis)_12%,transparent)] text-[var(--state-diagnosis)]', icon: '📊' },
+  transfer: { label: 'Traslado', color: 'bg-[color-mix(in_srgb,var(--state-waiting)_12%,transparent)] text-[var(--state-waiting)]', icon: '🔄' },
+  add_unit: { label: 'Unidad Agregada', color: 'bg-[var(--accent-subtle)] text-primary', icon: '📱' },
+  add_variant: { label: 'Variante Agregada', color: 'bg-[color-mix(in_srgb,var(--state-diagnosis)_12%,transparent)] text-[var(--state-diagnosis)]', icon: '🎨' },
+  update_variant: { label: 'Variante Actualizada', color: 'bg-[var(--accent-subtle)] text-primary', icon: '🔄' },
+  delete: { label: 'Producto Eliminado', color: 'bg-[var(--danger-subtle)] text-danger', icon: '🗑️' },
+  delete_unit: { label: 'Unidad Eliminada', color: 'bg-[var(--danger-subtle)] text-danger', icon: '❌' },
+  delete_variant: { label: 'Variante Eliminada', color: 'bg-[var(--danger-subtle)] text-danger', icon: '❌' }
 }
 
 export function ProductTransactionHistory({ 
@@ -66,8 +66,8 @@ export function ProductTransactionHistory({
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-500">Cargando historial...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-fill)] mb-4"></div>
+          <p className="text-ink-tertiary">Cargando historial...</p>
         </div>
       </div>
     )
@@ -81,7 +81,7 @@ export function ProductTransactionHistory({
         <div className="lg:col-span-2">
           <Label htmlFor="search">Buscar</Label>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary" size={16} />
             <Input
               id="search"
               placeholder="Buscar por producto, usuario o descripción..."
@@ -150,7 +150,7 @@ export function ProductTransactionHistory({
           </Select>
         </div>
         <div className="flex items-end">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-ink-secondary">
             Mostrando {filteredTransactions.length} de {transactions.length} transacciones
           </p>
         </div>
@@ -162,11 +162,11 @@ export function ProductTransactionHistory({
       <ScrollArea className="h-[500px] pr-4">
         {filteredTransactions.length === 0 ? (
           <div className="text-center py-12">
-            <History className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+            <History className="mx-auto h-12 w-12 text-ink-tertiary mb-4" />
+            <h3 className="text-lg font-medium text-ink mb-2">
               No hay transacciones
             </h3>
-            <p className="text-gray-500 dark:text-gray-400">
+            <p className="text-ink-tertiary">
               {searchTerm || actionFilter !== 'all' || branchFilter !== 'all' || userFilter !== 'all'
                 ? 'No se encontraron transacciones con los filtros aplicados'
                 : 'Aún no hay transacciones registradas'}
@@ -180,7 +180,7 @@ export function ProductTransactionHistory({
               return (
                 <div
                   key={transaction.id}
-                  className="border rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow"
+                  className="border rounded-lg p-4 bg-surface-raised hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 space-y-2">
@@ -190,19 +190,19 @@ export function ProductTransactionHistory({
                         <Badge className={actionInfo.color}>
                           {actionInfo.label}
                         </Badge>
-                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                        <span className="font-medium text-ink">
                           {transaction.productName}
                         </span>
                       </div>
 
                       {/* Description */}
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                      <p className="text-sm text-ink-secondary">
                         {transaction.description}
                       </p>
 
                       {/* Details */}
                       {transaction.details && (
-                        <div className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="bg-sunken rounded p-2 text-sm text-ink-secondary">
                           <FileText size={14} className="inline mr-1" />
                           {transaction.details}
                         </div>
@@ -210,7 +210,7 @@ export function ProductTransactionHistory({
 
                       {/* Transfer info */}
                       {transaction.action === 'transfer' && transaction.targetBranchName && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center gap-2 text-sm text-ink-secondary">
                           <span>{transaction.branchName}</span>
                           <ArrowRight size={14} />
                           <span className="font-medium">{transaction.targetBranchName}</span>
@@ -218,7 +218,7 @@ export function ProductTransactionHistory({
                       )}
 
                       {/* Meta info */}
-                      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-500 flex-wrap">
+                      <div className="flex items-center gap-4 text-xs text-ink-tertiary flex-wrap">
                         <div className="flex items-center gap-1">
                           <User size={12} />
                           <span>{transaction.userName}</span>

@@ -496,12 +496,12 @@ export function PaymentReceipt({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-sunken dark:bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-16 w-16 text-blue-600 animate-spin" />
-              <p className="text-center text-gray-600 dark:text-gray-400">
+              <Loader2 className="h-16 w-16 text-primary animate-spin" />
+              <p className="text-center text-ink-secondary">
                 Cargando detalles del pago...
               </p>
             </div>
@@ -513,12 +513,12 @@ export function PaymentReceipt({
 
   if (!paymentDetails) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-sunken dark:bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-4">
-              <XCircle className="h-16 w-16 text-red-600" />
-              <p className="text-center text-gray-600 dark:text-gray-400">
+              <XCircle className="h-16 w-16 text-danger" />
+              <p className="text-center text-ink-secondary">
                 No se pudo cargar el recibo
               </p>
               <Button onClick={onComplete}>Volver</Button>
@@ -533,7 +533,7 @@ export function PaymentReceipt({
   const isFailed = paymentDetails.status === 'failed'
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background p-4 sm:p-8">
+    <div className="min-h-screen bg-sunken dark:bg-background p-4 sm:p-8">
       <div className="max-w-4xl mx-auto">
         {/* Actions Bar - Solo visible en pantalla */}
         <div className="flex justify-end gap-2 mb-4 print:hidden">
@@ -574,12 +574,12 @@ export function PaymentReceipt({
         <div ref={receiptRef}>
           <Card className="overflow-hidden">
             {/* Header */}
-            <CardHeader className="text-center bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+            <CardHeader className="text-center bg-primary text-on-accent">
               <div className="flex justify-center mb-4">
-                <div className="p-4 bg-white rounded-full">
-                  {isSuccess && <CheckCircle2 className="h-12 w-12 text-green-600" />}
-                  {isFailed && <XCircle className="h-12 w-12 text-red-600" />}
-                  {!isSuccess && !isFailed && <Clock className="h-12 w-12 text-yellow-600" />}
+                <div className="p-4 bg-card rounded-full">
+                  {isSuccess && <CheckCircle2 className="h-12 w-12 text-success" />}
+                  {isFailed && <XCircle className="h-12 w-12 text-danger" />}
+                  {!isSuccess && !isFailed && <Clock className="h-12 w-12 text-warning" />}
                 </div>
               </div>
               <CardTitle className="text-3xl mb-2">
@@ -587,10 +587,10 @@ export function PaymentReceipt({
                 {isFailed && 'Pago No Procesado'}
                 {!isSuccess && !isFailed && 'Pago Pendiente'}
               </CardTitle>
-              <p className="text-blue-100">
+              <p className="text-primary">
                 Recibo de Pago de Licencia
               </p>
-              <p className="text-sm text-blue-200 mt-2">
+              <p className="text-sm text-primary mt-2">
                 No. {paymentDetails.receiptNumber}
               </p>
             </CardHeader>
@@ -600,9 +600,9 @@ export function PaymentReceipt({
             <div className="flex justify-center mb-6">
               <Badge 
                 className={`text-base px-4 py-2 ${
-                  isSuccess ? 'bg-green-600 hover:bg-green-700' : 
-                  isFailed ? 'bg-red-600 hover:bg-red-700' : 
-                  'bg-yellow-600 hover:bg-yellow-700'
+                  isSuccess ? 'bg-success hover:bg-success' : 
+                  isFailed ? 'bg-danger hover:bg-danger' : 
+                  'bg-warning hover:bg-warning'
                 }`}
               >
                 {isSuccess && '✓ CONFIRMADO'}
@@ -613,21 +613,21 @@ export function PaymentReceipt({
 
             {/* Date and Time */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
-                <Calendar className="text-blue-600 flex-shrink-0" size={24} />
+              <div className="flex items-center gap-3 p-4 bg-sunken rounded-lg border border-line">
+                <Calendar className="text-primary flex-shrink-0" size={24} />
                 <div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 uppercase font-medium">Fecha</p>
-                  <p className="font-semibold text-gray-900 dark:text-gray-100">
+                  <p className="text-xs text-ink-secondary uppercase font-medium">Fecha</p>
+                  <p className="font-semibold text-ink">
                     {formatDate(paymentDetails.paymentDate)}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
-                <Clock className="text-blue-600 flex-shrink-0" size={24} />
+              <div className="flex items-center gap-3 p-4 bg-sunken rounded-lg border border-line">
+                <Clock className="text-primary flex-shrink-0" size={24} />
                 <div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 uppercase font-medium">Hora</p>
-                  <p className="font-semibold text-gray-900 dark:text-gray-100">
+                  <p className="text-xs text-ink-secondary uppercase font-medium">Hora</p>
+                  <p className="font-semibold text-ink">
                     {formatTime(paymentDetails.paymentDate)}
                   </p>
                 </div>
@@ -636,21 +636,21 @@ export function PaymentReceipt({
 
             {/* Transaction Details */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
-                <FileText className="text-blue-600 flex-shrink-0" size={24} />
+              <div className="flex items-center gap-3 p-4 bg-sunken rounded-lg border border-line">
+                <FileText className="text-primary flex-shrink-0" size={24} />
                 <div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 uppercase font-medium">ID Transacción</p>
-                  <p className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  <p className="text-xs text-ink-secondary uppercase font-medium">ID Transacción</p>
+                  <p className="font-mono text-sm font-semibold text-ink">
                     {paymentDetails.transactionId}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
-                <CreditCard className="text-blue-600 flex-shrink-0" size={24} />
+              <div className="flex items-center gap-3 p-4 bg-sunken rounded-lg border border-line">
+                <CreditCard className="text-primary flex-shrink-0" size={24} />
                 <div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 uppercase font-medium">Método de Pago</p>
-                  <p className="font-semibold text-gray-900 dark:text-gray-100">
+                  <p className="text-xs text-ink-secondary uppercase font-medium">Método de Pago</p>
+                  <p className="font-semibold text-ink">
                     {paymentDetails.paymentMethod}
                   </p>
                 </div>
@@ -662,31 +662,31 @@ export function PaymentReceipt({
             {/* Purchase Details */}
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-4">
-                <Package className="text-blue-600" size={20} />
-                <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">
+                <Package className="text-primary" size={20} />
+                <h3 className="font-semibold text-lg text-ink">
                   Detalles de la Compra
                 </h3>
               </div>
 
-              <div className="space-y-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border dark:border-gray-800">
+              <div className="space-y-3 bg-sunken p-4 rounded-lg border border-line">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Plan</span>
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                  <span className="text-ink-secondary">Plan</span>
+                  <span className="font-semibold text-ink">
                     {paymentDetails.planName}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Duración</span>
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                  <span className="text-ink-secondary">Duración</span>
+                  <span className="font-semibold text-ink">
                     {paymentDetails.months} {paymentDetails.months === 1 ? 'mes' : 'meses'}
                   </span>
                 </div>
 
                 {paymentDetails.discount > 0 && (
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Descuento aplicado</span>
-                    <span className="font-semibold text-green-600 dark:text-green-400">
+                    <span className="text-ink-secondary">Descuento aplicado</span>
+                    <span className="font-semibold text-success">
                       {paymentDetails.discount}%
                     </span>
                   </div>
@@ -694,8 +694,8 @@ export function PaymentReceipt({
 
                 {paymentDetails.newExpiryDate && (
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Nueva fecha de vencimiento</span>
-                    <span className="font-semibold text-blue-600 dark:text-blue-400">
+                    <span className="text-ink-secondary">Nueva fecha de vencimiento</span>
+                    <span className="font-semibold text-primary">
                       {formatDate(paymentDetails.newExpiryDate)}
                     </span>
                   </div>
@@ -704,8 +704,8 @@ export function PaymentReceipt({
                 <Separator />
 
                 <div className="flex justify-between items-center pt-2">
-                  <span className="text-lg font-bold text-gray-900 dark:text-gray-100">TOTAL PAGADO</span>
-                  <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  <span className="text-lg font-bold text-ink">TOTAL PAGADO</span>
+                  <span className="text-2xl font-bold text-primary">
                     {formatCurrency(paymentDetails.amount, paymentDetails.currency)}
                   </span>
                 </div>
@@ -714,9 +714,9 @@ export function PaymentReceipt({
 
             {/* Thank You Message */}
             {isSuccess && (
-              <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-                <CheckCircle2 className="h-5 w-5 text-blue-600" />
-                <AlertDescription className="text-blue-900 dark:text-blue-100">
+              <Alert className="bg-[var(--accent-subtle)] border-[var(--accent-subtle-border)]">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+                <AlertDescription className="text-primary">
                   <p className="font-semibold mb-2">¡Gracias por tu compra! 🎉</p>
                   <p className="text-sm">
                     Tu pago ha sido procesado exitosamente y tu licencia <strong>{paymentDetails.planName}</strong> ha sido {paymentDetails.months > 1 ? 'extendida' : 'activada'}. 
@@ -730,9 +730,9 @@ export function PaymentReceipt({
             )}
 
             {isFailed && (
-              <Alert className="bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800">
-                <XCircle className="h-5 w-5 text-red-600" />
-                <AlertDescription className="text-red-900 dark:text-red-100">
+              <Alert className="bg-[var(--danger-subtle)] border-[color-mix(in_srgb,var(--danger)_30%,transparent)]">
+                <XCircle className="h-5 w-5 text-danger" />
+                <AlertDescription className="text-danger">
                   <p className="font-semibold mb-2">Pago No Procesado</p>
                   <p className="text-sm">
                     Lamentablemente, tu pago no pudo ser procesado. Por favor verifica los detalles de pago e intenta nuevamente.
@@ -745,7 +745,7 @@ export function PaymentReceipt({
             )}
 
             {/* Footer Note */}
-            <div className="mt-6 pt-6 border-t dark:border-gray-800 text-center text-sm text-gray-600 dark:text-gray-400">
+            <div className="mt-6 pt-6 border-t border-line text-center text-sm text-ink-secondary">
               <p>
                 Este recibo es un documento oficial de tu transacción.
               </p>
@@ -792,18 +792,18 @@ export function PaymentReceipt({
           }
           
           .dark\\:bg-background,
-          .dark\\:bg-gray-900,
-          .dark\\:bg-gray-800 {
+          .dark\\:bg-surface,
+          .dark\\:bg-surface-raised {
             background: white !important;
           }
           
-          .dark\\:text-gray-100,
-          .dark\\:text-gray-200 {
+          .dark\\:text-ink,
+          .dark\\:text-ink {
             color: #000 !important;
           }
           
-          .dark\\:border-gray-800,
-          .dark\\:border-gray-700 {
+          .dark\\:border-line,
+          .dark\\:border-line {
             border-color: #e5e7eb !important;
           }
         }

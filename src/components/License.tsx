@@ -467,7 +467,7 @@ export function License({
                     {currentPlan.name}
                   </Badge>
                   {inTrial && (
-                    <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400 px-3 py-1">
+                    <Badge variant="outline" className="border-[var(--warning)] text-warning px-3 py-1">
                       <Clock size={13} className="mr-1" />
                       Período de Prueba Activo
                     </Badge>
@@ -498,22 +498,22 @@ export function License({
                     <div className="mt-2 flex items-center gap-2">
                       {daysRemaining > 7 ? (
                         <>
-                          <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" />
+                          <CheckCircle2 size={16} className="text-success flex-shrink-0" />
                           <p className="text-sm text-muted-foreground">
                             Te quedan <strong className="text-foreground">{daysRemaining} días</strong> de servicio activo.
                           </p>
                         </>
                       ) : daysRemaining > 0 ? (
                         <>
-                          <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
-                          <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                          <AlertCircle size={16} className="text-warning flex-shrink-0" />
+                          <p className="text-sm text-warning font-medium">
                             ⚠️ Quedan solo <strong>{daysRemaining} días</strong> para el vencimiento. Renueva con anticipación.
                           </p>
                         </>
                       ) : (
                         <>
-                          <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
-                          <p className="text-sm text-red-600 dark:text-red-400 font-bold">
+                          <AlertCircle size={16} className="text-danger flex-shrink-0" />
+                          <p className="text-sm text-danger font-bold">
                             ⚠️ Tu licencia se encuentra vencida. Realiza el pago para reactivar el servicio.
                           </p>
                         </>
@@ -543,21 +543,21 @@ export function License({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
-                    <UserCog className="text-emerald-500 flex-shrink-0" size={20} />
+                    <UserCog className="text-success flex-shrink-0" size={20} />
                     <div>
                       <p className="text-xs text-muted-foreground">Administradores</p>
                       <p className="text-lg font-bold text-foreground">{currentPlan.limits.admins}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
-                    <Users className="text-indigo-500 flex-shrink-0" size={20} />
+                    <Users className="text-[var(--state-diagnosis)] flex-shrink-0" size={20} />
                     <div>
                       <p className="text-xs text-muted-foreground">Asesores</p>
                       <p className="text-lg font-bold text-foreground">{currentPlan.limits.advisors}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
-                    <Wrench className="text-amber-500 flex-shrink-0" size={20} />
+                    <Wrench className="text-warning flex-shrink-0" size={20} />
                     <div>
                       <p className="text-xs text-muted-foreground">Técnicos</p>
                       <p className="text-lg font-bold text-foreground">{currentPlan.limits.technicians}</p>
@@ -570,11 +570,11 @@ export function License({
         )}
 
         {/* Payment Gateway Badge */}
-        <Card className="mb-8 border-border bg-gradient-to-r from-muted/30 to-muted/10">
+        <Card className="mb-8 border-border bg-sunken">
           <CardContent className="p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-500/10 rounded-lg text-emerald-600 dark:text-emerald-400">
+                <div className="p-2.5 bg-[color-mix(in_srgb,var(--success)_10%,transparent)] rounded-lg text-success">
                   <Shield size={22} />
                 </div>
                 <div>
@@ -640,7 +640,7 @@ export function License({
                     }`}
                   >
                     {plan.badge && (
-                      <Badge className="absolute -top-3 right-4 bg-emerald-600 text-white font-semibold">
+                      <Badge className="absolute -top-3 right-4 bg-success text-on-success font-semibold">
                         {plan.badge}
                       </Badge>
                     )}
@@ -677,21 +677,21 @@ export function License({
                         </div>
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground flex items-center gap-1.5">
-                            <UserCog size={14} className="text-emerald-500" />
+                            <UserCog size={14} className="text-success" />
                             Administradores
                           </span>
                           <span className="font-semibold text-foreground">{plan.limits.admins}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground flex items-center gap-1.5">
-                            <Users size={14} className="text-indigo-500" />
+                            <Users size={14} className="text-[var(--state-diagnosis)]" />
                             Asesores
                           </span>
                           <span className="font-semibold text-foreground">{plan.limits.advisors}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground flex items-center gap-1.5">
-                            <Wrench size={14} className="text-amber-500" />
+                            <Wrench size={14} className="text-warning" />
                             Técnicos
                           </span>
                           <span className="font-semibold text-foreground">{plan.limits.technicians}</span>
@@ -702,7 +702,7 @@ export function License({
                       <ul className="space-y-2 text-xs mb-6">
                         {plan.features.map((feature, idx) => (
                           <li key={idx} className="flex items-start gap-2 text-muted-foreground">
-                            <CheckCircle2 size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                            <CheckCircle2 size={14} className="text-success flex-shrink-0 mt-0.5" />
                             <span>{feature}</span>
                           </li>
                         ))}
@@ -768,7 +768,7 @@ export function License({
               </Button>
 
               <p className="text-center text-xs text-muted-foreground mt-3 flex items-center justify-center gap-1">
-                <Shield size={13} className="text-emerald-500" />
+                <Shield size={13} className="text-success" />
                 Transacción segura cifrada y verificada por Wompi Colombia
               </p>
             </div>

@@ -5,7 +5,8 @@ import { Badge } from './ui/badge'
 import { Label } from './ui/label'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import { statusLabels, statusColors } from './repairs/constants'
+import { statusLabels } from './repairs/constants'
+import { StatusBadge, normalizeState } from './oryon'
 import { projectId, publicAnonKey } from '../utils/supabase/info'
 
 interface TrackingPageProps {
@@ -176,11 +177,11 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
   // If no repairId, show search form
   if (!repairId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-              <Search className="h-8 w-8 text-blue-600" />
+            <div className="mx-auto w-16 h-16 bg-[var(--accent-subtle)] rounded-full flex items-center justify-center mb-4">
+              <Search className="h-8 w-8 text-primary" />
             </div>
             <CardTitle className="text-2xl">Seguimiento de Reparación</CardTitle>
             <CardDescription>
@@ -199,7 +200,7 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                   className="text-center text-lg"
                 />
-                <p className="text-sm text-gray-500 mt-2">
+                <p className="text-sm text-ink-tertiary mt-2">
                   Escanea el código QR de tu orden o ingresa el código manualmente
                 </p>
               </div>
@@ -221,10 +222,10 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando información...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-fill)] mx-auto mb-4"></div>
+          <p className="text-ink-secondary">Cargando información...</p>
         </div>
       </div>
     )
@@ -232,10 +233,10 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
 
   if (error || !repair) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md">
           <CardHeader>
-            <CardTitle className="text-red-600">Error</CardTitle>
+            <CardTitle className="text-danger">Error</CardTitle>
             <CardDescription>{error || 'Orden no encontrada'}</CardDescription>
           </CardHeader>
         </Card>
@@ -249,12 +250,12 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-8">
+    <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl mb-2 text-gray-800">Seguimiento de Reparación</h1>
-          <p className="text-gray-600">Orden #{repair.id}</p>
+          <h1 className="text-4xl mb-2 text-ink">Seguimiento de Reparación</h1>
+          <p className="text-ink-secondary">Orden #{repair.id}</p>
         </div>
 
         {/* Estado Actual */}
@@ -265,13 +266,15 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
                 <CardTitle className="text-2xl">Estado Actual</CardTitle>
                 <CardDescription>Tu equipo está en proceso</CardDescription>
               </div>
-              <StatusIcon size={48} className="text-blue-600" />
+              <StatusIcon size={48} className="text-primary" />
             </div>
           </CardHeader>
           <CardContent>
-            <Badge className={`${statusColors[repair.status]} text-xl px-6 py-3`}>
-              {statusLabels[repair.status]}
-            </Badge>
+            <StatusBadge
+              status={normalizeState(repair.status)}
+              label={statusLabels[repair.status]}
+              style={{ height: 40, padding: '0 18px', fontSize: 'var(--text-body-lg)' }}
+            />
           </CardContent>
         </Card>
 
@@ -283,25 +286,25 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <Label className="text-gray-600">Cliente</Label>
+                <Label className="text-ink-secondary">Cliente</Label>
                 <p className="text-lg">{repair.customerName}</p>
               </div>
               <div>
-                <Label className="text-gray-600">Dispositivo</Label>
+                <Label className="text-ink-secondary">Dispositivo</Label>
                 <p className="text-lg capitalize">
                   {repair.deviceType} {repair.deviceBrand} {repair.deviceModel}
                 </p>
               </div>
               <div>
-                <Label className="text-gray-600">Problema Reportado</Label>
+                <Label className="text-ink-secondary">Problema Reportado</Label>
                 <p className="text-lg">{repair.problem}</p>
               </div>
               <div>
-                <Label className="text-gray-600">Costo Estimado</Label>
-                <p className="text-2xl text-green-600">${repair.estimatedCost.toLocaleString()}</p>
+                <Label className="text-ink-secondary">Costo Estimado</Label>
+                <p className="text-2xl text-success">${repair.estimatedCost.toLocaleString()}</p>
               </div>
               <div>
-                <Label className="text-gray-600">Fecha de Recepción</Label>
+                <Label className="text-ink-secondary">Fecha de Recepción</Label>
                 <p className="text-lg">{new Date(repair.receivedDate).toLocaleDateString('es-CO')}</p>
               </div>
             </div>
@@ -322,7 +325,7 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
                     key={idx}
                     src={img}
                     alt={`Equipo ${idx + 1}`}
-                    className="w-full h-32 object-cover rounded-lg border-2 border-gray-200 hover:border-blue-400 transition-all cursor-pointer"
+                    className="w-full h-32 object-cover rounded-lg border-2 border-line hover:border-[var(--accent-fill)] transition-all cursor-pointer"
                     onClick={() => window.open(img, '_blank')}
                   />
                 ))}
@@ -345,21 +348,23 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
                   return (
                     <div key={idx} className="flex gap-4 pb-4 border-b last:border-b-0">
                       <div className="flex-shrink-0">
-                        <div className={`${statusColors[log.newStatus]} p-2 rounded-full`}>
-                          <LogIcon size={20} className="text-white" />
+                        <div className="rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] p-2">
+                          <LogIcon size={20} className="text-primary" />
                         </div>
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge className={statusColors[log.newStatus]}>
-                            {statusLabels[log.newStatus]}
-                          </Badge>
-                          <span className="text-sm text-gray-500">
+                          <StatusBadge
+                            status={normalizeState(log.newStatus)}
+                            label={statusLabels[log.newStatus]}
+                            size="sm"
+                          />
+                          <span className="text-sm text-ink-tertiary">
                             {new Date(log.timestamp).toLocaleString('es-CO')}
                           </span>
                         </div>
                         {log.notes && (
-                          <p className="text-gray-700 mt-1">{log.notes}</p>
+                          <p className="text-ink-secondary mt-1">{log.notes}</p>
                         )}
                         {log.images && log.images.length > 0 && (
                           <div className="grid grid-cols-4 gap-2 mt-2">
@@ -384,9 +389,9 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
         )}
 
         {/* Footer */}
-        <div className="text-center text-gray-600 text-sm py-4">
+        <div className="text-center text-ink-secondary text-sm py-4">
           <p>Si tienes alguna pregunta, no dudes en contactarnos</p>
-          <p className="mt-2 text-xs text-gray-500">Oryon App - Sistema de Gestión de Reparaciones</p>
+          <p className="mt-2 text-xs text-ink-tertiary">Oryon App - Sistema de Gestión de Reparaciones</p>
         </div>
       </div>
     </div>

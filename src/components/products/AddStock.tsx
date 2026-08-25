@@ -42,14 +42,14 @@ export function AddStock({ product, onAdd, onCancel, isLoading = false }: AddSto
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Info Notice */}
-      <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+      <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-3">
         <div className="flex items-start gap-2">
-          <ShoppingCart className="text-blue-600 dark:text-blue-400 mt-0.5" size={16} />
+          <ShoppingCart className="text-primary mt-0.5" size={16} />
           <div>
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+            <p className="text-sm font-medium text-primary">
               Agregar inventario por compra
             </p>
-            <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+            <p className="text-xs text-primary mt-1">
               Esta función te permite aumentar el stock cuando recibes nuevos productos.
               Solo puedes agregar, no restar inventario.
             </p>
@@ -58,11 +58,11 @@ export function AddStock({ product, onAdd, onCancel, isLoading = false }: AddSto
       </div>
 
       {/* Product Info */}
-      <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+      <div className="bg-sunken rounded-lg p-3">
+        <p className="text-sm font-medium text-ink">
           {product.name}
         </p>
-        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+        <p className="text-xs text-ink-secondary mt-1">
           Stock actual: <span className="font-medium">{product.quantity || 0} unidades</span>
         </p>
       </div>
@@ -81,7 +81,7 @@ export function AddStock({ product, onAdd, onCancel, isLoading = false }: AddSto
           required
           disabled={isLoading}
         />
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <p className="text-xs text-ink-tertiary mt-1">
           Cantidad de unidades que ingresarán al inventario
         </p>
       </div>
@@ -98,15 +98,15 @@ export function AddStock({ product, onAdd, onCancel, isLoading = false }: AddSto
           disabled={isLoading}
           rows={3}
         />
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <p className="text-xs text-ink-tertiary mt-1">
           Describe el motivo del ingreso (proveedor, factura, etc.)
         </p>
       </div>
 
       {/* Preview */}
       {quantity && parseInt(quantity) > 0 && (
-        <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-3">
-          <p className="text-sm text-green-900 dark:text-green-100">
+        <div className="bg-[var(--success-subtle)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] rounded-lg p-3">
+          <p className="text-sm text-success">
             Stock nuevo: <span className="font-semibold">
               {(product.quantity || 0) + parseInt(quantity)} unidades
             </span>
@@ -128,7 +128,7 @@ export function AddStock({ product, onAdd, onCancel, isLoading = false }: AddSto
         <Button
           type="submit"
           disabled={isLoading}
-          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+          className="flex-1 bg-success hover:bg-success text-on-success"
         >
           {isLoading ? (
             <>Agregando...</>

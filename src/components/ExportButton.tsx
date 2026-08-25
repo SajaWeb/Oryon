@@ -107,11 +107,11 @@ export function ExportButton({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer">
-          <FileText className="mr-2 h-4 w-4 text-red-600" />
+          <FileText className="mr-2 h-4 w-4 text-danger" />
           <span>Exportar a PDF</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
-          <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+          <FileSpreadsheet className="mr-2 h-4 w-4 text-success" />
           <span>Exportar a Excel</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

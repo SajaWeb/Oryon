@@ -54,14 +54,14 @@ export function PWAStatus() {
   return (
     <div className="flex items-center gap-2 px-2">
       {isInstalled && (
-        <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-blue-100 text-blue-700 hover:bg-blue-100">
+        <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-[var(--accent-subtle)] text-primary hover:bg-[var(--accent-subtle)]">
           <Smartphone size={12} />
           <span className="hidden sm:inline">App Instalada</span>
         </Badge>
       )}
       
       {!isOnline && (
-        <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
+        <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-[var(--warning-subtle)] text-warning hover:bg-[var(--warning-subtle)]">
           <WifiOff size={12} />
           <span className="hidden sm:inline">Offline</span>
         </Badge>
@@ -122,27 +122,27 @@ export function PWAInfo() {
       <div>
         <h3 className="font-semibold mb-2">Estado de la PWA</h3>
         <div className="space-y-2 text-sm">
-          <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-            <span className="text-gray-600">App Instalada</span>
+          <div className="flex items-center justify-between p-2 bg-sunken rounded">
+            <span className="text-ink-secondary">App Instalada</span>
             <Badge variant={isInstalled ? 'default' : 'secondary'}>
               {isInstalled ? 'Sí' : 'No'}
             </Badge>
           </div>
 
-          <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-            <span className="text-gray-600">Service Worker</span>
+          <div className="flex items-center justify-between p-2 bg-sunken rounded">
+            <span className="text-ink-secondary">Service Worker</span>
             <Badge variant={swRegistered ? 'default' : 'secondary'}>
               {swRegistered ? 'Activo' : 'Inactivo'}
             </Badge>
           </div>
 
-          <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-            <span className="text-gray-600">Caché Utilizada</span>
-            <span className="text-gray-900">{cacheSize}</span>
+          <div className="flex items-center justify-between p-2 bg-sunken rounded">
+            <span className="text-ink-secondary">Caché Utilizada</span>
+            <span className="text-ink">{cacheSize}</span>
           </div>
 
-          <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-            <span className="text-gray-600">Conexión</span>
+          <div className="flex items-center justify-between p-2 bg-sunken rounded">
+            <span className="text-ink-secondary">Conexión</span>
             <Badge variant={navigator.onLine ? 'default' : 'destructive'}>
               {navigator.onLine ? 'Online' : 'Offline'}
             </Badge>
@@ -151,14 +151,14 @@ export function PWAInfo() {
       </div>
 
       {!isInstalled && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="p-3 bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg">
           <div className="flex items-start gap-2">
-            <Download className="text-blue-600 mt-0.5" size={16} />
+            <Download className="text-primary mt-0.5" size={16} />
             <div className="text-sm">
-              <p className="text-blue-900 font-medium mb-1">
+              <p className="text-primary font-medium mb-1">
                 Instala la aplicación
               </p>
-              <p className="text-blue-700 text-xs">
+              <p className="text-primary text-xs">
                 Para mejor experiencia, instala Oryon App en tu dispositivo. Busca el botón de instalación en tu navegador.
               </p>
             </div>

@@ -105,8 +105,8 @@ export function ProductForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Branch restriction notice */}
       {branches.length === 1 && !isEditing && (
-        <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-          <p className="text-sm text-blue-800 dark:text-blue-200">
+        <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-3">
+          <p className="text-sm text-primary">
             📍 <strong>Tu sucursal:</strong> {branches[0].name}. Los productos que crees estarán asignados a esta sucursal.
           </p>
         </div>
@@ -153,7 +153,7 @@ export function ProductForm({
       />
 
       {/* Inventory Tracking Method */}
-      <div className="border dark:border-gray-700 rounded-lg p-4 bg-blue-50 dark:bg-blue-950">
+      <div className="border border-line rounded-lg p-4 bg-[var(--accent-subtle)]">
         <Label className="mb-2 block">Método de Seguimiento de Inventario</Label>
         <div className="space-y-2">
           {TRACKING_METHODS.map((method) => (
@@ -182,7 +182,7 @@ export function ProductForm({
               />
               <div>
                 <div className="font-medium">{method.title}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-sm text-ink-secondary">
                   {method.description}
                 </div>
               </div>
@@ -205,19 +205,19 @@ export function ProductForm({
             disabled={isEditing && userRole === 'asesor'}
           />
           {isEditing && userRole === 'asesor' ? (
-            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+            <p className="text-xs text-warning mt-1">
               ⚠️ Solo administradores pueden modificar la cantidad. Usa "Gestionar Inventario" para agregar stock.
             </p>
           ) : (
-            <p className="text-xs text-gray-500 mt-1">Stock disponible del producto</p>
+            <p className="text-xs text-ink-tertiary mt-1">Stock disponible del producto</p>
           )}
         </div>
       )}
 
       {/* Info for variants */}
       {formData.hasVariants && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+        <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-3">
+          <p className="text-sm text-warning">
             💡 Las variantes (colores) se agregarán después de crear el producto
           </p>
         </div>
@@ -225,8 +225,8 @@ export function ProductForm({
 
       {/* Info for units */}
       {formData.trackByUnit && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+        <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-3">
+          <p className="text-sm text-warning">
             💡 Las unidades (IMEI/Serial) se agregarán después de crear el producto
           </p>
         </div>
@@ -245,7 +245,7 @@ export function ProductForm({
             onChange={(e) => updateField('cost', e.target.value)}
             placeholder="0.00"
           />
-          <p className="text-xs text-gray-500 mt-1">Costo de adquisición</p>
+          <p className="text-xs text-ink-tertiary mt-1">Costo de adquisición</p>
         </div>
         <div>
           <Label htmlFor="price">Precio de Venta *</Label>
@@ -259,7 +259,7 @@ export function ProductForm({
             placeholder="0.00"
             required
           />
-          <p className="text-xs text-gray-500 mt-1">Precio al cliente</p>
+          <p className="text-xs text-ink-tertiary mt-1">Precio al cliente</p>
         </div>
       </div>
 

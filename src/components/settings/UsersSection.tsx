@@ -231,13 +231,13 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'admin':
-        return 'bg-purple-600 text-white'
+        return 'bg-[var(--state-diagnosis)] text-white'
       case 'tecnico':
-        return 'bg-blue-600 text-white'
+        return 'bg-primary text-on-accent'
       case 'asesor':
-        return 'bg-green-600 text-white'
+        return 'bg-success text-on-success'
       default:
-        return 'bg-gray-600 text-white'
+        return 'bg-[var(--alu-500)] text-white'
     }
   }
 
@@ -246,7 +246,7 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Users className="text-blue-600" size={24} />
+            <Users className="text-primary" size={24} />
             <CardTitle>Gestión de Usuarios</CardTitle>
           </div>
           {userProfile?.role === 'admin' && (
@@ -325,7 +325,7 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
             return (
               <div
                 key={user.userId}
-                className="border rounded-lg p-4 border-gray-200 dark:border-gray-700"
+                className="border rounded-lg p-4 border-line"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex-1">
@@ -335,9 +335,9 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
                         {user.role}
                       </Badge>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{user.email}</p>
+                    <p className="text-sm text-ink-secondary">{user.email}</p>
                     {user.assignedBranches && user.assignedBranches.length > 0 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      <p className="text-xs text-ink-tertiary mt-1">
                         {user.assignedBranches.length} sucursal(es) asignada(s)
                       </p>
                     )}
@@ -363,7 +363,7 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                        className="border-[var(--danger)] text-danger hover:bg-[var(--danger-subtle)]"
                         onClick={() => handleOpenDeleteDialog(user)}
                       >
                         <Trash2 size={16} className="mr-1" />
@@ -377,7 +377,7 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
           })}
 
           {users.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-ink-tertiary">
               No hay usuarios registrados
             </div>
           )}
@@ -443,7 +443,7 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
               </div>
             ))}
             {branches.length === 0 && (
-              <p className="text-sm text-gray-500">No hay sucursales disponibles</p>
+              <p className="text-sm text-ink-tertiary">No hay sucursales disponibles</p>
             )}
           </div>
           <DialogFooter>

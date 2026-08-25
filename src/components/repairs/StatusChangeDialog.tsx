@@ -7,7 +7,8 @@ import { Textarea } from '../ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Badge } from '../ui/badge'
 import { Repair } from './types'
-import { statusLabels, statusColors } from './constants'
+import { statusLabels } from './constants'
+import { StatusBadge, normalizeState } from '../oryon'
 
 interface StatusChangeDialogProps {
   open: boolean
@@ -75,9 +76,7 @@ export function StatusChangeDialog({
           <div>
             <Label>Estado Actual</Label>
             <p className="mt-1">
-              <Badge className={statusColors[repair.status]}>
-                {statusLabels[repair.status]}
-              </Badge>
+              <StatusBadge status={normalizeState(repair.status)} label={statusLabels[repair.status]} />
             </p>
           </div>
 
@@ -113,9 +112,9 @@ export function StatusChangeDialog({
             <Label className="text-sm sm:text-base">Imágenes Adicionales</Label>
             <div className="mt-2">
               <label htmlFor="status-image-upload" className="cursor-pointer">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center hover:border-gray-400 transition-colors active:bg-gray-50">
-                  <Upload className="mx-auto mb-2 text-gray-400" size={24} />
-                  <p className="text-sm text-gray-600">Toca para subir imágenes</p>
+                <div className="border-2 border-dashed border-line rounded-lg p-3 sm:p-4 text-center hover:border-line transition-colors active:bg-sunken">
+                  <Upload className="mx-auto mb-2 text-ink-tertiary" size={24} />
+                  <p className="text-sm text-ink-secondary">Toca para subir imágenes</p>
                 </div>
               </label>
               <input
@@ -140,7 +139,7 @@ export function StatusChangeDialog({
                     <button
                       type="button"
                       onClick={() => removeImage(idx)}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-md"
+                      className="absolute top-1 right-1 bg-danger text-on-danger rounded-full p-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-md"
                     >
                       <X size={12} />
                     </button>

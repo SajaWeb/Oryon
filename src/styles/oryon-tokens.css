@@ -80,6 +80,12 @@
   --text-inverse:    #0b0d0e;
   --text-accent:     var(--accent-400);
   --text-on-accent:  #04181d;
+  /* Texto sobre rellenos sólidos de feedback. En grafito, éxito y aviso son colores
+     brillantes: el blanco encima no se lee. El sistema no los tenía y cada pantalla
+     resolvía con `text-white`, que solo funcionaba en uno de los dos temas. */
+  --text-on-success: #04181d;
+  --text-on-warning: #1b1206;
+  --text-on-danger:  #ffffff;
 
   --accent-fill:          var(--accent-400);
   --accent-fill-hover:    var(--accent-300);
@@ -195,6 +201,9 @@
   --text-inverse:   var(--alu-50);
   --text-accent:    var(--accent-700);
   --text-on-accent: #ffffff;
+  --text-on-success: #ffffff;
+  --text-on-warning: #ffffff;
+  --text-on-danger:  #ffffff;
 
   --accent-fill:          var(--accent-700);
   --accent-fill-hover:    var(--accent-800);

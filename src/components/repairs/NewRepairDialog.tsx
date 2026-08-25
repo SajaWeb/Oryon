@@ -140,10 +140,10 @@ export function NewRepairDialog({
           />
 
           {/* Selector de Sucursal */}
-          <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4">
+          <div className="bg-[var(--success-subtle)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] rounded-lg p-4">
             <Label htmlFor="branchSelect">Sucursal *</Label>
             {userRole !== 'admin' && branches.length === 1 && (
-              <p className="text-xs text-blue-600 dark:text-blue-400 mb-2 mt-1">
+              <p className="text-xs text-primary mb-2 mt-1">
                 📍 Tu sucursal asignada: {branches[0].name}
               </p>
             )}
@@ -162,7 +162,7 @@ export function NewRepairDialog({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-xs text-ink-secondary mt-1">
               La orden de reparación se asignará a esta sucursal
             </p>
           </div>
@@ -238,7 +238,7 @@ export function NewRepairDialog({
             {/* Contraseña/Patrón */}
             <div className="border-t pt-4 space-y-4">
               <div className="flex items-center gap-2 mb-2">
-                <Lock size={16} className="text-gray-600" />
+                <Lock size={16} className="text-ink-secondary" />
                 <h4 className="text-sm sm:text-base">Contraseña/Patrón del Equipo (Opcional)</h4>
               </div>
               <Tabs 
@@ -262,7 +262,7 @@ export function NewRepairDialog({
                     onChange={(e) => handleFormDataChange({ devicePassword: e.target.value })}
                     placeholder="Ej: 1234, contraseña123"
                   />
-                  <p className="text-xs text-gray-500">Ingresa el PIN, contraseña o código de desbloqueo</p>
+                  <p className="text-xs text-ink-tertiary">Ingresa el PIN, contraseña o código de desbloqueo</p>
                 </TabsContent>
                 <TabsContent value="pattern" className="space-y-2">
                   <Label>Patrón de Desbloqueo</Label>
@@ -272,7 +272,7 @@ export function NewRepairDialog({
                       onPatternComplete={(pattern) => handleFormDataChange({ devicePattern: pattern })}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 text-center">Dibuja el patrón de desbloqueo del dispositivo</p>
+                  <p className="text-xs text-ink-tertiary text-center">Dibuja el patrón de desbloqueo del dispositivo</p>
                 </TabsContent>
               </Tabs>
             </div>
@@ -314,10 +314,10 @@ export function NewRepairDialog({
               <Label className="text-sm sm:text-base">Imágenes del Estado del Equipo</Label>
               <div className="mt-2">
                 <label htmlFor="image-upload" className="cursor-pointer">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center hover:border-gray-400 transition-colors active:bg-gray-50">
-                    <Upload className="mx-auto mb-2 text-gray-400" size={28} />
-                    <p className="text-sm text-gray-600">Toca para subir imágenes</p>
-                    <p className="text-xs text-gray-400 mt-1">PNG, JPG hasta 5MB</p>
+                  <div className="border-2 border-dashed border-line rounded-lg p-3 sm:p-4 text-center hover:border-line transition-colors active:bg-sunken">
+                    <Upload className="mx-auto mb-2 text-ink-tertiary" size={28} />
+                    <p className="text-sm text-ink-secondary">Toca para subir imágenes</p>
+                    <p className="text-xs text-ink-tertiary mt-1">PNG, JPG hasta 5MB</p>
                   </div>
                 </label>
                 <input
@@ -343,7 +343,7 @@ export function NewRepairDialog({
                       <button
                         type="button"
                         onClick={() => removeImage(index)}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-md"
+                        className="absolute top-1 right-1 bg-danger text-on-danger rounded-full p-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-md"
                       >
                         <X size={14} />
                       </button>

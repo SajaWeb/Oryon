@@ -216,20 +216,20 @@ export function PatternLock({ onPatternComplete, value = [], gridSize = 3, readO
         onTouchStart={handleStart}
         onTouchMove={handleMove}
         onTouchEnd={handleEnd}
-        className={`border-2 border-gray-300 rounded-lg shadow-sm ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
+        className={`border-2 border-line rounded-lg shadow-sm ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
         style={{ touchAction: 'none' }}
       />
       <div className="flex gap-2 items-center">
         {pattern.length > 0 && (
           <>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-ink-secondary">
               Patrón: {pattern.map(p => p + 1).join(' → ')}
             </p>
             {!readOnly && (
               <button
                 type="button"
                 onClick={clearPattern}
-                className="text-sm text-blue-600 hover:text-blue-700 underline"
+                className="text-sm text-primary hover:text-primary underline"
               >
                 Limpiar
               </button>
@@ -237,7 +237,7 @@ export function PatternLock({ onPatternComplete, value = [], gridSize = 3, readO
           </>
         )}
         {pattern.length === 0 && !readOnly && (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-ink-tertiary">
             Dibuja un patrón conectando al menos 2 puntos
           </p>
         )}

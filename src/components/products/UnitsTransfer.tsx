@@ -75,23 +75,23 @@ export function UnitsTransfer({
   return (
     <div className="space-y-4">
       {/* Current Branch Info */}
-      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+      <div className="bg-sunken rounded-lg p-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Sucursal Actual</p>
+            <p className="text-sm text-ink-secondary">Sucursal Actual</p>
             <p className="font-semibold">{currentBranch?.name}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Unidades Disponibles</p>
-            <p className="text-xl font-semibold text-blue-600">{availableUnits.length}</p>
+            <p className="text-sm text-ink-secondary">Unidades Disponibles</p>
+            <p className="text-xl font-semibold text-primary">{availableUnits.length}</p>
           </div>
         </div>
       </div>
 
       {/* No units available warning */}
       {availableUnits.length === 0 && (
-        <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+        <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-4">
+          <p className="text-sm text-warning">
             ⚠️ No hay unidades disponibles para trasladar. Las unidades vendidas o en reparación no pueden ser trasladadas.
           </p>
         </div>
@@ -128,15 +128,15 @@ export function UnitsTransfer({
 
           {/* Transfer Arrow Visual */}
           {transferData.targetBranchId && (
-            <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4">
+            <div className="bg-[var(--accent-subtle)] rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div className="text-center flex-1">
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Desde</p>
+                  <p className="text-xs text-ink-secondary">Desde</p>
                   <p className="font-semibold">{currentBranch?.name}</p>
                 </div>
-                <ArrowRight className="text-blue-600 mx-4" size={24} />
+                <ArrowRight className="text-primary mx-4" size={24} />
                 <div className="text-center flex-1">
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Hacia</p>
+                  <p className="text-xs text-ink-secondary">Hacia</p>
                   <p className="font-semibold">{targetBranch?.name}</p>
                 </div>
               </div>
@@ -163,7 +163,7 @@ export function UnitsTransfer({
                   {availableUnits.map((unit) => (
                     <div
                       key={unit.id}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                      className="flex items-center gap-3 p-3 hover:bg-sunken transition-colors cursor-pointer"
                       onClick={() => !isLoading && transferData.targetBranchId && toggleUnit(unit.id)}
                     >
                       <Checkbox
@@ -185,23 +185,23 @@ export function UnitsTransfer({
                           )}
                         </div>
                         {!unit.imei && !unit.serialNumber && (
-                          <p className="text-xs text-gray-500">Unidad #{unit.id}</p>
+                          <p className="text-xs text-ink-tertiary">Unidad #{unit.id}</p>
                         )}
                       </div>
                       {transferData.unitIds.includes(unit.id) && (
-                        <Check className="text-green-600" size={18} />
+                        <Check className="text-success" size={18} />
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="p-6 text-center text-gray-500">
+                <div className="p-6 text-center text-ink-tertiary">
                   <Package className="mx-auto mb-2 opacity-50" size={32} />
                   <p className="text-sm">No hay unidades disponibles</p>
                 </div>
               )}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-ink-tertiary mt-1">
               {transferData.unitIds.length} de {availableUnits.length} unidades seleccionadas
             </p>
           </div>
@@ -224,21 +224,21 @@ export function UnitsTransfer({
             <div className="border-t pt-4">
               <p className="text-sm font-semibold mb-2">Resumen del Traslado:</p>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-red-50 dark:bg-red-950 p-3 rounded-lg">
-                  <p className="text-xs text-red-600 dark:text-red-400">{currentBranch?.name}</p>
-                  <p className="text-lg font-semibold text-red-600">
+                <div className="bg-[var(--danger-subtle)] p-3 rounded-lg">
+                  <p className="text-xs text-danger">{currentBranch?.name}</p>
+                  <p className="text-lg font-semibold text-danger">
                     -{transferData.unitIds.length}
                   </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                  <p className="text-xs text-ink-secondary">
                     Quedan: {availableUnits.length - transferData.unitIds.length}
                   </p>
                 </div>
-                <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg">
-                  <p className="text-xs text-green-600 dark:text-green-400">{targetBranch?.name}</p>
-                  <p className="text-lg font-semibold text-green-600">
+                <div className="bg-[var(--success-subtle)] p-3 rounded-lg">
+                  <p className="text-xs text-success">{targetBranch?.name}</p>
+                  <p className="text-lg font-semibold text-success">
                     +{transferData.unitIds.length}
                   </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                  <p className="text-xs text-ink-secondary">
                     unidades individuales
                   </p>
                 </div>
@@ -275,8 +275,8 @@ export function UnitsTransfer({
       </div>
 
       {/* Warning */}
-      <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-        <p className="text-xs text-yellow-800 dark:text-yellow-200">
+      <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-3">
+        <p className="text-xs text-warning">
           ⚠️ <strong>Importante:</strong> Las unidades seleccionadas serán movidas permanentemente a la sucursal destino.
           Esta acción quedará registrada en el historial.
         </p>

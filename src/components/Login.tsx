@@ -112,10 +112,10 @@ export function Login({ onLoginSuccess, onSwitchToRegister, onSwitchToForgotPass
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
+          <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center">
             <Wrench className="text-white" size={32} />
           </div>
           <CardTitle className="text-3xl">Oryon App</CardTitle>
@@ -126,14 +126,14 @@ export function Login({ onLoginSuccess, onSwitchToRegister, onSwitchToForgotPass
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-3">
+              <div className="bg-[var(--danger-subtle)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-lg p-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <XCircle className="h-5 w-5 text-danger flex-shrink-0 mt-0.5" />
                   <div className="flex-1 space-y-1">
-                    <p className="font-medium text-red-900 dark:text-red-100">
+                    <p className="font-medium text-danger">
                       {isSuperAdminBlocked ? 'Cuenta de Superadministrador Detectada' : 'No se pudo iniciar sesión'}
                     </p>
-                    <p className="text-sm text-red-800 dark:text-red-200 leading-relaxed">
+                    <p className="text-sm text-danger leading-relaxed">
                       {error}
                     </p>
                   </div>
@@ -141,7 +141,7 @@ export function Login({ onLoginSuccess, onSwitchToRegister, onSwitchToForgotPass
                 {isSuperAdminBlocked && (
                   <Button
                     type="button"
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-[var(--state-diagnosis)] hover:bg-[var(--state-diagnosis)] text-white font-medium shadow-sm transition-all flex items-center justify-center gap-2"
                     onClick={() => window.location.href = '/superadmin'}
                   >
                     <Shield className="w-4 h-4" />
@@ -170,7 +170,7 @@ export function Login({ onLoginSuccess, onSwitchToRegister, onSwitchToForgotPass
                 <button
                   type="button"
                   onClick={onSwitchToForgotPassword}
-                  className="text-xs text-blue-600 hover:underline"
+                  className="text-xs text-primary hover:underline"
                   disabled={loading || googleLoading}
                 >
                   ¿Olvidaste tu contraseña?
@@ -193,10 +193,10 @@ export function Login({ onLoginSuccess, onSwitchToRegister, onSwitchToForgotPass
 
             <div className="relative my-4">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
+                <div className="w-full border-t border-line"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">O continúa con</span>
+                <span className="px-2 bg-background text-ink-tertiary">O continúa con</span>
               </div>
             </div>
 
@@ -230,11 +230,11 @@ export function Login({ onLoginSuccess, onSwitchToRegister, onSwitchToForgotPass
           </form>
           
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-ink-secondary">
               ¿No tienes una cuenta?{' '}
               <button
                 onClick={onSwitchToRegister}
-                className="text-blue-600 hover:underline"
+                className="text-primary hover:underline"
                 disabled={loading || googleLoading}
               >
                 Regístrate gratis

@@ -212,9 +212,9 @@ export function LowStockDialog({
   const getStockStatus = (product: Product) => {
     const availableStock = getAvailableStock(product)
     const threshold = product.minStock || globalStockThreshold
-    if (availableStock === 0) return { label: 'Sin stock', color: 'bg-red-600' }
-    if (availableStock < threshold / 2) return { label: 'Crítico', color: 'bg-red-500' }
-    return { label: 'Bajo', color: 'bg-orange-500' }
+    if (availableStock === 0) return { label: 'Sin stock', color: 'bg-danger' }
+    if (availableStock < threshold / 2) return { label: 'Crítico', color: 'bg-danger' }
+    return { label: 'Bajo', color: 'bg-[var(--state-waiting)]' }
   }
 
   const handlePrintPDF = () => {
@@ -249,7 +249,7 @@ export function LowStockDialog({
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${stockType}</td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">
             <span style="
-              background-color: ${status.color === 'bg-red-600' ? '#dc2626' : status.color === 'bg-red-500' ? '#ef4444' : '#f97316'};
+              background-color: ${status.color === 'bg-danger' ? '#dc2626' : status.color === 'bg-danger' ? '#ef4444' : '#f97316'};
               color: white;
               padding: 4px 12px;
               border-radius: 12px;
@@ -400,7 +400,7 @@ export function LowStockDialog({
         <DialogContent className="max-w-2xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="text-red-600" size={24} />
+              <AlertCircle className="text-danger" size={24} />
               Productos con Stock Bajo
             </DialogTitle>
             <DialogDescription>
@@ -410,14 +410,14 @@ export function LowStockDialog({
 
           {loading ? (
             <div className="py-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-2"></div>
-              <p className="text-sm text-gray-600">Cargando productos...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--danger)] mx-auto mb-2"></div>
+              <p className="text-sm text-ink-secondary">Cargando productos...</p>
             </div>
           ) : lowStockProducts.length === 0 ? (
             <div className="py-8 text-center">
-              <CheckCircle className="mx-auto text-green-600 mb-2" size={48} />
-              <p className="text-gray-600">No hay productos con stock bajo</p>
-              <p className="text-sm text-gray-500 mt-1">Todos los productos tienen inventario suficiente</p>
+              <CheckCircle className="mx-auto text-success mb-2" size={48} />
+              <p className="text-ink-secondary">No hay productos con stock bajo</p>
+              <p className="text-sm text-ink-tertiary mt-1">Todos los productos tienen inventario suficiente</p>
             </div>
           ) : (
             <ScrollArea className="max-h-[50vh]">
@@ -427,17 +427,17 @@ export function LowStockDialog({
                   return (
                     <div
                       key={product.id}
-                      className="flex items-start gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex items-start gap-4 p-4 border rounded-lg hover:bg-sunken transition-colors"
                     >
-                      <div className="p-2 bg-blue-50 rounded-lg">
-                        <Package className="text-blue-600" size={24} />
+                      <div className="p-2 bg-[var(--accent-subtle)] rounded-lg">
+                        <Package className="text-primary" size={24} />
                       </div>
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
                             <h4 className="font-medium truncate">{product.name}</h4>
-                            <p className="text-sm text-gray-600">{product.category}</p>
+                            <p className="text-sm text-ink-secondary">{product.category}</p>
                           </div>
                           <Badge className={`${status.color} text-white`}>
                             {status.label}
@@ -446,22 +446,22 @@ export function LowStockDialog({
                         
                         <div className="flex items-center gap-4 mt-2 text-sm">
                           <div>
-                            <span className="text-gray-600">Stock disponible: </span>
+                            <span className="text-ink-secondary">Stock disponible: </span>
                             <span className={`font-medium ${
                               getAvailableStock(product) === 0 
-                                ? 'text-red-600' 
-                                : 'text-orange-600'
+                                ? 'text-danger' 
+                                : 'text-[var(--state-waiting)]'
                             }`}>
                               {getAvailableStock(product)} {product.trackByUnit ? 'unidades' : product.hasVariants ? 'total' : 'disponibles'}
                             </span>
                           </div>
                           {product.hasVariants && product.variants && product.variants.length > 0 && (
                             <div>
-                              <span className="text-gray-600">{product.variants.length} variantes</span>
+                              <span className="text-ink-secondary">{product.variants.length} variantes</span>
                             </div>
                           )}
                           <div>
-                            <span className="text-gray-600">Precio: </span>
+                            <span className="text-ink-secondary">Precio: </span>
                             <span className="font-medium">${product.price.toLocaleString()}</span>
                           </div>
                         </div>
@@ -471,7 +471,7 @@ export function LowStockDialog({
                         variant="ghost"
                         size="icon"
                         onClick={() => setProductToHide(product)}
-                        className="text-gray-400 hover:text-red-600"
+                        className="text-ink-tertiary hover:text-danger"
                         title="No reponer este producto"
                       >
                         <X size={18} />
@@ -484,7 +484,7 @@ export function LowStockDialog({
           )}
 
           <div className="flex justify-between items-center pt-4 border-t">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-ink-secondary">
               Total: {lowStockProducts.length} {lowStockProducts.length === 1 ? 'producto' : 'productos'}
             </p>
             <div className="flex gap-2">
@@ -514,7 +514,7 @@ export function LowStockDialog({
               Esto ocultará la alerta para <strong>"{productToHide?.name}"</strong>.
               El producto seguirá en tu inventario pero no aparecerá en las alertas de stock bajo.
               <br /><br />
-              <span className="text-orange-600">
+              <span className="text-[var(--state-waiting)]">
                 Nota: Puedes volver a activar la alerta editando el producto.
               </span>
             </AlertDialogDescription>
@@ -523,7 +523,7 @@ export function LowStockDialog({
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => productToHide && handleHideAlert(productToHide)}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-danger hover:bg-danger"
             >
               Ocultar alerta
             </AlertDialogAction>

@@ -72,7 +72,7 @@ export function PWAUpdatePrompt() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-in slide-in-from-bottom-5 duration-500">
-      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg shadow-2xl p-4 border border-green-500">
+      <div className="bg-success text-on-success rounded-lg shadow-2xl p-4 border border-[var(--success)]">
         <button
           onClick={handleDismiss}
           className="absolute top-2 right-2 text-white/80 hover:text-white transition-colors"
@@ -96,7 +96,7 @@ export function PWAUpdatePrompt() {
         <div className="flex gap-2 ml-11">
           <Button
             onClick={handleUpdate}
-            className="flex-1 bg-white text-green-600 hover:bg-white/90"
+            className="flex-1 bg-white text-success hover:bg-white/90"
           >
             <RefreshCw size={16} className="mr-2" />
             Actualizar Ahora

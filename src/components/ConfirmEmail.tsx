@@ -144,10 +144,10 @@ export function ConfirmEmail({ onConfirmSuccess }: ConfirmEmailProps) {
         {status === 'success' && (
           <Card className="border-border bg-card shadow-xl text-center animate-in fade-in zoom-in-95 duration-300">
             <CardHeader className="space-y-3 pb-4">
-              <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center shadow-inner">
+              <div className="mx-auto w-16 h-16 bg-[color-mix(in_srgb,var(--success)_10%,transparent)] text-success rounded-2xl flex items-center justify-center shadow-inner">
                 <CheckCircle2 size={36} />
               </div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold mx-auto">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[color-mix(in_srgb,var(--success)_10%,transparent)] text-success text-xs font-semibold mx-auto">
                 <Sparkles size={13} />
                 <span>Cuenta Verificada y Activa</span>
               </div>
@@ -189,7 +189,7 @@ export function ConfirmEmail({ onConfirmSuccess }: ConfirmEmailProps) {
         {status === 'error' && (
           <Card className="border-border bg-card shadow-xl text-center">
             <CardHeader className="space-y-3 pb-4">
-              <div className="mx-auto w-16 h-16 bg-red-500/10 text-red-600 dark:text-red-400 rounded-2xl flex items-center justify-center">
+              <div className="mx-auto w-16 h-16 bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-danger rounded-2xl flex items-center justify-center">
                 <AlertCircle size={36} />
               </div>
               <CardTitle className="text-xl font-bold tracking-tight text-foreground">

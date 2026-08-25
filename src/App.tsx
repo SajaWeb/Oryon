@@ -381,7 +381,7 @@ export default function App() {
     if (!hasAccess(currentView)) {
       return (
         <div className="p-8">
-          <Alert className="bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-400">
+          <Alert className="bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border-[color-mix(in_srgb,var(--danger)_30%,transparent)] text-danger">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               No tienes acceso a esta sección. Por favor contacta al administrador.

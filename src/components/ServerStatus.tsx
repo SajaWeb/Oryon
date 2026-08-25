@@ -50,9 +50,9 @@ export function ServerStatus({ accessToken }: ServerStatusProps) {
 
   if (status === 'checking') {
     return (
-      <Alert className="bg-blue-50 border-blue-200">
-        <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
-        <AlertDescription className="text-blue-800">
+      <Alert className="bg-[var(--accent-subtle)] border-[var(--accent-subtle-border)]">
+        <RefreshCw className="h-4 w-4 text-primary animate-spin" />
+        <AlertDescription className="text-primary">
           Verificando conexión con el servidor...
         </AlertDescription>
       </Alert>
@@ -83,9 +83,9 @@ export function ServerStatus({ accessToken }: ServerStatusProps) {
   }
 
   return (
-    <Alert className="bg-green-50 border-green-200">
-      <CheckCircle2 className="h-4 w-4 text-green-600" />
-      <AlertDescription className="text-green-800">
+    <Alert className="bg-[var(--success-subtle)] border-[color-mix(in_srgb,var(--success)_30%,transparent)]">
+      <CheckCircle2 className="h-4 w-4 text-success" />
+      <AlertDescription className="text-success">
         Conectado al servidor correctamente
       </AlertDescription>
     </Alert>

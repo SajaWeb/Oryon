@@ -65,10 +65,10 @@ export function GoogleSetup({ accessToken, userEmail, userName, onSetupComplete 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
+          <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center">
             <Wrench className="text-white" size={32} />
           </div>
           <CardTitle className="text-3xl">¡Bienvenido a Oryon App!</CardTitle>
@@ -91,7 +91,7 @@ export function GoogleSetup({ accessToken, userEmail, userName, onSetupComplete 
                 type="email"
                 value={userEmail}
                 disabled
-                className="bg-gray-50"
+                className="bg-sunken"
               />
             </div>
             
@@ -119,8 +119,8 @@ export function GoogleSetup({ accessToken, userEmail, userName, onSetupComplete 
               />
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
+            <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-3">
+              <p className="text-sm text-primary">
                 🎉 Obtendrás 7 días de prueba gratis para explorar todas las funcionalidades
               </p>
             </div>

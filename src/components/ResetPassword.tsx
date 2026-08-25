@@ -158,7 +158,7 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
       <div className="min-h-screen bg-background flex items-center justify-center p-4 sm:p-6">
         <Card className="w-full max-w-md border-border bg-card shadow-lg">
           <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto w-14 h-14 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center">
+            <div className="mx-auto w-14 h-14 bg-[color-mix(in_srgb,var(--success)_10%,transparent)] text-success rounded-full flex items-center justify-center">
               <CheckCircle2 size={32} />
             </div>
             <CardTitle className="text-xl font-bold tracking-tight">¡Contraseña Restablecida!</CardTitle>

@@ -8,16 +8,8 @@ export const statusLabels: Record<string, string> = {
   cancelled: 'Cancelado'
 }
 
-export const statusColors: Record<string, string> = {
-  received: 'bg-blue-100 text-blue-800',
-  diagnosing: 'bg-yellow-100 text-yellow-800',
-  waiting_parts: 'bg-orange-100 text-orange-800',
-  repairing: 'bg-purple-100 text-purple-800',
-  completed: 'bg-green-100 text-green-800',
-  delivered: 'bg-gray-100 text-gray-800',
-  cancelled: 'bg-red-100 text-red-800'
-}
-
+// El color de cada estado vive en el design system (StatusBadge / OT_STATES):
+// tener aquí un mapa paralelo de clases era justo lo que el sistema prohíbe.
 export const deviceTypes = [
   { value: 'celular', label: 'Celular' },
   { value: 'tablet', label: 'Tablet' },

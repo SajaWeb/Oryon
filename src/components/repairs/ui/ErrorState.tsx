@@ -28,9 +28,9 @@ export function ErrorState({ error, accessToken }: ErrorStateProps) {
         </AlertDescription>
       </Alert>
 
-      <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+      <div className="bg-sunken p-6 rounded-lg border border-line">
         <h3 className="font-medium mb-3">Posibles soluciones:</h3>
-        <ul className="space-y-2 text-sm text-gray-600">
+        <ul className="space-y-2 text-sm text-ink-secondary">
           <li>• Verifica que el Edge Function esté desplegado en Supabase</li>
           <li>• Revisa tu conexión a internet</li>
           <li>• Asegúrate de que las credenciales de Supabase sean correctas</li>

@@ -72,7 +72,7 @@ export function DebugPanel() {
     return (
       <button
         onClick={() => setIsVisible(true)}
-        className="fixed bottom-4 right-4 bg-purple-600 text-white p-3 rounded-full shadow-lg z-50 hover:bg-purple-700 transition-colors"
+        className="fixed bottom-4 right-4 bg-[var(--state-diagnosis)] text-white p-3 rounded-full shadow-lg z-50 hover:bg-[var(--state-diagnosis)] transition-colors"
         aria-label="Mostrar panel de debug"
       >
         <Eye className="h-5 w-5" />
@@ -82,12 +82,12 @@ export function DebugPanel() {
 
   return (
     <div className="fixed bottom-4 right-4 w-96 max-w-[calc(100vw-2rem)] z-50">
-      <Card className="bg-purple-900 text-white border-purple-700 shadow-2xl">
+      <Card className="bg-[color-mix(in_srgb,var(--state-diagnosis)_12%,transparent)] text-white border-[color-mix(in_srgb,var(--state-diagnosis)_30%,transparent)] shadow-2xl">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-white text-sm">Debug Panel - Routing</CardTitle>
-              <CardDescription className="text-purple-200 text-xs">
+              <CardDescription className="text-[var(--state-diagnosis)] text-xs">
                 Panel de diagnóstico para QR móviles
               </CardDescription>
             </div>
@@ -95,7 +95,7 @@ export function DebugPanel() {
               onClick={() => setIsVisible(false)}
               variant="ghost"
               size="sm"
-              className="text-white hover:text-purple-200 hover:bg-purple-800"
+              className="text-white hover:text-[var(--state-diagnosis)] hover:bg-[var(--state-diagnosis)]"
             >
               <EyeOff className="h-4 w-4" />
             </Button>
@@ -103,27 +103,27 @@ export function DebugPanel() {
         </CardHeader>
         <CardContent className="space-y-3 text-xs">
           {/* Current Route Info */}
-          <div className="bg-purple-800 rounded p-2 space-y-1">
+          <div className="bg-[var(--state-diagnosis)] rounded p-2 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-purple-200">Hash:</span>
-              <Badge variant="outline" className="text-white border-purple-500 font-mono text-xs">
+              <span className="text-[var(--state-diagnosis)]">Hash:</span>
+              <Badge variant="outline" className="text-white border-[var(--state-diagnosis)] font-mono text-xs">
                 {routeInfo.hash || '(vacío)'}
               </Badge>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-purple-200">Pathname:</span>
-              <Badge variant="outline" className="text-white border-purple-500 font-mono text-xs">
+              <span className="text-[var(--state-diagnosis)]">Pathname:</span>
+              <Badge variant="outline" className="text-white border-[var(--state-diagnosis)] font-mono text-xs">
                 {routeInfo.pathname}
               </Badge>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-purple-200">SessionStorage:</span>
+              <span className="text-[var(--state-diagnosis)]">SessionStorage:</span>
               <Badge 
                 variant="outline" 
                 className={`text-xs font-mono ${
                   sessionHash && sessionHash.startsWith('#/tracking') 
-                    ? 'border-green-500 text-green-200' 
-                    : 'border-purple-500 text-white'
+                    ? 'border-[var(--success)] text-success' 
+                    : 'border-[var(--state-diagnosis)] text-white'
                 }`}
               >
                 {sessionHash || '(vacío)'}
@@ -133,13 +133,13 @@ export function DebugPanel() {
 
           {/* Detection Status */}
           <div className="space-y-1">
-            <div className="text-purple-200 mb-1">Estado de Detección:</div>
+            <div className="text-[var(--state-diagnosis)] mb-1">Estado de Detección:</div>
             <div className="flex gap-2 flex-wrap">
               <Badge 
                 className={
                   routeInfo.hash.includes('/tracking') 
-                    ? 'bg-green-600 hover:bg-green-700' 
-                    : 'bg-gray-600 hover:bg-gray-700'
+                    ? 'bg-success hover:bg-success' 
+                    : 'bg-[var(--alu-500)] hover:bg-surface-raised'
                 }
               >
                 Tracking: {routeInfo.hash.includes('/tracking') ? '✓' : '✗'}
@@ -147,8 +147,8 @@ export function DebugPanel() {
               <Badge 
                 className={
                   routeInfo.hash.includes('/reset-password') 
-                    ? 'bg-green-600 hover:bg-green-700' 
-                    : 'bg-gray-600 hover:bg-gray-700'
+                    ? 'bg-success hover:bg-success' 
+                    : 'bg-[var(--alu-500)] hover:bg-surface-raised'
                 }
               >
                 Reset PWD: {routeInfo.hash.includes('/reset-password') ? '✓' : '✗'}
@@ -157,28 +157,28 @@ export function DebugPanel() {
           </div>
 
           {/* Navigation Info */}
-          <div className="bg-purple-800 rounded p-2 space-y-1">
-            <div className="text-purple-200 mb-1">Navegación:</div>
+          <div className="bg-[var(--state-diagnosis)] rounded p-2 space-y-1">
+            <div className="text-[var(--state-diagnosis)] mb-1">Navegación:</div>
             <div className="text-xs font-mono text-white break-all">
               {routeInfo.href}
             </div>
-            <div className="text-xs text-purple-300">
+            <div className="text-xs text-[var(--state-diagnosis)]">
               Actualizado: {new Date(routeInfo.timestamp).toLocaleTimeString()}
             </div>
           </div>
 
           {/* Logs */}
           <div className="space-y-1">
-            <div className="text-purple-200 text-xs">Historial (últimos cambios):</div>
-            <div className="bg-purple-950 rounded p-2 max-h-32 overflow-y-auto text-xs font-mono">
+            <div className="text-[var(--state-diagnosis)] text-xs">Historial (últimos cambios):</div>
+            <div className="bg-[color-mix(in_srgb,var(--state-diagnosis)_12%,transparent)] rounded p-2 max-h-32 overflow-y-auto text-xs font-mono">
               {logs.length > 0 ? (
                 logs.map((log, idx) => (
-                  <div key={idx} className="text-purple-100 mb-1">
+                  <div key={idx} className="text-[var(--state-diagnosis)] mb-1">
                     {log}
                   </div>
                 ))
               ) : (
-                <div className="text-purple-400 italic">No hay cambios aún...</div>
+                <div className="text-[var(--state-diagnosis)] italic">No hay cambios aún...</div>
               )}
             </div>
           </div>
@@ -204,14 +204,14 @@ export function DebugPanel() {
               onClick={() => setLogs([])}
               size="sm"
               variant="outline"
-              className="flex-1 text-xs text-white border-purple-500 hover:bg-purple-800"
+              className="flex-1 text-xs text-white border-[var(--state-diagnosis)] hover:bg-[var(--state-diagnosis)]"
             >
               Limpiar Logs
             </Button>
           </div>
 
           {/* Instructions */}
-          <div className="bg-purple-950 rounded p-2 text-xs text-purple-200">
+          <div className="bg-[color-mix(in_srgb,var(--state-diagnosis)_12%,transparent)] rounded p-2 text-xs text-[var(--state-diagnosis)]">
             <strong className="text-white">Instrucciones:</strong>
             <ul className="list-disc list-inside mt-1 space-y-0.5">
               <li>Escanea un QR de tracking</li>

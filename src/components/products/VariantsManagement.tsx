@@ -56,8 +56,8 @@ export function VariantsManagement({
     <div className="space-y-4 md:space-y-6">
       {/* Permission Notice for Read-Only Mode */}
       {!canEdit && (
-        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3 md:p-4">
-          <p className="text-sm text-amber-800 dark:text-amber-200">
+        <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-3 md:p-4">
+          <p className="text-sm text-warning">
             ⚠️ <strong>Solo lectura:</strong> Solo puedes gestionar variantes de productos de tu sucursal asignada.
           </p>
         </div>
@@ -65,7 +65,7 @@ export function VariantsManagement({
 
       {/* Add Variant Form */}
       {canEdit && (
-        <div className="border rounded-lg p-3 md:p-4 bg-blue-50 dark:bg-blue-950">
+        <div className="border rounded-lg p-3 md:p-4 bg-[var(--accent-subtle)]">
         <h4 className="mb-3 text-sm md:text-base font-semibold">Agregar Nueva Variante</h4>
         <form onSubmit={handleAddVariant} className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
@@ -111,7 +111,7 @@ export function VariantsManagement({
             {product.variants.map((variant) => (
               <div
                 key={variant.id}
-                className="border rounded-lg p-4 bg-white dark:bg-gray-800 flex items-center justify-between"
+                className="border rounded-lg p-4 bg-surface-raised flex items-center justify-between"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
@@ -119,7 +119,7 @@ export function VariantsManagement({
                       {variant.name}
                     </Badge>
                     {variant.sku && (
-                      <span className="text-xs text-gray-500 font-mono">
+                      <span className="text-xs text-ink-tertiary font-mono">
                         SKU: {variant.sku}
                       </span>
                     )}
@@ -128,7 +128,7 @@ export function VariantsManagement({
                   {/* Stock Management */}
                   <div className="flex items-center gap-4 flex-wrap">
                     <div className="flex flex-col gap-1">
-                      <Label className="text-xs text-gray-500">Stock Actual</Label>
+                      <Label className="text-xs text-ink-tertiary">Stock Actual</Label>
                       <Badge
                         variant={variant.stock > 0 ? 'default' : 'destructive'}
                         className="text-xs w-fit"
@@ -140,7 +140,7 @@ export function VariantsManagement({
                     {/* Add Stock Input - Available for Asesores and Admins */}
                     {canEdit && (
                       <div className="flex items-center gap-2">
-                        <Label htmlFor={`add-stock-${variant.id}`} className="text-xs text-gray-500">
+                        <Label htmlFor={`add-stock-${variant.id}`} className="text-xs text-ink-tertiary">
                           Agregar:
                         </Label>
                         <Input
@@ -188,7 +188,7 @@ export function VariantsManagement({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 ml-3 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                    className="h-9 w-9 ml-3 text-danger hover:bg-[var(--danger-subtle)]"
                     onClick={() => handleDeleteVariant(variant.id)}
                     disabled={isLoading}
                   >
@@ -200,7 +200,7 @@ export function VariantsManagement({
 
             {/* Total Stock Summary */}
             <div className="border-t pt-3 mt-4">
-              <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="flex justify-between items-center p-3 bg-sunken rounded-lg">
                 <span className="font-semibold">Stock Total:</span>
                 <Badge variant="secondary" className="text-base">
                   {totalStock} unidades
@@ -209,7 +209,7 @@ export function VariantsManagement({
             </div>
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500 border rounded-lg text-sm">
+          <div className="text-center py-8 text-ink-tertiary border rounded-lg text-sm">
             No hay variantes registradas. Agrega la primera variante arriba.
           </div>
         )}
@@ -217,8 +217,8 @@ export function VariantsManagement({
 
       {/* Instructions */}
       {canEdit && product.variants && product.variants.length > 0 && (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border">
-          <p className="text-xs text-gray-600 dark:text-gray-400">
+        <div className="bg-sunken rounded-lg p-3 border">
+          <p className="text-xs text-ink-secondary">
             💡 <strong>Tip:</strong> Ingresa la cantidad y presiona Enter o haz clic en "Añadir" para incrementar el stock de la variante.
           </p>
         </div>

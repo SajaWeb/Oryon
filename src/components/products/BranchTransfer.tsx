@@ -111,17 +111,17 @@ export function BranchTransfer({
   return (
     <div className="space-y-4">
       {/* Current Stock Info */}
-      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+      <div className="bg-sunken rounded-lg p-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Sucursal Actual</p>
+            <p className="text-sm text-ink-secondary">Sucursal Actual</p>
             <p className="font-semibold">{currentBranch?.name}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Stock Disponible</p>
-            <p className="text-xl font-semibold text-blue-600">{displayStock}</p>
+            <p className="text-sm text-ink-secondary">Stock Disponible</p>
+            <p className="text-xl font-semibold text-primary">{displayStock}</p>
             {product.hasVariants && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-ink-tertiary">
                 {variants.length} variante{variants.length !== 1 ? 's' : ''}
               </p>
             )}
@@ -131,24 +131,24 @@ export function BranchTransfer({
 
       {/* Variants Info (if product has variants) */}
       {product.hasVariants && variants.length > 0 && (
-        <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4">
+        <div className="bg-[var(--accent-subtle)] rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Package className="h-4 w-4 text-blue-600" />
-            <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+            <Package className="h-4 w-4 text-primary" />
+            <h4 className="text-sm font-semibold text-primary">
               Variantes Disponibles
             </h4>
           </div>
           <div className="space-y-1">
             {variants.map((variant) => (
               <div key={variant.id} className="flex justify-between items-center text-sm">
-                <span className="text-gray-700 dark:text-gray-300">{variant.name}</span>
-                <span className="font-semibold text-blue-600">
+                <span className="text-ink-secondary">{variant.name}</span>
+                <span className="font-semibold text-primary">
                   {variant.stock || 0} unidades
                 </span>
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+          <p className="text-xs text-ink-secondary mt-2">
             ℹ️ El stock se trasladará automáticamente desde las variantes con disponibilidad
           </p>
         </div>
@@ -183,15 +183,15 @@ export function BranchTransfer({
 
       {/* Transfer Arrow Visual */}
       {transferData.targetBranchId && (
-        <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4">
+        <div className="bg-[var(--accent-subtle)] rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div className="text-center flex-1">
-              <p className="text-xs text-gray-600 dark:text-gray-400">Desde</p>
+              <p className="text-xs text-ink-secondary">Desde</p>
               <p className="font-semibold">{currentBranch?.name}</p>
             </div>
-            <ArrowRight className="text-blue-600 mx-4" size={24} />
+            <ArrowRight className="text-primary mx-4" size={24} />
             <div className="text-center flex-1">
-              <p className="text-xs text-gray-600 dark:text-gray-400">Hacia</p>
+              <p className="text-xs text-ink-secondary">Hacia</p>
               <p className="font-semibold">{targetBranch?.name}</p>
             </div>
           </div>
@@ -211,25 +211,25 @@ export function BranchTransfer({
           placeholder="¿Cuántas unidades?"
           disabled={isLoading || !transferData.targetBranchId}
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-ink-tertiary mt-1">
           Máximo disponible: {displayStock} unidades
         </p>
       </div>
 
       {/* Variant Transfer Preview */}
       {product.hasVariants && variantPreview.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-          <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-2">
+        <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-3">
+          <h4 className="text-sm font-semibold text-warning mb-2">
             📦 Distribución del Traslado por Variante
           </h4>
           <div className="space-y-2">
             {variantPreview.map((item, index) => (
               <div key={index} className="flex justify-between items-center text-xs">
-                <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
+                <span className="text-ink-secondary">{item.name}</span>
                 <div className="flex gap-2 items-center">
-                  <span className="text-red-600 dark:text-red-400">-{item.transferred}</span>
-                  <span className="text-gray-500">→</span>
-                  <span className="text-gray-600 dark:text-gray-400">
+                  <span className="text-danger">-{item.transferred}</span>
+                  <span className="text-ink-tertiary">→</span>
+                  <span className="text-ink-secondary">
                     Quedan: {item.remaining}
                   </span>
                 </div>
@@ -257,15 +257,15 @@ export function BranchTransfer({
         <div className="border-t pt-4">
           <p className="text-sm font-semibold mb-2">Stock después del traslado:</p>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-red-50 dark:bg-red-950 p-3 rounded-lg">
-              <p className="text-xs text-red-600 dark:text-red-400">{currentBranch?.name}</p>
-              <p className="text-lg font-semibold text-red-600">
+            <div className="bg-[var(--danger-subtle)] p-3 rounded-lg">
+              <p className="text-xs text-danger">{currentBranch?.name}</p>
+              <p className="text-lg font-semibold text-danger">
                 {(product.quantity || 0) - parseInt(transferData.quantity)}
               </p>
             </div>
-            <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg">
-              <p className="text-xs text-green-600 dark:text-green-400">{targetBranch?.name}</p>
-              <p className="text-lg font-semibold text-green-600">
+            <div className="bg-[var(--success-subtle)] p-3 rounded-lg">
+              <p className="text-xs text-success">{targetBranch?.name}</p>
+              <p className="text-lg font-semibold text-success">
                 +{transferData.quantity}
               </p>
             </div>
@@ -278,19 +278,19 @@ export function BranchTransfer({
         <div className="border-t pt-4">
           <p className="text-sm font-semibold mb-2">Stock total después del traslado:</p>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-red-50 dark:bg-red-950 p-3 rounded-lg">
-              <p className="text-xs text-red-600 dark:text-red-400">{currentBranch?.name}</p>
-              <p className="text-lg font-semibold text-red-600">
+            <div className="bg-[var(--danger-subtle)] p-3 rounded-lg">
+              <p className="text-xs text-danger">{currentBranch?.name}</p>
+              <p className="text-lg font-semibold text-danger">
                 {totalVariantStock - parseInt(transferData.quantity)}
               </p>
-              <p className="text-xs text-gray-500 mt-1">Stock en variantes</p>
+              <p className="text-xs text-ink-tertiary mt-1">Stock en variantes</p>
             </div>
-            <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg">
-              <p className="text-xs text-green-600 dark:text-green-400">{targetBranch?.name}</p>
-              <p className="text-lg font-semibold text-green-600">
+            <div className="bg-[var(--success-subtle)] p-3 rounded-lg">
+              <p className="text-xs text-success">{targetBranch?.name}</p>
+              <p className="text-lg font-semibold text-success">
                 +{transferData.quantity}
               </p>
-              <p className="text-xs text-gray-500 mt-1">Se crearán/actualizarán variantes</p>
+              <p className="text-xs text-ink-tertiary mt-1">Se crearán/actualizarán variantes</p>
             </div>
           </div>
         </div>
@@ -317,8 +317,8 @@ export function BranchTransfer({
       </div>
 
       {/* Warning */}
-      <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-        <p className="text-xs text-yellow-800 dark:text-yellow-200">
+      <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-3">
+        <p className="text-xs text-warning">
           ⚠️ <strong>Importante:</strong> El traslado moverá el inventario de manera permanente.
           Esta acción quedará registrada en el historial.
         </p>

@@ -1026,7 +1026,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
             </DialogHeader>
             <div className="space-y-6">
               {/* Customer Search and Selection */}
-              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-4">
                 <div className="flex justify-between items-center mb-3">
                   <Label>Información del Cliente *</Label>
                   {selectedCustomerId && (
@@ -1057,7 +1057,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                             placeholder="Buscar por nombre, teléfono o identificación..."
                           />
                           {customerSearchOpen && customerSearch && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            <div className="absolute z-10 w-full mt-1 bg-popover border border-line rounded-lg shadow-lg max-h-60 overflow-y-auto">
                               {customers.filter(c =>
                                 c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
                                 c.phone?.includes(customerSearch) ||
@@ -1074,17 +1074,17 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                                   .map(customer => (
                                     <div
                                       key={customer.id}
-                                      className="p-3 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                                      className="p-3 hover:bg-sunken cursor-pointer border-b last:border-b-0"
                                       onClick={() => handleSelectCustomer(customer)}
                                     >
                                       <p className="font-semibold">{customer.name}</p>
-                                      <p className="text-sm text-gray-600">
+                                      <p className="text-sm text-ink-secondary">
                                         {customer.identificationType} {customer.identificationNumber} - {customer.phone}
                                       </p>
                                     </div>
                                   ))
                               ) : (
-                                <div className="p-3 text-center text-gray-500">
+                                <div className="p-3 text-center text-ink-tertiary">
                                   No se encontraron clientes
                                 </div>
                               )}
@@ -1094,9 +1094,9 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 border-t border-gray-300"></div>
-                        <span className="text-sm text-gray-600">o</span>
-                        <div className="flex-1 border-t border-gray-300"></div>
+                        <div className="flex-1 border-t border-line"></div>
+                        <span className="text-sm text-ink-secondary">o</span>
+                        <div className="flex-1 border-t border-line"></div>
                       </div>
 
                       <Button
@@ -1113,16 +1113,16 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                     </div>
                   </>
                 ) : (
-                  <div className="space-y-2 bg-white p-3 rounded-lg">
+                  <div className="space-y-2 bg-sunken p-3 rounded-lg">
                     <p><strong>Cliente:</strong> {customerName}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-ink-secondary">
                       {customerIdType} {customerIdNumber}
                     </p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-ink-secondary">
                       Tel: {customerPhone} | Email: {customerEmail}
                     </p>
                     {customerAddress && (
-                      <p className="text-sm text-gray-600">Dirección: {customerAddress}</p>
+                      <p className="text-sm text-ink-secondary">Dirección: {customerAddress}</p>
                     )}
                   </div>
                 )}
@@ -1130,7 +1130,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
 
               {/* Only show if customer is selected */}
               {!selectedCustomerId && (
-                <div className="text-center text-sm text-gray-500 italic">
+                <div className="text-center text-sm text-ink-tertiary italic">
                   Por favor selecciona o crea un cliente para continuar
                 </div>
               )}
@@ -1168,7 +1168,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
 
               {/* Credit Days - Only show if payment method is Crédito */}
               {paymentMethod === 'Crédito' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-4">
                   <Label htmlFor="creditDays">Días de Crédito</Label>
                   <Input
                     id="creditDays"
@@ -1179,17 +1179,17 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                     min="1"
                     className="mt-2"
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-ink-secondary mt-1">
                     {creditDays > 0 && `Fecha de vencimiento: ${new Date(Date.now() + creditDays * 24 * 60 * 60 * 1000).toLocaleDateString('es-CO')}`}
                   </p>
                 </div>
               )}
 
               {/* Branch Selector */}
-              <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div className="bg-[var(--success-subtle)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] rounded-lg p-4">
                 <Label htmlFor="branchSelect">Sucursal de Venta *</Label>
                 {userRole === 'asesor' && branches.length === 1 && (
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mb-2 mt-1">
+                  <p className="text-xs text-primary mb-2 mt-1">
                     📍 Tu sucursal asignada: {branches[0].name}
                   </p>
                 )}
@@ -1205,7 +1205,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                <p className="text-xs text-ink-secondary mt-1">
                   Solo se mostrarán productos de la sucursal seleccionada
                   {userRole === 'asesor' && ' (solo tus sucursales asignadas)'}
                 </p>
@@ -1216,8 +1216,8 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                 <h4 className="mb-3">Agregar Productos</h4>
                 
                 {productsForSelectedBranch.length === 0 && selectedBranchId && (
-                  <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-3">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-4 mb-3">
+                    <p className="text-sm text-warning">
                       <span className="block mb-1">⚠️ No hay productos disponibles en esta sucursal</span>
                       <span className="text-xs">
                         Selecciona otra sucursal o agrega productos a {branches.find(b => b.id === selectedBranchId)?.name}
@@ -1227,22 +1227,22 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                 )}
                 
                 {!selectedBranchId && (
-                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-3">
-                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                  <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-4 mb-3">
+                    <p className="text-sm text-primary">
                       ℹ️ Por favor selecciona una sucursal primero
                     </p>
                   </div>
                 )}
                 
                 {products.length === 0 && selectedBranchId && productsForSelectedBranch.length === 0 && (
-                  <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-3">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-4 mb-3">
+                    <p className="text-sm text-warning">
                       <span className="block mb-1">⚠️ No hay productos disponibles para venta</span>
                       <span className="text-xs">
                         Asegúrate de:
                       </span>
                     </p>
-                    <ul className="text-xs text-yellow-700 dark:text-yellow-300 mt-2 ml-4 list-disc space-y-1">
+                    <ul className="text-xs text-warning mt-2 ml-4 list-disc space-y-1">
                       <li>Haber creado productos en el módulo de <span className="font-semibold">Productos</span></li>
                       <li>Si el producto se maneja por unidades: haber agregado <span className="font-semibold">unidades</span> con IMEI/Serial</li>
                       <li>Si el producto se maneja por cantidad: tener <span className="font-semibold">stock disponible</span></li>
@@ -1382,7 +1382,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                   <h4 className="mb-3">Carrito de Compras</h4>
                   <div className="space-y-2">
                     {cart.map((item, idx) => (
-                      <div key={`${item.productId}-${item.variantId || ''}-${idx}`} className="flex justify-between items-start p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                      <div key={`${item.productId}-${item.variantId || ''}-${idx}`} className="flex justify-between items-start p-2 bg-sunken rounded">
                         <div className="flex-1">
                           <p>{item.productName}</p>
                           {item.variantName && (
@@ -1390,12 +1390,12 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                               {item.variantName}
                             </Badge>
                           )}
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <p className="text-sm text-ink-secondary">
                             Cantidad: {item.quantity} x ${item.price.toFixed(2)} = ${(item.price * item.quantity).toFixed(2)}
                           </p>
                           {item.unitDetails && item.unitDetails.length > 0 && (
                             <div className="mt-1">
-                              <p className="text-xs text-gray-500">Unidades:</p>
+                              <p className="text-xs text-ink-tertiary">Unidades:</p>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {item.unitDetails.map((detail, idx) => (
                                   <Badge key={idx} variant="outline" className="text-xs">
@@ -1419,7 +1419,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                   <div className="mt-4 pt-4 border-t">
                     <div className="flex justify-between text-xl">
                       <span>Total:</span>
-                      <span className="text-green-600">${calculateTotal().toFixed(2)}</span>
+                      <span className="text-success">${calculateTotal().toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -1454,7 +1454,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
               <>
                 {/* Search for units */}
                 <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
                   <Input
                     placeholder="Buscar por IMEI o Serial..."
                     className="pl-10"
@@ -1476,8 +1476,8 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                       key={unit.id}
                       className={`flex items-center justify-between p-3 sm:p-4 border rounded-lg cursor-pointer transition-colors ${
                         selectedUnits.includes(unit.id) 
-                          ? 'bg-blue-50 dark:bg-blue-950 border-blue-500 dark:border-blue-600' 
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                          ? 'bg-[var(--accent-subtle)] border-[var(--accent-fill)]' 
+                          : 'hover:bg-sunken'
                       }`}
                       onClick={() => toggleUnitSelection(unit.id)}
                     >
@@ -1489,23 +1489,23 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                         <div className="flex-1 min-w-0">
                           {unit.imei && (
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                              <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">IMEI:</span>
+                              <span className="text-xs sm:text-sm text-ink-secondary">IMEI:</span>
                               <span className="font-mono text-sm sm:text-base break-all">{unit.imei}</span>
                             </div>
                           )}
                           {unit.serialNumber && (
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                              <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Serial:</span>
+                              <span className="text-xs sm:text-sm text-ink-secondary">Serial:</span>
                               <span className="font-mono text-sm sm:text-base break-all">{unit.serialNumber}</span>
                             </div>
                           )}
                           {!unit.imei && !unit.serialNumber && (
-                            <p className="text-sm text-gray-500">Unidad #{unit.id}</p>
+                            <p className="text-sm text-ink-tertiary">Unidad #{unit.id}</p>
                           )}
                         </div>
                       </div>
                       {selectedUnits.includes(unit.id) && (
-                        <Check size={20} className="text-blue-600 flex-shrink-0" />
+                        <Check size={20} className="text-primary flex-shrink-0" />
                       )}
                     </div>
                   ))}
@@ -1517,13 +1517,13 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                       unit.serialNumber?.toLowerCase().includes(searchLower)
                     )
                   }).length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
+                    <div className="text-center py-8 text-ink-tertiary">
                       No se encontraron unidades con ese IMEI o Serial
                     </div>
                   )}
                 </div>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-ink-secondary">
                     {selectedUnits.length} unidad{selectedUnits.length !== 1 ? 'es' : ''} seleccionada{selectedUnits.length !== 1 ? 's' : ''}
                   </p>
                   <div className="flex gap-2">
@@ -1541,7 +1541,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                 </div>
               </>
             ) : (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-ink-tertiary">
                 No hay unidades disponibles para este producto
               </div>
             )}
@@ -1567,8 +1567,8 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                       key={variant.id}
                       className={`flex items-center justify-between p-3 sm:p-4 border rounded-lg cursor-pointer transition-colors ${
                         selectedVariantId === variant.id 
-                          ? 'bg-blue-50 dark:bg-blue-950 border-blue-500 dark:border-blue-600' 
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                          ? 'bg-[var(--accent-subtle)] border-[var(--accent-fill)]' 
+                          : 'hover:bg-sunken'
                       }`}
                       onClick={() => setSelectedVariantId(variant.id)}
                     >
@@ -1576,8 +1576,8 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                         <div className="flex items-center gap-3">
                           <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                             selectedVariantId === variant.id 
-                              ? 'border-blue-600 bg-blue-600' 
-                              : 'border-gray-300'
+                              ? 'border-[var(--accent-fill)] bg-primary' 
+                              : 'border-line'
                           }`}>
                             {selectedVariantId === variant.id && (
                               <Check size={14} className="text-white" />
@@ -1586,7 +1586,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                           <div>
                             <p className="font-medium text-sm sm:text-base">{variant.name}</p>
                             {variant.sku && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400">SKU: {variant.sku}</p>
+                              <p className="text-xs text-ink-tertiary">SKU: {variant.sku}</p>
                             )}
                           </div>
                         </div>
@@ -1601,7 +1601,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                   {selectedProduct.variants.filter(v => v.stock === 0).length > 0 && (
                     <>
                       <div className="pt-2">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Variantes sin stock:</p>
+                        <p className="text-xs text-ink-tertiary">Variantes sin stock:</p>
                       </div>
                       {selectedProduct.variants.filter(v => v.stock === 0).map(variant => (
                         <div
@@ -1610,11 +1610,11 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                         >
                           <div className="flex-1">
                             <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full border-2 border-gray-300"></div>
+                              <div className="w-5 h-5 rounded-full border-2 border-line"></div>
                               <div>
                                 <p className="font-medium text-sm sm:text-base">{variant.name}</p>
                                 {variant.sku && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">SKU: {variant.sku}</p>
+                                  <p className="text-xs text-ink-tertiary">SKU: {variant.sku}</p>
                                 )}
                               </div>
                             </div>
@@ -1663,14 +1663,14 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                         +
                       </Button>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-ink-tertiary">
                       Máximo disponible: {selectedProduct.variants.find(v => v.id === selectedVariantId)?.stock}
                     </p>
                   </div>
                 )}
 
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-ink-secondary">
                     {selectedVariantId ? (
                       <>
                         <span className="font-medium">
@@ -1694,7 +1694,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                 </div>
               </>
             ) : (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-ink-tertiary">
                 No hay variantes disponibles para este producto
               </div>
             )}

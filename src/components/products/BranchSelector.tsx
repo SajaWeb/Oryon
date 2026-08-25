@@ -29,7 +29,7 @@ export function BranchSelector({
   return (
     <div>
       <Label htmlFor="branchId">
-        {label} {required && <span className="text-red-500">*</span>}
+        {label} {required && <span className="text-danger">*</span>}
       </Label>
       <Select
         value={value}
@@ -49,12 +49,12 @@ export function BranchSelector({
         </SelectContent>
       </Select>
       {helperText && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <p className="text-xs text-ink-tertiary mt-1">
           {helperText}
         </p>
       )}
       {branches.length === 0 && (
-        <p className="text-xs text-red-500 mt-1">
+        <p className="text-xs text-danger mt-1">
           ⚠️ No tienes sucursales creadas. Crea una sucursal primero.
         </p>
       )}

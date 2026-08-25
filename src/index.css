@@ -74,6 +74,9 @@
   --color-ink-secondary: var(--text-secondary);
   --color-ink-tertiary: var(--text-tertiary);
   --color-on-accent: var(--text-on-accent);
+  --color-on-success: var(--text-on-success);
+  --color-on-warning: var(--text-on-warning);
+  --color-on-danger: var(--text-on-danger);
 
   --color-success: var(--success);
   --color-warning: var(--warning);
@@ -140,18 +143,19 @@
   --color-alu-950: #0b0d0e;
 
   /* -------------------------------------------------------------------------
-     CAPA DE RETINTE — el movimiento de mayor apalancamiento del re-skin.
+     CAPA DE RETINTE — red de seguridad.
 
-     Las pantallas heredadas usan 2.092 utilidades de color hardcodeadas
-     repartidas en 69 archivos. En Tailwind v4 las rampas por defecto son
-     variables de tema sobreescribibles, así que retintarlas pone en marca toda
-     la app sin abrir esos archivos.
+     Nació como el atajo del re-skin: retintar las rampas por defecto de Tailwind
+     ponía en marca las pantallas heredadas sin abrir sus archivos. Ya no cumple
+     esa función: no queda ni una utilidad de color cruda en `src`, todo pasa por
+     los tokens semánticos (`text-ink`, `bg-sunken`, `text-success`…).
+
+     Se conserva porque Tailwind v4 solo emite las variables que se usan, así que
+     no cuesta nada, y porque atrapa cualquier `bg-gray-100` que se cuele en el
+     futuro dejándolo en la paleta de la marca en vez de en el gris de Tailwind.
 
      REGLA: retintar, NUNCA invertir. Se conserva la orientación de cada rampa
-     (50 = claro, 950 = oscuro) porque esos archivos ya traen variantes dark:
-     como `bg-gray-900 dark:bg-gray-950`; invertir las rompería todas.
-     Solo cambia el matiz, y las luminancias se mantienen alineadas con las de
-     Tailwind para no alterar ningún contraste existente.
+     (50 = claro, 950 = oscuro); invertirla rompería el contraste esperado.
      ------------------------------------------------------------------------- */
 
   /* gray → aluminio (893 usos) */

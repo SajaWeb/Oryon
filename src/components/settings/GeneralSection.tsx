@@ -243,13 +243,13 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <Package className="text-blue-600" size={24} />
+            <Package className="text-primary" size={24} />
             <CardTitle>Configuración de Inventario</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
           {stockSuccess && (
-            <Alert className="bg-green-50 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-100 dark:border-green-800 mb-4">
+            <Alert className="bg-[var(--success-subtle)] text-success border-[color-mix(in_srgb,var(--success)_30%,transparent)] mb-4">
               <AlertDescription>{stockSuccess}</AlertDescription>
             </Alert>
           )}
@@ -257,7 +257,7 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
           <div className="space-y-4">
             <div>
               <Label>Umbral de Stock Bajo</Label>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              <p className="text-sm text-ink-tertiary mb-3">
                 Define cuándo un producto debe ser considerado con stock bajo
               </p>
               <Input
@@ -267,7 +267,7 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
                 min="0"
                 className="max-w-xs"
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-xs text-ink-tertiary mt-1">
                 Se alertará cuando un producto tenga {lowStockThreshold} o menos unidades
               </p>
             </div>
@@ -284,13 +284,13 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <Printer className="text-blue-600" size={24} />
+            <Printer className="text-primary" size={24} />
             <CardTitle>Configuración de Impresión</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
           {printSuccess && (
-            <Alert className="bg-green-50 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-100 dark:border-green-800 mb-4">
+            <Alert className="bg-[var(--success-subtle)] text-success border-[color-mix(in_srgb,var(--success)_30%,transparent)] mb-4">
               <AlertDescription>{printSuccess}</AlertDescription>
             </Alert>
           )}
@@ -299,7 +299,7 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
             {/* Logo */}
             <div>
               <Label>Logo de la Empresa</Label>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              <p className="text-sm text-ink-tertiary mb-3">
                 Este logo aparecerá en tus facturas y recibos
               </p>
               {logoPreview ? (
@@ -307,15 +307,15 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
                   <img src={logoPreview} alt="Logo" className="h-24 object-contain border rounded" />
                   <button
                     onClick={handleRemoveLogo}
-                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                    className="absolute -top-2 -right-2 bg-danger text-on-danger rounded-full p-1 hover:bg-danger"
                   >
                     <X size={16} />
                   </button>
                 </div>
               ) : (
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center">
-                  <Upload className="mx-auto text-gray-400 mb-2" size={32} />
-                  <Label htmlFor="logo-upload" className="cursor-pointer text-blue-600 hover:text-blue-700">
+                <div className="border-2 border-dashed border-line rounded-lg p-6 text-center">
+                  <Upload className="mx-auto text-ink-tertiary mb-2" size={32} />
+                  <Label htmlFor="logo-upload" className="cursor-pointer text-primary hover:text-primary">
                     {uploadingLogo ? 'Subiendo...' : 'Haz clic para subir un logo'}
                   </Label>
                   <Input
@@ -326,7 +326,7 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
                     onChange={handleLogoChange}
                     disabled={uploadingLogo}
                   />
-                  <p className="text-xs text-gray-500 mt-1">PNG, JPG hasta 2MB</p>
+                  <p className="text-xs text-ink-tertiary mt-1">PNG, JPG hasta 2MB</p>
                 </div>
               )}
             </div>
@@ -387,15 +387,15 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
 
             {/* Tax Info */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-                <Globe className="text-blue-600" size={20} />
+              <div className="flex items-center gap-2 pb-2 border-b border-line">
+                <Globe className="text-primary" size={20} />
                 <h3 className="font-medium">Información Tributaria</h3>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Tipo de Identificación Tributaria</Label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  <p className="text-xs text-ink-tertiary mb-2">
                     Selecciona según tu país (19 países disponibles)
                   </p>
                   <Select
@@ -414,14 +414,14 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
                     </SelectContent>
                   </Select>
                   {printConfig.taxIdType && getTaxIdType(printConfig.taxIdType) && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    <p className="text-xs text-primary mt-1">
                       📋 Formato: {getTaxIdType(printConfig.taxIdType)?.format}
                     </p>
                   )}
                 </div>
                 <div>
                   <Label>Número de Identificación Tributaria</Label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  <p className="text-xs text-ink-tertiary mb-2">
                     {printConfig.taxIdType && getTaxIdType(printConfig.taxIdType)
                       ? `Ej: ${getTaxIdType(printConfig.taxIdType)?.example}`
                       : 'Selecciona un tipo primero'}

@@ -121,13 +121,13 @@ export function DocumentsSection({
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <CreditCard className="text-blue-600" size={24} />
+            <CreditCard className="text-primary" size={24} />
             <CardTitle>Tipos de Identificación de Clientes</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
           {idSuccess && (
-            <Alert className="bg-green-50 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-100 dark:border-green-800 mb-4">
+            <Alert className="bg-[var(--success-subtle)] text-success border-[color-mix(in_srgb,var(--success)_30%,transparent)] mb-4">
               <AlertDescription>{idSuccess}</AlertDescription>
             </Alert>
           )}
@@ -135,7 +135,7 @@ export function DocumentsSection({
           <div className="space-y-4">
             <div>
               <Label>Tipos de Identificación Disponibles</Label>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              <p className="text-sm text-ink-tertiary mb-3">
                 Configura los tipos de documento que tus clientes pueden usar
               </p>
               <div className="flex flex-wrap gap-2 mb-3">
@@ -144,7 +144,7 @@ export function DocumentsSection({
                     {type}
                     <button
                       onClick={() => handleRemoveIdType(type)}
-                      className="ml-2 hover:text-red-600"
+                      className="ml-2 hover:text-danger"
                     >
                       <X size={14} />
                     </button>
@@ -175,13 +175,13 @@ export function DocumentsSection({
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <FileText className="text-blue-600" size={24} />
+            <FileText className="text-primary" size={24} />
             <CardTitle>Configuración de Facturación</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
           {invoiceSuccess && (
-            <Alert className="bg-green-50 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-100 dark:border-green-800 mb-4">
+            <Alert className="bg-[var(--success-subtle)] text-success border-[color-mix(in_srgb,var(--success)_30%,transparent)] mb-4">
               <AlertDescription>{invoiceSuccess}</AlertDescription>
             </Alert>
           )}
@@ -189,7 +189,7 @@ export function DocumentsSection({
           <div className="space-y-4">
             <div>
               <Label>Consecutivo de Facturación</Label>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              <p className="text-sm text-ink-tertiary mb-3">
                 Configura el prefijo y número inicial de tus facturas
               </p>
             </div>
@@ -202,7 +202,7 @@ export function DocumentsSection({
                   onChange={(e) => setInvoiceConfig({ ...invoiceConfig, prefix: e.target.value })}
                   placeholder="FACT"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-ink-tertiary mt-1">
                   Ejemplo: FACT, INV, VTA
                 </p>
               </div>
@@ -216,14 +216,14 @@ export function DocumentsSection({
                   placeholder="1"
                   min="1"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-ink-tertiary mt-1">
                   Las facturas iniciarán desde este número
                 </p>
               </div>
             </div>
 
-            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-              <p className="text-sm text-blue-900 dark:text-blue-100">
+            <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-3">
+              <p className="text-sm text-primary">
                 <strong>Vista Previa:</strong> {invoiceConfig.prefix}-{String(invoiceConfig.startNumber).padStart(6, '0')}
               </p>
             </div>

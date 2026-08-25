@@ -43,7 +43,7 @@ export function OfflineIndicator() {
   if (!isOnline) {
     return (
       <div className="fixed top-0 left-0 right-0 z-50 lg:left-64">
-        <Alert className="rounded-none border-0 border-b bg-yellow-600 text-white">
+        <Alert className="rounded-none border-0 border-b bg-warning text-on-warning">
           <WifiOff className="h-4 w-4" />
           <AlertDescription className="ml-2">
             Sin conexión a internet. Trabajando en modo offline.
@@ -57,7 +57,7 @@ export function OfflineIndicator() {
   if (showReconnected) {
     return (
       <div className="fixed top-0 left-0 right-0 z-50 lg:left-64 animate-in slide-in-from-top duration-300">
-        <Alert className="rounded-none border-0 border-b bg-green-600 text-white">
+        <Alert className="rounded-none border-0 border-b bg-success text-on-success">
           <Wifi className="h-4 w-4" />
           <AlertDescription className="ml-2">
             Conexión restaurada

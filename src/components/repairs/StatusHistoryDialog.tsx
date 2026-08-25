@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { ScrollArea } from '../ui/scroll-area'
 import { Repair } from './types'
-import { statusLabels, statusColors } from './constants'
+import { statusLabels } from './constants'
+import { StatusBadge, normalizeState } from '../oryon'
 
 interface StatusHistoryDialogProps {
   open: boolean
@@ -39,21 +40,29 @@ export function StatusHistoryDialog({
                         <CardTitle className="text-base">
                           {log.previousStatus ? (
                             <>
-                              <Badge className={`${statusColors[log.previousStatus]} mr-2`}>
-                                {statusLabels[log.previousStatus]}
-                              </Badge>
+                              <StatusBadge
+                                status={normalizeState(log.previousStatus)}
+                                label={statusLabels[log.previousStatus]}
+                                size="sm"
+                                style={{ marginRight: 8 }}
+                              />
                               →
-                              <Badge className={`${statusColors[log.newStatus]} ml-2`}>
-                                {statusLabels[log.newStatus]}
-                              </Badge>
+                              <StatusBadge
+                                status={normalizeState(log.newStatus)}
+                                label={statusLabels[log.newStatus]}
+                                size="sm"
+                                style={{ marginLeft: 8 }}
+                              />
                             </>
                           ) : (
-                            <Badge className={statusColors[log.newStatus]}>
-                              {statusLabels[log.newStatus]}
-                            </Badge>
+                            <StatusBadge
+                              status={normalizeState(log.newStatus)}
+                              label={statusLabels[log.newStatus]}
+                              size="sm"
+                            />
                           )}
                         </CardTitle>
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="text-sm text-ink-secondary mt-1">
                           {new Date(log.timestamp).toLocaleString('es-ES', {
                             year: 'numeric',
                             month: 'long',
@@ -90,7 +99,7 @@ export function StatusHistoryDialog({
               ))}
             </div>
           ) : (
-            <p className="text-center text-gray-500 py-8">
+            <p className="text-center text-ink-tertiary py-8">
               No hay historial de cambios disponible
             </p>
           )}

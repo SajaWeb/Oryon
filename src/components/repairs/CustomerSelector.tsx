@@ -67,7 +67,7 @@ export function CustomerSelector({
   }
 
   return (
-    <div className="border rounded-lg p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50">
+    <div className="border rounded-lg p-3 sm:p-4 space-y-3 sm:space-y-4 bg-sunken">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
         <h4 className="text-base sm:text-lg">Información del Cliente *</h4>
         <div className="flex gap-2">
@@ -107,27 +107,27 @@ export function CustomerSelector({
               className="mb-2"
             />
           </div>
-          <div className="border rounded-md bg-white max-h-48 overflow-y-auto">
+          <div className="border rounded-md bg-popover max-h-48 overflow-y-auto">
             {getFilteredCustomers().length > 0 ? (
               getFilteredCustomers().map((customer) => (
                 <button
                   key={customer.id}
                   type="button"
                   onClick={() => handleCustomerSelect(customer.id)}
-                  className={`w-full text-left p-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors ${
-                    selectedCustomerId === customer.id ? 'bg-blue-50' : ''
+                  className={`w-full text-left p-3 border-b last:border-b-0 hover:bg-sunken transition-colors ${
+                    selectedCustomerId === customer.id ? 'bg-[var(--accent-subtle)]' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
                       <p>{customer.name}</p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-ink-secondary">
                         {customer.phone}
                         {customer.identificationNumber && ` • ${customer.identificationType}: ${customer.identificationNumber}`}
                       </p>
                     </div>
                     {selectedCustomerId === customer.id && (
-                      <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
                         <div className="w-2 h-2 rounded-full bg-white"></div>
                       </div>
                     )}
@@ -135,14 +135,14 @@ export function CustomerSelector({
                 </button>
               ))
             ) : (
-              <div className="p-4 text-center text-gray-500">
+              <div className="p-4 text-center text-ink-tertiary">
                 {customerSearchTerm ? 'No se encontraron clientes' : 'No hay clientes registrados'}
               </div>
             )}
           </div>
           {selectedCustomerId && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-              <p className="text-sm text-green-800">
+            <div className="p-3 bg-[var(--success-subtle)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] rounded-md">
+              <p className="text-sm text-success">
                 ✓ Cliente seleccionado: <span>{formData.customerName}</span>
               </p>
             </div>

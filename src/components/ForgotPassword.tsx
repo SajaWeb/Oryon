@@ -84,7 +84,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
       <div className="min-h-screen bg-background flex items-center justify-center p-4 sm:p-6">
         <Card className="w-full max-w-md border-border bg-card shadow-lg">
           <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto w-14 h-14 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center">
+            <div className="mx-auto w-14 h-14 bg-[color-mix(in_srgb,var(--success)_10%,transparent)] text-success rounded-full flex items-center justify-center">
               <CheckCircle2 size={32} />
             </div>
             <CardTitle className="text-xl font-bold tracking-tight">¡Correo de Recuperación Enviado!</CardTitle>
@@ -100,11 +100,11 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
             </Alert>
 
             {fallbackLink && (
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-800 dark:text-amber-300">
+              <div className="p-3 bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] border border-[color-mix(in_srgb,var(--warning)_20%,transparent)] rounded-lg text-warning">
                 <p className="font-semibold text-[11px] mb-1">Enlace directo generado para pruebas:</p>
                 <a 
                   href={fallbackLink} 
-                  className="text-[11px] underline break-all hover:text-amber-900 dark:hover:text-amber-100"
+                  className="text-[11px] underline break-all hover:text-warning"
                 >
                   Abrir asistente de nueva contraseña
                 </a>

@@ -110,33 +110,33 @@ export function InvoiceDialog({
 
         <div className="space-y-6">
           {/* Alerta de impresión */}
-          <Alert className="bg-blue-50 border-blue-200">
-            <Printer className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-sm text-blue-800">
+          <Alert className="bg-[var(--accent-subtle)] border-[var(--accent-subtle-border)]">
+            <Printer className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-sm text-primary">
               Al crear la factura, se generará automáticamente un ticket de impresión con todos los ajustes configurados por el administrador.
             </AlertDescription>
           </Alert>
 
           {/* Información del Cliente */}
-          <div className="bg-gray-50 rounded-lg p-4">
+          <div className="bg-sunken rounded-lg p-4">
             <h4 className="mb-2">Información del Cliente</h4>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-gray-600">Cliente:</p>
+                <p className="text-ink-secondary">Cliente:</p>
                 <p>{repair.customerName}</p>
               </div>
               <div>
-                <p className="text-gray-600">Teléfono:</p>
+                <p className="text-ink-secondary">Teléfono:</p>
                 <p>{repair.customerPhone}</p>
               </div>
               <div>
-                <p className="text-gray-600">Equipo:</p>
+                <p className="text-ink-secondary">Equipo:</p>
                 <p className="capitalize">
                   {repair.deviceType} {repair.deviceBrand} {repair.deviceModel}
                 </p>
               </div>
               <div>
-                <p className="text-gray-600">Problema:</p>
+                <p className="text-ink-secondary">Problema:</p>
                 <p>{repair.problem}</p>
               </div>
             </div>
@@ -284,35 +284,35 @@ export function InvoiceDialog({
           </div>
 
           {/* Resumen Total */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border-2 border-blue-200">
+          <div className="bg-[var(--accent-subtle)] rounded-lg p-4 border-2 border-[var(--accent-subtle-border)]">
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-700">Total Mano de Obra:</span>
+                <span className="text-ink-secondary">Total Mano de Obra:</span>
                 <span>
                   ${invoiceData.laborItems.reduce((sum, item) => sum + (item.hours * item.hourlyRate), 0).toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-700">Total Repuestos:</span>
+                <span className="text-ink-secondary">Total Repuestos:</span>
                 <span>
                   ${invoiceData.parts.reduce((sum, part) => sum + (part.salePrice * part.quantity), 0).toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between text-sm border-t pt-2">
-                <span className="text-gray-700">Costo Total:</span>
-                <span className="text-red-600">
+                <span className="text-ink-secondary">Costo Total:</span>
+                <span className="text-danger">
                   ${calculateTotalCost().toFixed(2)}
                 </span>
               </div>
-              <div className="flex justify-between text-lg border-t-2 border-blue-300 pt-2">
+              <div className="flex justify-between text-lg border-t-2 border-[var(--accent-subtle-border)] pt-2">
                 <span>TOTAL A COBRAR:</span>
-                <span className="text-green-600 text-2xl">
+                <span className="text-success text-2xl">
                   ${calculateInvoiceTotal().toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-700">Margen de Ganancia:</span>
-                <span className="text-blue-600">
+                <span className="text-ink-secondary">Margen de Ganancia:</span>
+                <span className="text-primary">
                   ${(calculateInvoiceTotal() - calculateTotalCost()).toFixed(2)}
                 </span>
               </div>
@@ -329,7 +329,7 @@ export function InvoiceDialog({
             </Button>
             <Button
               onClick={handleSubmit}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-success hover:bg-success"
               disabled={calculateInvoiceTotal() === 0 || submitting}
             >
               {submitting ? 'Creando...' : 'Crear Factura y Marcar como Entregado'}

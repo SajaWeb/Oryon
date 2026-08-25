@@ -84,8 +84,8 @@ export function UnitsManagement({
     <div className="space-y-4 md:space-y-6">
       {/* Permission Notice for Read-Only Mode */}
       {!canEdit && (
-        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3 md:p-4">
-          <p className="text-sm text-amber-800 dark:text-amber-200">
+        <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-3 md:p-4">
+          <p className="text-sm text-warning">
             ⚠️ <strong>Solo lectura:</strong> Solo puedes agregar o eliminar unidades de productos de tu sucursal asignada.
           </p>
         </div>
@@ -144,7 +144,7 @@ export function UnitsManagement({
               className="text-sm font-mono"
               disabled={isLoading}
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-ink-tertiary mt-1">
               Formato: IMEI, NumeroSerie (uno por línea). Puedes omitir cualquiera de los dos.
             </p>
           </div>
@@ -216,7 +216,7 @@ export function UnitsManagement({
             </Table>
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500 border rounded-lg text-sm">
+          <div className="text-center py-8 text-ink-tertiary border rounded-lg text-sm">
             No hay unidades registradas. Agrega la primera unidad arriba.
           </div>
         )}
@@ -226,25 +226,25 @@ export function UnitsManagement({
       {product.units && product.units.length > 0 && (
         <div className="border-t pt-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-              <p className="text-xs text-gray-600 dark:text-gray-400">Total</p>
+            <div className="bg-sunken p-3 rounded-lg">
+              <p className="text-xs text-ink-secondary">Total</p>
               <p className="text-xl">{product.units.length}</p>
             </div>
-            <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg">
-              <p className="text-xs text-green-600 dark:text-green-400">Disponibles</p>
-              <p className="text-xl text-green-600">
+            <div className="bg-[var(--success-subtle)] p-3 rounded-lg">
+              <p className="text-xs text-success">Disponibles</p>
+              <p className="text-xl text-success">
                 {product.units.filter(u => u.status === 'available').length}
               </p>
             </div>
-            <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
-              <p className="text-xs text-blue-600 dark:text-blue-400">Vendidos</p>
-              <p className="text-xl text-blue-600">
+            <div className="bg-[var(--accent-subtle)] p-3 rounded-lg">
+              <p className="text-xs text-primary">Vendidos</p>
+              <p className="text-xl text-primary">
                 {product.units.filter(u => u.status === 'sold').length}
               </p>
             </div>
-            <div className="bg-yellow-50 dark:bg-yellow-950 p-3 rounded-lg">
-              <p className="text-xs text-yellow-600 dark:text-yellow-400">En Reparación</p>
-              <p className="text-xl text-yellow-600">
+            <div className="bg-[var(--warning-subtle)] p-3 rounded-lg">
+              <p className="text-xs text-warning">En Reparación</p>
+              <p className="text-xl text-warning">
                 {product.units.filter(u => u.status === 'in_repair').length}
               </p>
             </div>

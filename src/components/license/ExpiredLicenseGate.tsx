@@ -238,7 +238,7 @@ export function ExpiredLicenseGate({
       <main className="max-w-5xl w-full mx-auto my-8 space-y-6">
         {/* Banner de Bloqueo */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center p-3 bg-red-500/10 text-red-600 dark:text-red-400 rounded-full mb-1">
+          <div className="inline-flex items-center justify-center p-3 bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-danger rounded-full mb-1">
             <ShieldAlert size={36} />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -298,7 +298,7 @@ export function ExpiredLicenseGate({
                     {/* Badges superiores */}
                     <div className="absolute -top-3 right-4 flex items-center gap-1.5">
                       {disabled ? (
-                        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] flex items-center gap-1">
+                        <Badge variant="outline" className="bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] text-warning border-[color-mix(in_srgb,var(--warning)_30%,transparent)] text-[10px] flex items-center gap-1">
                           <Lock size={10} /> No Disponible
                         </Badge>
                       ) : isCurrent ? (
@@ -306,11 +306,11 @@ export function ExpiredLicenseGate({
                           Tu Plan Actual
                         </Badge>
                       ) : isUpgrade ? (
-                        <Badge className="bg-emerald-600 text-white font-semibold text-[11px]">
+                        <Badge className="bg-success text-on-success font-semibold text-[11px]">
                           Mejorar Plan (Upgrade)
                         </Badge>
                       ) : plan.badge ? (
-                        <Badge className="bg-indigo-600 text-white font-semibold text-[11px]">
+                        <Badge className="bg-[var(--state-diagnosis)] text-white font-semibold text-[11px]">
                           {plan.badge}
                         </Badge>
                       ) : null}
@@ -335,19 +335,19 @@ export function ExpiredLicenseGate({
                         </div>
                         <div className="flex justify-between">
                           <span className="flex items-center gap-1.5">
-                            <UserCog size={13} className="text-emerald-500" /> Administradores
+                            <UserCog size={13} className="text-success" /> Administradores
                           </span>
                           <span className="font-semibold text-foreground">{plan.limits.admins}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="flex items-center gap-1.5">
-                            <Users size={13} className="text-indigo-500" /> Asesores
+                            <Users size={13} className="text-[var(--state-diagnosis)]" /> Asesores
                           </span>
                           <span className="font-semibold text-foreground">{plan.limits.advisors}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="flex items-center gap-1.5">
-                            <Wrench size={13} className="text-amber-500" /> Técnicos
+                            <Wrench size={13} className="text-warning" /> Técnicos
                           </span>
                           <span className="font-semibold text-foreground">{plan.limits.technicians}</span>
                         </div>
@@ -357,14 +357,14 @@ export function ExpiredLicenseGate({
                       <ul className="py-3 space-y-1.5 text-[11px] text-muted-foreground">
                         {plan.features.slice(0, 4).map((f, i) => (
                           <li key={i} className="flex items-start gap-1.5">
-                            <CheckCircle2 size={13} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                            <CheckCircle2 size={13} className="text-success flex-shrink-0 mt-0.5" />
                             <span>{f}</span>
                           </li>
                         ))}
                       </ul>
 
                       {disabled && (
-                        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-1.5 mt-2">
+                        <div className="p-2.5 rounded-lg bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] border border-[color-mix(in_srgb,var(--warning)_20%,transparent)] text-[11px] text-warning flex items-start gap-1.5 mt-2">
                           <Lock size={12} className="flex-shrink-0 mt-0.5" />
                           <span>Tu empresa ya tiene recursos del Plan {currentCompanyPlan === 'enterprise' ? 'Enterprise' : 'PYME'}. No puedes degradar a este plan.</span>
                         </div>
@@ -412,7 +412,7 @@ export function ExpiredLicenseGate({
                     {selectedPlan.name} — ${selectedPlan.priceCOP.toLocaleString('es-CO')} COP
                   </p>
                   <p className="text-xs text-muted-foreground flex items-center justify-center sm:justify-start gap-1.5">
-                    <ShieldCheck size={14} className="text-emerald-500" />
+                    <ShieldCheck size={14} className="text-success" />
                     Pasarela segura Wompi (PSE, Bancolombia, Nequi, Tarjetas)
                   </p>
                 </div>

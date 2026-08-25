@@ -1327,7 +1327,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
             variant="ghost"
             size="sm"
             onClick={handleSuperAdminLogout}
-            className="text-xs h-9 text-red-600 dark:text-red-400 hover:bg-red-500/10"
+            className="text-xs h-9 text-danger hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]"
           >
             <LogOut size={13} className="mr-1.5" />
             Cerrar Sesión
@@ -1349,7 +1349,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{stats.approvedPaymentsCount || 0} pagos aprobados</p>
                 </div>
-                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="p-3 rounded-xl bg-[color-mix(in_srgb,var(--success)_10%,transparent)] text-success">
                   <DollarSign size={22} />
                 </div>
               </CardContent>
@@ -1374,12 +1374,12 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase">Licencias Vencidas</p>
-                  <p className="text-xl font-black text-foreground mt-1 text-red-600 dark:text-red-400">
+                  <p className="text-xl font-black text-foreground mt-1 text-danger">
                     {stats.expiredLicensesCount || 0}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">Requieren renovación</p>
                 </div>
-                <div className="p-3 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400">
+                <div className="p-3 rounded-xl bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-danger">
                   <AlertTriangle size={22} />
                 </div>
               </CardContent>
@@ -1389,12 +1389,12 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase">Pagos Pendientes</p>
-                  <p className="text-xl font-black text-foreground mt-1 text-amber-600 dark:text-amber-400">
+                  <p className="text-xl font-black text-foreground mt-1 text-warning">
                     {stats.pendingPaymentsCount || 0}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">En validación bancaria</p>
                 </div>
-                <div className="p-3 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <div className="p-3 rounded-xl bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] text-warning">
                   <Clock size={22} />
                 </div>
               </CardContent>
@@ -1509,7 +1509,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
 
                             <td className="p-3.5">
                               {comp.inTrial ? (
-                                <Badge className="bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 text-[10px]">
+                                <Badge className="bg-[color-mix(in_srgb,var(--accent-fill)_15%,transparent)] text-primary border-[color-mix(in_srgb,var(--accent-fill)_30%,transparent)] text-[10px]">
                                   Prueba Activa
                                 </Badge>
                               ) : comp.isExpired ? (
@@ -1517,7 +1517,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                                   Vencida
                                 </Badge>
                               ) : (
-                                <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px]">
+                                <Badge className="bg-[color-mix(in_srgb,var(--success)_15%,transparent)] text-success border-[color-mix(in_srgb,var(--success)_30%,transparent)] text-[10px]">
                                   Activa
                                 </Badge>
                               )}
@@ -1539,9 +1539,9 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
 
                             <td className="p-3.5 font-bold">
                               {comp.isExpired ? (
-                                <span className="text-red-500">0 días</span>
+                                <span className="text-danger">0 días</span>
                               ) : (
-                                <span className="text-emerald-600 dark:text-emerald-400">
+                                <span className="text-success">
                                   {comp.daysRemaining || 0} días
                                 </span>
                               )}
@@ -1665,11 +1665,11 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
 
                             <td className="p-3.5">
                               {isApproved ? (
-                                <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] flex items-center gap-1 w-fit">
+                                <Badge className="bg-[color-mix(in_srgb,var(--success)_15%,transparent)] text-success border-[color-mix(in_srgb,var(--success)_30%,transparent)] text-[10px] flex items-center gap-1 w-fit">
                                   <CheckCircle2 size={11} /> Aprobado
                                 </Badge>
                               ) : isPending ? (
-                                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] flex items-center gap-1 w-fit">
+                                <Badge className="bg-[color-mix(in_srgb,var(--warning)_15%,transparent)] text-warning border-[color-mix(in_srgb,var(--warning)_30%,transparent)] text-[10px] flex items-center gap-1 w-fit">
                                   <Clock size={11} /> Pendiente
                                 </Badge>
                               ) : (
@@ -1699,7 +1699,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                                     setApproveNotes('')
                                     setShowManualApproveModal(true)
                                   }}
-                                  className="h-8 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                                  className="h-8 text-xs font-semibold text-success hover:bg-[color-mix(in_srgb,var(--success)_10%,transparent)]"
                                 >
                                   <Check size={13} className="mr-1" />
                                   Aprobar
@@ -1798,7 +1798,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                     <p className="font-semibold text-foreground">Entorno Wompi:</p>
                     <p className="text-muted-foreground text-[11px]">Sandbox (Pruebas) / Producción</p>
                   </div>
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                  <Badge variant="outline" className="bg-[color-mix(in_srgb,var(--success)_10%,transparent)] text-success border-[color-mix(in_srgb,var(--success)_30%,transparent)]">
                     Activo (Sandbox)
                   </Badge>
                 </div>
@@ -1808,7 +1808,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                     <p className="font-semibold text-foreground">API Hosted Payment Links:</p>
                     <p className="text-muted-foreground text-[11px]">https://sandbox.wompi.co/v1/payment_links</p>
                   </div>
-                  <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30">
+                  <Badge className="bg-[color-mix(in_srgb,var(--success)_15%,transparent)] text-success border-[color-mix(in_srgb,var(--success)_30%,transparent)]">
                     Conectado HTTP 200
                   </Badge>
                 </div>
@@ -1911,7 +1911,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
 
                   <div>
                     <Label className="text-[11px] text-muted-foreground mb-1 block flex items-center gap-1">
-                      <UserCog size={11} className="text-emerald-500" /> Admins:
+                      <UserCog size={11} className="text-success" /> Admins:
                     </Label>
                     <Input
                       type="number"
@@ -1925,7 +1925,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
 
                   <div>
                     <Label className="text-[11px] text-muted-foreground mb-1 block flex items-center gap-1">
-                      <Users size={11} className="text-indigo-500" /> Asesores:
+                      <Users size={11} className="text-[var(--state-diagnosis)]" /> Asesores:
                     </Label>
                     <Input
                       type="number"
@@ -1939,7 +1939,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
 
                   <div>
                     <Label className="text-[11px] text-muted-foreground mb-1 block flex items-center gap-1">
-                      <Wrench size={11} className="text-amber-500" /> Técnicos:
+                      <Wrench size={11} className="text-warning" /> Técnicos:
                     </Label>
                     <Input
                       type="number"
@@ -1956,7 +1956,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
               {/* Vigencia y Extensión de Licencia */}
               <div className="p-3.5 bg-muted/40 rounded-xl border border-border space-y-3">
                 <p className="font-bold text-foreground text-xs flex items-center gap-1.5">
-                  <Calendar size={14} className="text-emerald-500" />
+                  <Calendar size={14} className="text-success" />
                   Vigencia de la Licencia
                 </p>
 
@@ -2028,7 +2028,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base flex items-center gap-2">
-              <CheckCircle2 size={18} className="text-emerald-500" />
+              <CheckCircle2 size={18} className="text-success" />
               Aprobar Pago Manualmente
             </DialogTitle>
             <DialogDescription className="text-xs">

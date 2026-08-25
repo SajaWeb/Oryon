@@ -292,13 +292,13 @@ const DEFAULT_PLAN_LIMITS: Record<string, { branches: number; admins: number; ad
       case 'processing':
         return <Loader2 className="h-14 w-14 text-primary animate-spin" />
       case 'success':
-        return <CheckCircle2 className="h-14 w-14 text-emerald-500" />
+        return <CheckCircle2 className="h-14 w-14 text-success" />
       case 'pending':
-        return <Clock className="h-14 w-14 text-amber-500" />
+        return <Clock className="h-14 w-14 text-warning" />
       case 'declined':
-        return <XCircle className="h-14 w-14 text-orange-500" />
+        return <XCircle className="h-14 w-14 text-[var(--state-waiting)]" />
       case 'error':
-        return <XCircle className="h-14 w-14 text-red-500" />
+        return <XCircle className="h-14 w-14 text-danger" />
       default:
         return <AlertCircle className="h-14 w-14 text-muted-foreground" />
     }
@@ -337,10 +337,10 @@ const DEFAULT_PLAN_LIMITS: Record<string, { branches: number; admins: number; ad
         <CardContent className="space-y-5">
           {/* Mensaje de estado */}
           <Alert className={
-            status === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300' :
-            status === 'pending' ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300' :
-            status === 'declined' ? 'bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-300' :
-            status === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300' :
+            status === 'success' ? 'bg-[color-mix(in_srgb,var(--success)_10%,transparent)] border-[color-mix(in_srgb,var(--success)_30%,transparent)] text-success' :
+            status === 'pending' ? 'bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] border-[color-mix(in_srgb,var(--warning)_30%,transparent)] text-warning' :
+            status === 'declined' ? 'bg-[color-mix(in_srgb,var(--state-waiting)_10%,transparent)] border-[color-mix(in_srgb,var(--state-waiting)_30%,transparent)] text-[var(--state-waiting)]' :
+            status === 'error' ? 'bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border-[color-mix(in_srgb,var(--danger)_30%,transparent)] text-danger' :
             'bg-muted/50 border-border'
           }>
             <AlertDescription className="text-sm font-medium text-center">
@@ -378,9 +378,9 @@ const DEFAULT_PLAN_LIMITS: Record<string, { branches: number; admins: number; ad
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Estado</span>
                 <Badge className={
-                  status === 'success' ? 'bg-emerald-600 text-white' :
-                  status === 'pending' ? 'bg-amber-600 text-white' :
-                  'bg-red-600 text-white'
+                  status === 'success' ? 'bg-success text-on-success' :
+                  status === 'pending' ? 'bg-warning text-on-warning' :
+                  'bg-danger text-on-danger'
                 }>
                   {paymentDetails.status}
                 </Badge>

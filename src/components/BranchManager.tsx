@@ -206,7 +206,7 @@ export function BranchManager({ accessToken, userProfile, licenseInfo }: BranchM
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Building2 className="text-blue-600" size={24} />
+            <Building2 className="text-primary" size={24} />
             <div>
               <CardTitle>Sucursales</CardTitle>
               <CardDescription>
@@ -287,11 +287,11 @@ export function BranchManager({ accessToken, userProfile, licenseInfo }: BranchM
         )}
 
         {loading ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-8 text-ink-tertiary">
             Cargando sucursales...
           </div>
         ) : branches.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-8 text-ink-tertiary">
             No hay sucursales registradas
           </div>
         ) : (
@@ -299,12 +299,12 @@ export function BranchManager({ accessToken, userProfile, licenseInfo }: BranchM
             {branches.map((branch) => (
               <div
                 key={branch.id}
-                className="border dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow"
+                className="border border-line rounded-lg p-4 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Building2 className="text-blue-600" size={20} />
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                    <Building2 className="text-primary" size={20} />
+                    <h3 className="font-semibold text-ink">
                       {branch.name}
                     </h3>
                     {branch.isMain && (
@@ -328,24 +328,24 @@ export function BranchManager({ accessToken, userProfile, licenseInfo }: BranchM
                         variant="ghost"
                         onClick={() => handleDelete(branch.id)}
                       >
-                        <Trash2 size={16} className="text-red-600" />
+                        <Trash2 size={16} className="text-danger" />
                       </Button>
                     )}
                   </div>
                 </div>
                 {branch.address && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1">
+                  <div className="flex items-center gap-2 text-sm text-ink-secondary mb-1">
                     <MapPin size={14} />
                     <span>{branch.address}</span>
                   </div>
                 )}
                 {branch.phone && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  <div className="flex items-center gap-2 text-sm text-ink-secondary mb-3">
                     <Phone size={14} />
                     <span>{branch.phone}</span>
                   </div>
                 )}
-                <div className="flex items-center justify-between pt-3 border-t dark:border-gray-700">
+                <div className="flex items-center justify-between pt-3 border-t border-line">
                   <div className="flex items-center gap-2">
                     <Badge 
                       variant={branch.isActive ? "default" : "secondary"} 

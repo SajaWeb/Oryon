@@ -51,7 +51,7 @@ export function NotificationsSection() {
     <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
-          <Bell className="text-blue-600" size={24} />
+          <Bell className="text-primary" size={24} />
           <CardTitle>Notificaciones Push</CardTitle>
         </div>
       </CardHeader>
@@ -59,17 +59,17 @@ export function NotificationsSection() {
         <div className="space-y-4">
           <div>
             <Label>Estado de Notificaciones</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            <p className="text-sm text-ink-tertiary mb-3">
               Recibe actualizaciones en tiempo real sobre reparaciones, stock bajo y más
             </p>
           </div>
 
           {notificationPermission === 'default' && (
-            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <Bell className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                <Bell className="text-primary flex-shrink-0 mt-0.5" size={20} />
                 <div className="flex-1">
-                  <p className="text-sm text-blue-900 dark:text-blue-100 mb-3">
+                  <p className="text-sm text-primary mb-3">
                     Activa las notificaciones para recibir actualizaciones en tiempo real sobre tu negocio
                   </p>
                   <Button onClick={handleEnableNotifications} size="sm">
@@ -81,11 +81,11 @@ export function NotificationsSection() {
           )}
 
           {notificationPermission === 'granted' && (
-            <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <div className="bg-[var(--success-subtle)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <Bell className="text-green-600 flex-shrink-0 mt-0.5" size={20} />
+                <Bell className="text-success flex-shrink-0 mt-0.5" size={20} />
                 <div className="flex-1">
-                  <p className="text-sm text-green-900 dark:text-green-100 mb-3">
+                  <p className="text-sm text-success mb-3">
                     ✓ Las notificaciones están activadas
                   </p>
                   <Button 
@@ -102,14 +102,14 @@ export function NotificationsSection() {
           )}
 
           {notificationPermission === 'denied' && (
-            <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div className="bg-[var(--danger-subtle)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <BellOff className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+                <BellOff className="text-danger flex-shrink-0 mt-0.5" size={20} />
                 <div className="flex-1">
-                  <p className="text-sm text-red-900 dark:text-red-100 mb-2">
+                  <p className="text-sm text-danger mb-2">
                     Las notificaciones están bloqueadas
                   </p>
-                  <p className="text-xs text-red-700 dark:text-red-300">
+                  <p className="text-xs text-danger">
                     Para activarlas, ve a la configuración de tu navegador y permite las notificaciones para este sitio
                   </p>
                 </div>
