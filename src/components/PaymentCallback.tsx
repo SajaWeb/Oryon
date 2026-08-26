@@ -12,13 +12,11 @@ export function PaymentCallback({ accessToken, onComplete }: PaymentCallbackProp
     transactionId: string | null
     reference: string | null
     planId: string | null
-    months?: number
     paymentMethod: 'wompi'
   }>({
     transactionId: null,
     reference: null,
     planId: null,
-    months: undefined,
     paymentMethod: 'wompi'
   })
 
@@ -27,14 +25,11 @@ export function PaymentCallback({ accessToken, onComplete }: PaymentCallbackProp
     const transactionId = urlParams.get('id') || urlParams.get('transactionId') || urlParams.get('txId')
     const reference = urlParams.get('reference') || urlParams.get('ref')
     const planId = urlParams.get('planId')
-    const monthsStr = urlParams.get('months')
-    const months = monthsStr ? parseInt(monthsStr, 10) : undefined
 
     console.log('Payment Callback - Detected URL Params:', {
       transactionId,
       reference,
       planId,
-      months,
       search: window.location.search
     })
 
@@ -42,7 +37,6 @@ export function PaymentCallback({ accessToken, onComplete }: PaymentCallbackProp
       transactionId,
       reference,
       planId,
-      months,
       paymentMethod: 'wompi'
     })
 
@@ -90,7 +84,6 @@ export function PaymentCallback({ accessToken, onComplete }: PaymentCallbackProp
       paymentMethod="wompi"
       reference={params.reference || undefined}
       planId={params.planId || undefined}
-      months={params.months}
       onComplete={handleFinish}
     />
   )

@@ -226,6 +226,57 @@ export function calculateExtendedExpiryDate(company: any, monthsToAdd: number = 
   return newExpiry.toISOString()
 }
 
+/**
+ * Aplica un pago aprobado a la licencia de su empresa, una sola vez.
+ *
+ * Antes cada sitio repetía el mismo bloque y ninguno miraba si el pago ya se había
+ * aplicado. Con el webhook y la pantalla de retorno corriendo los dos para la misma
+ * transacción, la vigencia se sumaba dos veces; y si el cliente recargaba la página
+ * de "pago exitoso", otra vez más. El pago queda marcado con `applied`, que es lo
+ * que convierte esto en idempotente.
+ */
+export async function applyPaymentToLicense(
+  supabaseClient: any,
+  payment: any,
+  planIdOverride?: string
+): Promise<{ applied: boolean; reason?: string; newExpiry?: string }> {
+  if (!payment) return { applied: false, reason: 'sin pago' }
+  if (payment.applied === true) return { applied: false, reason: 'ya aplicado' }
+
+  const company = await getCompany(supabaseClient, payment.companyId)
+  if (!company) return { applied: false, reason: 'empresa no encontrada' }
+
+  const now = new Date()
+  const monthsToAdd = Math.max(1, Number(payment.durationMonths || 1))
+  const newExpiry = calculateExtendedExpiryDate(company, monthsToAdd, 0)
+
+  const planAnterior = company.planId
+  company.planId = planIdOverride || payment.planId || company.planId || 'basico'
+  /* Al cambiar de plan hay que refrescar los límites: `customLimits` tiene
+     prioridad sobre los del plan, así que los del plan viejo seguirían mandando y
+     una empresa que sube a pyme se quedaría con los cupos de básico. */
+  if (company.planId !== planAnterior) {
+    const limites = PLAN_LIMITS[company.planId as keyof typeof PLAN_LIMITS]
+    if (limites) company.customLimits = { ...limites }
+  }
+  company.licenseExpiry = newExpiry
+  company.lastUpgrade = now.toISOString()
+  company.updatedAt = now.toISOString()
+  /* La prueba se retira sólo después de haberla contado como base arriba, para que
+     los días que quedaban de prueba no se pierdan al pagar. */
+  if (company.trialEndsAt) delete company.trialEndsAt
+
+  await saveCompany(supabaseClient, company)
+
+  payment.applied = true
+  payment.appliedAt = now.toISOString()
+  payment.updatedAt = now.toISOString()
+  await savePayment(supabaseClient, payment)
+
+  console.log(`✅ Licencia de la empresa ${company.id}: +${monthsToAdd} mes(es) → ${newExpiry}`)
+  return { applied: true, newExpiry }
+}
+
 // Helper to filter only actual products (exclude transactions, units, variants)
 function filterOnlyProducts(items: string[]): any[] {
   return items
@@ -491,6 +542,47 @@ const handlePaymentCreate = async (c: any) => {
 app.post('/license/payment/create', handlePaymentCreate)
 app.post('/make-server-4d437e50/license/payment/create', handlePaymentCreate)
 
+/**
+ * Pregunta a Wompi por el estado real de la transacción de un pago.
+ *
+ * Se usa la API pública de consulta —no hace falta llave— y se exige que el monto
+ * coincida con el que se registró al abrir el checkout, para que aprobar una
+ * transacción barata no pueda pagar una licencia cara.
+ */
+async function verifyWompiTransaction(
+  payment: any
+): Promise<{ approved: boolean; status: string; reason?: string }> {
+  const txId = String(payment?.transactionId ?? '').trim()
+  if (!txId) {
+    return { approved: false, status: 'pending', reason: 'sin transacción que consultar' }
+  }
+
+  try {
+    const res = await fetch(`${WOMPI_API_URL}/transactions/${encodeURIComponent(txId)}`)
+    if (!res.ok) {
+      return { approved: false, status: 'pending', reason: `Wompi respondió ${res.status}` }
+    }
+    const tx = (await res.json())?.data
+    const estado = String(tx?.status ?? '').toUpperCase()
+
+    if (estado !== 'APPROVED') {
+      return { approved: false, status: estado.toLowerCase() || 'pending', reason: `estado ${estado}` }
+    }
+
+    const esperadoEnCentavos = Math.round(Number(payment.amount || 0) * 100)
+    const cobrado = Number(tx?.amount_in_cents || 0)
+    if (esperadoEnCentavos > 0 && cobrado < esperadoEnCentavos) {
+      console.error(`Monto insuficiente en ${txId}: cobrado ${cobrado}, esperado ${esperadoEnCentavos}`)
+      return { approved: false, status: 'declined', reason: 'el monto cobrado no corresponde' }
+    }
+
+    return { approved: true, status: 'approved' }
+  } catch (err) {
+    console.error('No se pudo verificar la transacción en Wompi:', err)
+    return { approved: false, status: 'pending', reason: 'no se pudo consultar la pasarela' }
+  }
+}
+
 // Handler for updating payment record
 const handlePaymentUpdate = async (c: any) => {
   try {
@@ -499,7 +591,7 @@ const handlePaymentUpdate = async (c: any) => {
       return c.json({ success: false, error: 'Unauthorized' }, 401)
     }
 
-    const { reference, transactionId, status, paymentData, planId } = await c.req.json()
+    const { reference, transactionId, paymentData, planId } = await c.req.json()
 
     const payment = await findPaymentByReference(supabase, reference)
 
@@ -507,38 +599,39 @@ const handlePaymentUpdate = async (c: any) => {
       return c.json({ success: false, error: 'Pago no encontrado' }, 404)
     }
 
+    /* Quien actualiza un pago tiene que ser de la empresa a la que pertenece. Sin
+       esto, cualquier cuenta podía tocar el pago de otra. */
+    const userProfile = await getUserProfile(user.id)
+    const esSuperAdmin = userProfile?.role === 'superadmin' || userProfile?.isSuperAdmin === true
+    if (!esSuperAdmin && String(userProfile?.companyId ?? '') !== String(payment.companyId ?? '')) {
+      return c.json({ success: false, error: 'Este pago no pertenece a tu empresa' }, 403)
+    }
+
     payment.transactionId = transactionId || payment.transactionId
-    payment.status = (status || payment.status || 'pending').toLowerCase()
     payment.paymentData = paymentData || payment.paymentData
     payment.updatedAt = new Date().toISOString()
+
+    /* El estado NO se toma de lo que diga el cliente. Antes bastaba un POST con
+       `status: 'approved'` desde cualquier sesión para extender una licencia gratis.
+       Se consulta a Wompi, que es la única fuente que puede afirmarlo, y además se
+       comprueba que el monto cobrado sea el que se pidió. */
+    const verificacion = await verifyWompiTransaction(payment)
+    payment.status = verificacion.status
 
     const saved = await savePayment(supabase, payment)
     if (!saved) {
       return c.json({ success: false, error: 'Error al actualizar el pago' }, 500)
     }
 
-    // If payment is approved, automatically update/extend company license!
-    if (payment.status === 'approved' || payment.status === 'success' || payment.status === 'completed') {
-      const company = await getCompany(supabase, payment.companyId)
-      if (company) {
-        const now = new Date()
-        const monthsToAdd = Math.max(1, Number(payment.durationMonths || 1))
-        const newExpiry = calculateExtendedExpiryDate(company, monthsToAdd, 0)
-
-        company.planId = planId || payment.planId || company.planId || 'basico'
-        company.licenseExpiry = newExpiry
-        company.lastUpgrade = now.toISOString()
-        company.updatedAt = now.toISOString()
-        if (company.trialEndsAt) {
-          delete company.trialEndsAt
-        }
-
-        await saveCompany(supabase, company)
-        console.log(`✅ Company ${company.id} license updated to plan ${company.planId} until ${newExpiry}`)
-      }
+    let licenseResult: { applied: boolean; reason?: string; newExpiry?: string } = {
+      applied: false,
+      reason: verificacion.reason
+    }
+    if (verificacion.approved) {
+      licenseResult = await applyPaymentToLicense(supabase, payment, planId)
     }
 
-    return c.json({ success: true, data: payment })
+    return c.json({ success: true, data: payment, license: licenseResult })
   } catch (err: any) {
     console.error('Error in payment update:', err)
     return c.json({ success: false, error: err.message }, 500)
@@ -577,23 +670,7 @@ const handleWompiWebhook = async (c: any) => {
         await savePayment(supabase, payment)
 
         if (transaction.status === 'APPROVED') {
-          const company = await getCompany(supabase, payment.companyId)
-          if (company) {
-            const now = new Date()
-            const monthsToAdd = Math.max(1, Number(payment.durationMonths || 1))
-            const newExpiry = calculateExtendedExpiryDate(company, monthsToAdd, 0)
-
-            company.planId = payment.planId || company.planId || 'basico'
-            company.licenseExpiry = newExpiry
-            company.lastUpgrade = now.toISOString()
-            company.updatedAt = now.toISOString()
-            if (company.trialEndsAt) {
-              delete company.trialEndsAt
-            }
-
-            await saveCompany(supabase, company)
-            console.log(`✅ Company ${company.id} license upgraded via Wompi Webhook until ${newExpiry}`)
-          }
+          await applyPaymentToLicense(supabase, payment)
         }
       }
     }
@@ -629,20 +706,14 @@ const handleUpgradePlan = async (c: any) => {
     company.id = targetCompanyId
 
     const now = new Date()
-    let baseDate = now
-    if (company.licenseExpiry) {
-      const currentExpiry = new Date(company.licenseExpiry)
-      if (!isNaN(currentExpiry.getTime()) && currentExpiry > now) {
-        baseDate = currentExpiry
-      }
-    }
-
     const monthsToAdd = Math.max(1, Number(durationMonths || months || 1))
-    const newExpiry = new Date(baseDate)
-    newExpiry.setMonth(newExpiry.getMonth() + monthsToAdd)
+    /* Con el helper compartido: la base es la fecha futura más lejana entre hoy, la
+       licencia y la prueba. Antes miraba sólo licenseExpiry, así que a una empresa
+       en periodo de prueba le tiraba los días que le quedaban. */
+    const newExpiry = calculateExtendedExpiryDate(company, monthsToAdd, 0)
 
     company.planId = planId || company.planId || 'basico'
-    company.licenseExpiry = newExpiry.toISOString()
+    company.licenseExpiry = newExpiry
     company.lastUpgrade = now.toISOString()
     company.updatedAt = now.toISOString()
     if (company.trialEndsAt) {
@@ -863,36 +934,28 @@ const handleSuperAdminManualApprove = async (c: any) => {
       return c.json({ success: false, error: 'Pago no encontrado' }, 404)
     }
 
+    const yaAplicado = payment.applied === true
+
     payment.status = 'approved'
     payment.manuallyApproved = true
     payment.manuallyApprovedBy = userProfile?.name || 'Super Admin'
     payment.manuallyApprovedAt = new Date().toISOString()
     payment.notes = notes || payment.notes || 'Aprobado manualmente desde Super Admin'
     payment.updatedAt = new Date().toISOString()
+    // El superadmin puede fijar una duración distinta a la comprada.
+    payment.durationMonths = Math.max(1, Number(months || payment.durationMonths || 1))
 
     await savePayment(supabase, payment)
 
-    // Extender licencia de la empresa
-    const company = await getCompany(supabase, payment.companyId)
-    if (company) {
-      const now = new Date()
-      const monthsToAdd = Math.max(1, Number(months || payment.durationMonths || 1))
-      const newExpiry = calculateExtendedExpiryDate(company, monthsToAdd, 0)
-
-      company.planId = payment.planId || company.planId || 'basico'
-      company.licenseExpiry = newExpiry
-      company.lastUpgrade = now.toISOString()
-      company.updatedAt = now.toISOString()
-      if (company.trialEndsAt) {
-        delete company.trialEndsAt
-      }
-
-      await saveCompany(supabase, company)
-    }
+    const result = await applyPaymentToLicense(supabase, payment)
 
     return c.json({
       success: true,
-      message: 'Pago aprobado manualmente y licencia extendida con éxito',
+      message: result.applied
+        ? 'Pago aprobado manualmente y licencia extendida con éxito'
+        : `El pago ya estaba aplicado (${result.reason}). No se duplicó la vigencia.`,
+      alreadyApplied: yaAplicado,
+      newExpiry: result.newExpiry,
       payment
     })
   } catch (err: any) {
@@ -1873,7 +1936,39 @@ const handleWompiCheckout = async (c: any) => {
     const privateKey = Deno.env.get('WOMPI_PRIVATE_KEY')
     const publicKey = Deno.env.get('WOMPI_PUBLIC_KEY')
 
-    // 1. Enlace alojado de Wompi: no depende de iframes ni del widget.
+    /* 1. Web Checkout. Es el único de los dos que **lleva nuestra referencia**.
+       Los payment_links de Wompi no aceptan una referencia de comercio: generan la
+       suya por cada transacción. Con ellos, el pago volvía con una referencia que
+       no existía en nuestro KV, el webhook no encontraba el pago y la licencia
+       nunca se aplicaba en el servidor; el navegador la aplicaba a ciegas y, al no
+       reconocer la referencia, la trataba como compra nueva y reiniciaba la
+       vigencia. La firma de integridad se calcula aquí, con el secreto del
+       servidor. */
+    if (publicKey) {
+      const params = new URLSearchParams({
+        'public-key': publicKey,
+        currency,
+        'amount-in-cents': String(amountInCents),
+        reference,
+        'redirect-url': redirectUrl,
+      })
+
+      const signature = await wompiIntegritySignature(reference, amountInCents, currency)
+      if (signature) params.append('signature:integrity', signature)
+
+      if (body.customer_email) params.append('customer-data:email', String(body.customer_email))
+      const customer = body.customer_data ?? {}
+      if (customer.full_name) params.append('customer-data:full-name', String(customer.full_name))
+      if (customer.phone_number) params.append('customer-data:phone-number', String(customer.phone_number))
+      if (customer.legal_id) params.append('customer-data:legal-id', String(customer.legal_id))
+      if (customer.legal_id_type) params.append('customer-data:legal-id-type', String(customer.legal_id_type))
+
+      return c.json({ success: true, url: `https://checkout.wompi.co/p/?${params.toString()}` })
+    }
+
+    /* 2. Respaldo sin llave pública: enlace alojado. Pierde la correlación por
+       referencia, así que la licencia dependerá de que el cliente vuelva a la
+       pantalla de retorno. Se deja sólo para no quedarse sin pasarela. */
     if (privateKey) {
       try {
         const res = await fetch(`${WOMPI_API_URL}/payment_links`, {
@@ -1882,7 +1977,7 @@ const handleWompiCheckout = async (c: any) => {
           body: JSON.stringify({
             name: String(body.name ?? `Suscripción Oryon - Ref: ${reference}`).slice(0, 120),
             description: String(body.description ?? 'Suscripción Oryon').slice(0, 240),
-            single_use: false,
+            single_use: true,
             collect_shipping: false,
             currency,
             amount_in_cents: amountInCents,
@@ -1892,6 +1987,7 @@ const handleWompiCheckout = async (c: any) => {
         const data = await res.json()
         const linkId = data?.data?.id
         if (res.ok && linkId) {
+          console.warn('Usando payment_link: el webhook no podrá correlacionar la referencia', reference)
           return c.json({ success: true, url: `https://checkout.wompi.co/l/${linkId}` })
         }
         console.error('Wompi rechazó el payment link:', data)
@@ -1900,30 +1996,7 @@ const handleWompiCheckout = async (c: any) => {
       }
     }
 
-    // 2. Respaldo: Web Checkout con la firma calculada aquí.
-    if (!publicKey) {
-      return c.json({ success: false, error: 'La pasarela de pagos no está configurada' }, 503)
-    }
-
-    const params = new URLSearchParams({
-      'public-key': publicKey,
-      currency,
-      'amount-in-cents': String(amountInCents),
-      reference,
-      'redirect-url': redirectUrl,
-    })
-
-    const signature = await wompiIntegritySignature(reference, amountInCents, currency)
-    if (signature) params.append('signature:integrity', signature)
-
-    if (body.customer_email) params.append('customer-data:email', String(body.customer_email))
-    const customer = body.customer_data ?? {}
-    if (customer.full_name) params.append('customer-data:full-name', String(customer.full_name))
-    if (customer.phone_number) params.append('customer-data:phone-number', String(customer.phone_number))
-    if (customer.legal_id) params.append('customer-data:legal-id', String(customer.legal_id))
-    if (customer.legal_id_type) params.append('customer-data:legal-id-type', String(customer.legal_id_type))
-
-    return c.json({ success: true, url: `https://checkout.wompi.co/p/?${params.toString()}` })
+    return c.json({ success: false, error: 'La pasarela de pagos no está configurada' }, 503)
   } catch (error) {
     console.log('Error en /payments/wompi/checkout:', error)
     return c.json({ success: false, error: String(error) }, 500)
@@ -5856,17 +5929,10 @@ app.post('/make-server-4d437e50/license/activate', async (c) => {
     }
     
     const company = JSON.parse(companyStr)
-    
-    // Calculate new expiry date
-    const currentExpiry = new Date(company.licenseExpiry)
-    const today = new Date()
-    const startDate = currentExpiry > today ? currentExpiry : today
-    
-    const newExpiry = new Date(startDate)
-    newExpiry.setDate(newExpiry.getDate() + duration)
-    
-    // Update company license
-    company.licenseExpiry = newExpiry.toISOString()
+
+    // Mismo helper que el resto: los días que queden se conservan y se suman.
+    const newExpiry = calculateExtendedExpiryDate(company, 0, Number(duration))
+    company.licenseExpiry = newExpiry
     await kv.set(`company:${userProfile.companyId}`, JSON.stringify(company))
     
     console.log(`License manually activated for company ${userProfile.companyId}`)
@@ -6439,22 +6505,13 @@ app.post('/make-server-4d437e50/license/extend', async (c) => {
     }
     
     const company = JSON.parse(companyStr)
-    
-    // Calculate new expiry date
-    let currentExpiry = new Date(company.licenseExpiry || new Date())
-    
-    // If license is already expired, start from now
     const now = new Date()
-    if (currentExpiry < now) {
-      currentExpiry = now
-    }
-    
-    // Add months to current expiry
-    const newExpiry = new Date(currentExpiry)
-    newExpiry.setMonth(newExpiry.getMonth() + months)
-    
-    // Update company with new expiry
-    company.licenseExpiry = newExpiry.toISOString()
+
+    // Los días que queden —de licencia o de prueba— se conservan y se suman.
+    const previousExpiry = company.licenseExpiry
+    const newExpiry = calculateExtendedExpiryDate(company, months, 0)
+
+    company.licenseExpiry = newExpiry
     company.licenseExtendedAt = now.toISOString()
     company.licenseExtendedBy = user.id
     company.monthsAdded = months
@@ -6466,13 +6523,14 @@ app.post('/make-server-4d437e50/license/extend', async (c) => {
     
     await kv.set(`company:${userProfile.companyId}`, JSON.stringify(company))
     
-    console.log(`✅ License extended for company ${userProfile.companyId} by ${months} months. New expiry: ${newExpiry.toISOString()}`)
+    console.log(`✅ License extended for company ${userProfile.companyId} by ${months} months. New expiry: ${newExpiry}`)
     
     return c.json({
       success: true,
       message: `Licencia extendida por ${months} ${months === 1 ? 'mes' : 'meses'}`,
-      previousExpiry: company.licenseExpiry,
-      newExpiry: newExpiry.toISOString(),
+      // Antes devolvía company.licenseExpiry, que ya valía la fecha nueva.
+      previousExpiry,
+      newExpiry,
       monthsAdded: months
     })
   } catch (error) {

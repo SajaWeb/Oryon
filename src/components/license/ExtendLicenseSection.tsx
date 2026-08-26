@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { PaymentReceipt } from '../PaymentReceipt'
 import wompiService from '../../services/WompiService'
 import { getSupabaseClient } from "../../utils/supabase/client";
+import { extendLicense, daysRemaining } from '../../utils/license'
 
 interface ExtendLicenseSectionProps {
   accessToken: string
@@ -90,14 +91,11 @@ export function ExtendLicenseSection({
     }
   }
 
+  /* La misma función que aplica la vigencia al volver del pago: si aquí se
+     calculara aparte, la fecha prometida y la guardada podrían no coincidir. */
   const calculateNewExpiryDate = (months: number) => {
     if (!currentExpiry) return null
-    const currentDate = new Date(currentExpiry)
-    const now = new Date()
-    const baseDate = currentDate > now ? currentDate : now
-    const newDate = new Date(baseDate)
-    newDate.setMonth(newDate.getMonth() + months)
-    return newDate
+    return extendLicense({ licenseExpiry: currentExpiry }, months)
   }
 
   const formatPrice = (price: number) => {
@@ -116,6 +114,7 @@ export function ExtendLicenseSection({
   const selectedOption = durationOptions.find(opt => opt.months === selectedDuration) || durationOptions[0]
   const pricing = calculatePrice(selectedOption.months, selectedOption.discount)
   const newExpiryDate = calculateNewExpiryDate(selectedOption.months)
+  const diasActuales = daysRemaining(currentExpiry)
 
   const handleExtendLicense = async () => {
     if (!selectedOption || !pricing) return
@@ -341,6 +340,17 @@ export function ExtendLicenseSection({
                 <span className="font-bold text-foreground">Total a pagar:</span>
                 <span className="font-extrabold text-primary">{formatPrice(pricing.finalPrice)}</span>
               </div>
+              {/* Se dice explícitamente que los días actuales no se pierden: era la
+                  duda razonable al pagar una extensión estando aún vigente. */}
+              {diasActuales > 0 && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Días que conservas:</span>
+                  <span className="font-semibold text-foreground">
+                    {diasActuales} {diasActuales === 1 ? 'día' : 'días'} + {selectedOption.months}{' '}
+                    {selectedOption.months === 1 ? 'mes' : 'meses'}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Nueva fecha de vencimiento:</span>
                 <span className="font-bold text-success">{formatDate(newExpiryDate)}</span>

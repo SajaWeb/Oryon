@@ -14,7 +14,6 @@ interface PaymentSuccessProps {
   paymentMethod?: 'wompi'
   reference?: string
   planId?: string
-  months?: number
   onComplete: () => void
 }
 
@@ -36,7 +35,6 @@ export function PaymentSuccess({
   accessToken, 
   reference,
   planId,
-  months,
   onComplete 
 }: PaymentSuccessProps) {
   const [status, setStatus] = useState<PaymentStatus>('processing')
@@ -80,11 +78,25 @@ export function PaymentSuccess({
         setPaymentDetails(details)
 
         switch (transaction.status) {
-          case 'APPROVED':
-            await processPlanUpgrade(transaction)
-            setStatus('success')
-            setMessage('¡Pago aprobado con éxito! Tu licencia y suscripción han sido actualizadas.')
+          case 'APPROVED': {
+            /* Sólo se canta victoria si el servidor confirmó y aplicó la vigencia.
+               Antes se anunciaba éxito pasara lo que pasara con la licencia. */
+            const resultado = await processPlanUpgrade(transaction)
+            if (resultado.applied) {
+              setStatus('success')
+              setMessage('¡Pago aprobado! Los días que te quedaban se conservaron y se sumaron a lo comprado.')
+            } else {
+              setStatus('pending')
+              setMessage('Wompi aprobó el pago y estamos activando tu licencia. Puede tardar unos segundos.')
+              if (retryCount < 6) {
+                setTimeout(() => {
+                  setRetryCount(prev => prev + 1)
+                  confirmPayment()
+                }, 5000)
+              }
+            }
             break
+          }
 
           case 'PENDING':
             setStatus('pending')
@@ -117,26 +129,39 @@ export function PaymentSuccess({
         // Si no se obtuvo de la API pública de Wompi (ej. modo prueba o referencia directa)
         console.log('Verificando con backend Oryon:', reference || transactionId)
         
+        /* Aquí no sabemos el estado: la consulta a Wompi desde el navegador falló.
+           Antes se daba por aprobado y se anunciaba la licencia renovada, así que
+           bastaba con abrir esta URL a mano para regalarse una. Se le pregunta al
+           servidor, que sí puede verificarlo, y se dice lo que responda. */
         const details: PaymentDetails = {
           id: transactionId || reference || `TXN-${Date.now()}`,
           reference: reference || transactionId || 'ORY-REF',
           amount: 0,
           currency: 'COP',
-          status: 'APPROVED',
-          paymentMethod: 'Wompi PSE',
+          status: 'PENDING',
+          paymentMethod: 'Wompi',
           createdAt: new Date().toISOString()
         }
         setPaymentDetails(details)
 
-        // Actualizar registro
-        await processPlanUpgrade({
+        const resultado = await processPlanUpgrade({
           id: transactionId || reference,
-          reference: reference || transactionId,
-          status: 'APPROVED'
+          reference: reference || transactionId
         })
 
-        setStatus('success')
-        setMessage('¡Pago recibido! Tu licencia de Oryon ha sido renovada exitosamente.')
+        if (resultado.applied) {
+          setStatus('success')
+          setMessage('¡Pago confirmado! Los días que te quedaban se conservaron y se sumaron a lo comprado.')
+        } else {
+          setStatus('pending')
+          setMessage('Estamos confirmando tu pago con Wompi. En cuanto se acredite, la licencia se activa sola.')
+          if (retryCount < 6) {
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1)
+              confirmPayment()
+            }, 5000)
+          }
+        }
       }
 
     } catch (error: any) {
@@ -160,126 +185,65 @@ export function PaymentSuccess({
     }
   }
 
-const DEFAULT_PLAN_LIMITS: Record<string, { branches: number; admins: number; advisors: number; technicians: number }> = {
-  basico: { branches: 1, admins: 1, advisors: 1, technicians: 2 },
-  pyme: { branches: 2, admins: 2, advisors: 4, technicians: 8 },
-  enterprise: { branches: 4, admins: 4, advisors: 8, technicians: 16 }
-}
+  /**
+   * Pide al servidor que aplique el pago a la licencia.
+   *
+   * El navegador ya no calcula ni escribe vigencias. Antes lo hacía, y de ahí
+   * salían los dos problemas:
+   *
+   *  1. Una rama de "compra de plan" arrancaba en `new Date()`, así que a quien le
+   *     quedaban 31 días y compraba un año se le quedaban 365, no 396.
+   *  2. Clasificaba la compra leyendo la referencia devuelta por Wompi, que con
+   *     enlaces de pago es una suya (`test_…`) y no la nuestra. Toda extensión
+   *     parecía compra nueva, que es justo lo que activaba esa rama.
+   *
+   * Además, cualquiera que abriera /payment-callback con una referencia a mano se
+   * llevaba la licencia: aquí se daba el pago por aprobado sin preguntarle a nadie.
+   * Ahora lo confirma el Edge Function contra Wompi, y sólo él escribe.
+   */
+  const processPlanUpgrade = async (
+    transaction: any
+  ): Promise<{ applied: boolean; reason?: string }> => {
+    // La referencia de comercio es la nuestra, la que viaja en la URL de retorno.
+    const merchantRef = String(reference || '').trim()
+    const wompiRef = String(transaction?.reference || '').trim()
+    const txId = String(transaction?.id || transactionId || '').trim()
+    const ref = merchantRef || wompiRef || txId
+    if (!ref) return { applied: false, reason: 'sin referencia' }
 
-  const processPlanUpgrade = async (transaction: any) => {
+    const isPlanChange = merchantRef ? merchantRef.startsWith('PLAN-') : Boolean(planId)
+
+    const token = await getAuthToken()
+    if (!token) return { applied: false, reason: 'sin sesión' }
+
     try {
-      const ref = String(transaction.reference || reference || transactionId || '')
-      const supabase = getSupabaseClient()
-
-      // 1. Validar idempotencia: si ya fue procesado y aplicado, evitar duplicar vigencia
-      try {
-        const { data: payRow } = await supabase.from('kv_store_4d437e50').select('value').eq('key', `payment:${ref}`).single()
-        if (payRow?.value) {
-          const parsedPay = typeof payRow.value === 'string' ? JSON.parse(payRow.value) : payRow.value
-          if (parsedPay?.status === 'APPROVED' && parsedPay?.applied === true) {
-            console.log('Pago ya aplicado previamente, no se duplica vigencia:', ref)
-            return
-          }
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/license/payment/update`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reference: ref,
+            transactionId: txId,
+            planId: isPlanChange ? planId : undefined,
+            paymentData: transaction
+          })
         }
-      } catch (checkErr) {}
-
-      // Detectar si es compra / cambio de plan (PLAN-) o extensión de tiempo (EXT-)
-      const isPlanPurchase = ref.startsWith('PLAN-') || (!ref.startsWith('EXT-') && Boolean(planId))
-
-      let durationMonths = months || 1
-      const refMatch = ref.match(/-(\d+)M-/)
-      if (refMatch && refMatch[1]) {
-        durationMonths = parseInt(refMatch[1], 10)
+      )
+      const data = await res.json().catch(() => null)
+      if (res.ok && data?.success && data?.license?.applied) {
+        return { applied: true }
       }
-
-      // Detectar planId desde la referencia (ej: PLAN-pyme-1M-...)
-      let targetPlanId = planId
-      if (!targetPlanId) {
-        if (ref.includes('enterprise')) targetPlanId = 'enterprise'
-        else if (ref.includes('pyme')) targetPlanId = 'pyme'
-        else if (ref.includes('basico')) targetPlanId = 'basico'
+      return {
+        applied: false,
+        reason: data?.license?.reason || data?.error || 'el pago aún no está confirmado'
       }
-
-      // 2. Actualizar directamente en la base de datos de forma atómica
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const { data: userRow } = await supabase.from('kv_store_4d437e50').select('value').eq('key', `user:${user.id}`).single()
-          if (userRow?.value) {
-            const profile = typeof userRow.value === 'string' ? JSON.parse(userRow.value) : userRow.value
-            const targetCompanyId = profile.companyId || 1
-
-            const { data: compRow } = await supabase.from('kv_store_4d437e50').select('value').eq('key', `company:${targetCompanyId}`).single()
-            if (compRow?.value) {
-              const comp = typeof compRow.value === 'string' ? JSON.parse(compRow.value) : compRow.value
-              const now = new Date()
-
-              let newExpiry: Date
-
-              if (isPlanPurchase) {
-                // ACTIVACIÓN / CAMBIO DE PLAN:
-                // Se activa la suscripción del plan seleccionado con su vigencia (1 mes = 30 días a partir de hoy)
-                const base = new Date()
-                base.setMonth(base.getMonth() + durationMonths)
-                newExpiry = base
-
-                comp.planId = targetPlanId || comp.planId || 'basico'
-                comp.customLimits = DEFAULT_PLAN_LIMITS[comp.planId] || DEFAULT_PLAN_LIMITS.basico
-              } else {
-                // EXTENSIÓN DE TIEMPO (EXT-):
-                // Suma los meses comprados a la vigencia actual existente
-                const expiryTime = comp.licenseExpiry ? new Date(comp.licenseExpiry).getTime() : 0
-                const trialTime = comp.trialEndsAt ? new Date(comp.trialEndsAt).getTime() : 0
-                const maxFutureTime = Math.max(now.getTime(), isNaN(expiryTime) ? 0 : expiryTime, isNaN(trialTime) ? 0 : trialTime)
-                const baseDate = new Date(maxFutureTime)
-
-                baseDate.setMonth(baseDate.getMonth() + durationMonths)
-                newExpiry = baseDate
-              }
-
-              comp.licenseExpiry = newExpiry.toISOString()
-              comp.lastUpgrade = now.toISOString()
-              comp.updatedAt = now.toISOString()
-              if (comp.trialEndsAt) {
-                delete comp.trialEndsAt
-              }
-
-              await supabase.from('kv_store_4d437e50').upsert({
-                key: `company:${targetCompanyId}`,
-                value: JSON.stringify(comp)
-              })
-
-              // Guardar registro de pago marcado como aplicado
-              const payRecord = {
-                reference: ref,
-                transactionId: transaction.id || ref,
-                companyId: targetCompanyId,
-                companyName: comp.name || profile.companyName || `Empresa #${targetCompanyId}`,
-                planId: comp.planId,
-                amount: transaction.amount_in_cents ? transaction.amount_in_cents / 100 : (transaction.amount || (targetPlanId === 'pyme' ? 85000 : 50000)),
-                durationMonths: durationMonths,
-                status: 'APPROVED',
-                applied: true,
-                paymentMethod: transaction.payment_method_type || 'Wompi PSE',
-                customerEmail: profile.email || user.email || '',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              }
-
-              await supabase.from('kv_store_4d437e50').upsert({
-                key: `payment:${ref}`,
-                value: JSON.stringify(payRecord)
-              })
-            }
-          }
-        }
-      } catch (directErr) {
-        console.warn('Error en actualización directa de plan/extensión:', directErr)
-      }
-    } catch (error) {
-      console.error('Error al registrar actualización de plan:', error)
+    } catch (err) {
+      console.warn('Sin respuesta del servidor al aplicar el pago:', err)
+      return { applied: false, reason: 'no se pudo contactar al servidor' }
     }
   }
+
 
   const handleRetry = () => {
     setIsRetrying(true)

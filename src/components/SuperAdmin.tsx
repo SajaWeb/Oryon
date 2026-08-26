@@ -41,6 +41,7 @@ import {
 import { toast } from 'sonner'
 import { useTurnstile } from './auth/Turnstile'
 import { authMessage } from './auth/authErrors'
+import { addMonthsToLicense, extendLicense } from '../utils/license'
 import {
   Dialog,
   DialogContent,
@@ -860,21 +861,13 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
     try {
       let finalExpiry = editForm.licenseExpiryDate ? new Date(editForm.licenseExpiryDate).toISOString() : selectedCompany.licenseExpiry
 
-      // Si se especificó agregar meses o días
+      // Si se especificó agregar meses o días, se suman a lo que ya hubiera.
       if (editForm.addMonths > 0 || editForm.addDays > 0) {
-        const now = new Date()
-        const expiryTime = finalExpiry ? new Date(finalExpiry).getTime() : 0
-        const trialTime = selectedCompany.trialEndsAt ? new Date(selectedCompany.trialEndsAt).getTime() : 0
-        const maxFutureTime = Math.max(now.getTime(), isNaN(expiryTime) ? 0 : expiryTime, isNaN(trialTime) ? 0 : trialTime)
-        const baseDate = new Date(maxFutureTime)
-
-        if (editForm.addMonths > 0) {
-          baseDate.setMonth(baseDate.getMonth() + editForm.addMonths)
-        }
-        if (editForm.addDays > 0) {
-          baseDate.setDate(baseDate.getDate() + editForm.addDays)
-        }
-        finalExpiry = baseDate.toISOString()
+        finalExpiry = extendLicense(
+          { licenseExpiry: finalExpiry, trialEndsAt: selectedCompany.trialEndsAt },
+          editForm.addMonths,
+          editForm.addDays
+        ).toISOString()
       }
 
       // Si se configuraron días de prueba
@@ -985,15 +978,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
       if (compRow?.value) {
         const comp = typeof compRow.value === 'string' ? JSON.parse(compRow.value) : compRow.value
         const now = new Date()
-        const expiryTime = comp.licenseExpiry ? new Date(comp.licenseExpiry).getTime() : 0
-        const trialTime = comp.trialEndsAt ? new Date(comp.trialEndsAt).getTime() : 0
-        const maxFutureTime = Math.max(now.getTime(), isNaN(expiryTime) ? 0 : expiryTime, isNaN(trialTime) ? 0 : trialTime)
-        const baseDate = new Date(maxFutureTime)
-
-        const newExpiry = new Date(baseDate)
-        newExpiry.setMonth(newExpiry.getMonth() + (approveMonths || 1))
-
-        comp.licenseExpiry = newExpiry.toISOString()
+        comp.licenseExpiry = addMonthsToLicense(comp, approveMonths || 1)
         comp.planId = selectedPayment.planId || comp.planId || 'basico'
         comp.lastUpgrade = now.toISOString()
         comp.updatedAt = now.toISOString()
