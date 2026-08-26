@@ -28,20 +28,77 @@ interface FormatSpec {
   label: string
   /** Ancho de página. `auto` de alto en rollo: el ticket crece con el contenido. */
   page: string
+  /**
+   * Ancho físico del documento, fijado en el `body`.
+   *
+   * No es redundante con `@page size`. Si la impresora resuelve a carta —porque es
+   * la única que hay, o porque el usuario la elige en el diálogo—, un documento sin
+   * ancho propio se estira a los 216 mm de la hoja y el ticket sale deformado. Con
+   * el ancho puesto aquí, los 80 mm son 80 mm salga en el rollo o en una esquina de
+   * la hoja carta.
+   */
+  width: string
   padding: string
   /** Escala tipográfica en px; los rollos necesitan cuerpos más pequeños. */
   base: number
   small: number
   title: number
   total: number
+  /**
+   * Tinta del texto secundario.
+   *
+   * Las térmicas son de un bit: no imprimen gris, lo tramas. Un #444 a 8 px sale
+   * moteado y sucio, que es justo lo que hace que un tique parezca casero. En rollo
+   * todo va en negro y la jerarquía la marcan el cuerpo, la versalita y el peso.
+   */
+  muted: string
+  /** Regla secundaria. Punteada en láser; sólida y negra en térmica. */
+  ruleSoft: string
   /** El rollo no admite dos columnas. */
   columns: boolean
 }
 
 export const FORMATS: Record<PrintFormat, FormatSpec> = {
-  '55mm': { label: 'Rollo térmico 55 mm', page: '55mm auto', padding: '3mm', base: 8, small: 7, title: 11, total: 13, columns: false },
-  '80mm': { label: 'Rollo térmico 80 mm', page: '80mm auto', padding: '4mm', base: 9, small: 8, title: 13, total: 16, columns: false },
-  carta: { label: 'Hoja carta', page: 'letter', padding: '14mm', base: 11, small: 9.5, title: 19, total: 22, columns: true },
+  '55mm': {
+    label: 'Rollo térmico 55 mm',
+    page: '55mm auto',
+    width: '55mm',
+    padding: '3mm',
+    base: 9,
+    small: 8,
+    title: 12,
+    total: 14,
+    muted: '#000',
+    ruleSoft: '1px solid #000',
+    columns: false,
+  },
+  '80mm': {
+    label: 'Rollo térmico 80 mm',
+    page: '80mm auto',
+    width: '80mm',
+    padding: '4mm',
+    base: 10,
+    small: 9,
+    title: 14,
+    total: 17,
+    muted: '#000',
+    ruleSoft: '1px solid #000',
+    columns: false,
+  },
+  carta: {
+    label: 'Hoja carta',
+    page: 'letter',
+    // En carta el ancho sí lo pone la hoja: el documento ocupa el papel que haya.
+    width: 'auto',
+    padding: '14mm',
+    base: 11,
+    small: 9.5,
+    title: 19,
+    total: 22,
+    muted: '#444',
+    ruleSoft: '1px dashed #888',
+    columns: true,
+  },
 }
 
 /**
@@ -141,6 +198,7 @@ function esc(value?: string | number): string {
 
 /** Hoja de estilos común. Es la pieza que hace que los tres documentos rimen. */
 function styles(f: FormatSpec): string {
+  const rollo = !f.columns
   return `
     @page { size: ${f.page}; margin: 0; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -148,37 +206,106 @@ function styles(f: FormatSpec): string {
     body {
       font-family: ${FONT_STACK};
       font-size: ${f.base}px;
-      line-height: 1.4;
+      line-height: 1.38;
       color: #000;
+      width: ${f.width};
       padding: ${f.padding};
     }
+    /* Repetido a propósito dentro de @media print: es la regla que impide que el
+       documento se estire cuando la impresora resuelve a un papel más ancho. */
+    @media print { body { width: ${f.width}; } }
+
     .doc { width: 100%; }
+    /* Un nombre de producto largo no puede desbordar 72 mm de rollo. */
+    .doc, td, dd { overflow-wrap: anywhere; }
+
     h1 { font-size: ${f.title}px; font-weight: 700; margin: 0 0 2px; letter-spacing: -0.01em; }
-    h2 { font-size: ${f.base + 1}px; font-weight: 700; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.06em; }
-    .muted { color: #444; font-size: ${f.small}px; }
+    h2 {
+      font-size: ${f.small}px;
+      font-weight: 700;
+      margin: 0 0 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .muted { color: ${f.muted}; font-size: ${f.small}px; }
     .center { text-align: center; }
     .right { text-align: right; }
-    .rule { border: 0; border-top: 1px solid #000; margin: 6px 0; }
-    .rule-soft { border: 0; border-top: 1px dashed #888; margin: 5px 0; }
+
+    .rule { border: 0; border-top: 1px solid #000; margin: 5px 0; }
+    .rule-soft { border: 0; border-top: ${f.ruleSoft}; margin: 5px 0; }
     .row { display: flex; justify-content: space-between; gap: 8px; }
-    .stack { display: flex; flex-direction: column; gap: 2px; }
     .block { margin-bottom: 7px; }
+
+    /* Banda de identificación: qué documento es y cuál, antes que nada. */
+    .docband {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      border-top: 1px solid #000;
+      border-bottom: 1px solid #000;
+      padding: ${rollo ? '3px 0' : '5px 0'};
+      margin-bottom: 6px;
+    }
+    .docband .kind {
+      font-size: ${f.small}px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .docband .no { font-size: ${f.title - (rollo ? 2 : 4)}px; font-weight: 700; }
+
     table { width: 100%; border-collapse: collapse; }
-    th { font-size: ${f.small}px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; padding: 3px 0; border-bottom: 1px solid #000; }
-    td { padding: 3px 0; vertical-align: top; }
-    tbody tr + tr td { border-top: 1px solid #ddd; }
+    th {
+      font-size: ${f.small}px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      text-align: left;
+      padding: 3px 0;
+      border-bottom: 1px solid #000;
+      /* Un encabezado partido en dos líneas ("CA / NT.") desalinea la columna. */
+      white-space: nowrap;
+    }
+    td { padding: ${rollo ? '3px 0' : '4px 0'}; vertical-align: top; }
+    tbody tr + tr td { border-top: ${rollo ? '0' : '1px solid #ddd'}; }
+    /* Una fila no se parte entre dos hojas. */
+    tr { break-inside: avoid; page-break-inside: avoid; }
     /* Los dígitos de esta pila ya son de ancho fijo: las cifras alinean solas. */
     .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .total { font-size: ${f.total}px; font-weight: 700; }
+
+    /* Bloque de totales: el importe a pagar es lo que se busca de un vistazo. */
+    .totals { margin-top: 5px; }
+    .totals .row { padding: 1px 0; }
+    .grand {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      border-top: 2px solid #000;
+      margin-top: 3px;
+      padding-top: 4px;
+      font-size: ${f.total}px;
+      font-weight: 700;
+    }
+    .grand .label { font-size: ${f.base}px; text-transform: uppercase; letter-spacing: 0.08em; }
+
     .kv { display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; }
-    .kv dt { color: #444; font-size: ${f.small}px; }
+    .kv dt { color: ${f.muted}; font-size: ${f.small}px; }
     .kv dd { margin: 0; }
-    .box { border: 1px solid #000; padding: 5px 6px; margin: 6px 0; }
-    .logo { max-width: ${f.columns ? '160px' : '46mm'}; max-height: 18mm; display: block; margin: 0 auto 4px; }
-    .qr { display: block; margin: 4px auto 2px; width: ${f.columns ? '110px' : '28mm'}; }
-    .sign { margin-top: ${f.columns ? '18mm' : '10mm'}; }
+    .box { border: 1px solid #000; padding: 5px 6px; margin: 5px 0; }
+    .box .label {
+      font-size: ${f.small}px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 2px;
+    }
+    .logo { max-width: ${f.columns ? '160px' : '40mm'}; max-height: 16mm; display: block; margin: 0 auto 4px; }
+    .qr { display: block; margin: 4px auto 2px; width: ${f.columns ? '110px' : '26mm'}; }
+    .sign { margin-top: ${f.columns ? '18mm' : '9mm'}; break-inside: avoid; }
     .sign-line { border-top: 1px solid #000; padding-top: 3px; font-size: ${f.small}px; }
-    ${f.columns ? '.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; }' : '.cols { display: block; }'}
+    ${f.columns ? '.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; align-items: start; }' : '.cols { display: block; }'}
   `
 }
 
@@ -201,6 +328,24 @@ function header(config: PrintConfig, f: FormatSpec): string {
   `
 }
 
+/**
+ * Banda de identificación del documento.
+ *
+ * Antes el tipo y el número iban como un `<strong>` suelto en una fila, con el
+ * mismo peso visual que la fecha. En un mostrador lo primero que se busca es qué
+ * papel es y cuál: eso va enmarcado y con jerarquía propia.
+ */
+function docBand(kind: string, number: string, date: string): string {
+  return `
+    <div class="docband">
+      <div>
+        <div class="kind">${esc(kind)}</div>
+        <div class="no num">${esc(number)}</div>
+      </div>
+      <div class="muted num right">${esc(date)}</div>
+    </div>`
+}
+
 function footer(config: PrintConfig): string {
   const lineas = [esc(config.warrantyNotes), esc(config.farewellMessage), esc(config.website)].filter(Boolean)
   if (!lineas.length) return ''
@@ -216,15 +361,48 @@ function shell(title: string, f: FormatSpec, body: string): string {
 export function invoiceHtml(data: InvoiceData, config: PrintConfig): string {
   const f = FORMATS[normalizeFormat(config.format)]
 
-  const filas = data.items
-    .map(
-      (item) => `
-      <tr>
-        <td>${esc(item.name)}<div class="muted num">${item.quantity} × ${money(item.price)}</div></td>
-        <td class="right num">${money(item.total)}</td>
-      </tr>`
-    )
-    .join('')
+  /* En carta hay sitio para desglosar cantidad y valor unitario en columnas; en
+     rollo no, así que van bajo el nombre. Es el mismo dato, no dos documentos. */
+  const tabla = f.columns
+    ? `
+      <table>
+        <thead>
+          <tr>
+            <th>Detalle</th>
+            <th class="right">Cant.</th>
+            <th class="right">V. unitario</th>
+            <th class="right">Importe</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.items
+            .map(
+              (item) => `
+          <tr>
+            <td>${esc(item.name)}</td>
+            <td class="right num">${item.quantity}</td>
+            <td class="right num">${money(item.price)}</td>
+            <td class="right num">${money(item.total)}</td>
+          </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>`
+    : `
+      <table>
+        <thead><tr><th>Detalle</th><th class="right">Importe</th></tr></thead>
+        <tbody>
+          ${data.items
+            .map(
+              (item) => `
+          <tr>
+            <td>${esc(item.name)}<div class="muted num">${item.quantity} × ${money(item.price)}</div></td>
+            <td class="right num">${money(item.total)}</td>
+          </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>`
 
   const totales = [
     data.subtotal !== data.total ? ['Subtotal', money(data.subtotal)] : null,
@@ -232,29 +410,32 @@ export function invoiceHtml(data: InvoiceData, config: PrintConfig): string {
     data.tax ? ['Impuesto', money(data.tax)] : null,
   ].filter(Boolean) as string[][]
 
+  const referencias = [
+    data.repairOrderNumber ? `<dt>Orden</dt><dd class="num">${esc(data.repairOrderNumber)}</dd>` : '',
+    data.deviceInfo ? `<dt>Equipo</dt><dd>${esc(data.deviceInfo)}</dd>` : '',
+    data.technicianName ? `<dt>Técnico</dt><dd>${esc(data.technicianName)}</dd>` : '',
+  ].join('')
+
   return shell(
     `Factura ${data.invoiceNumber}`,
     f,
     `
     ${header(config, f)}
+    ${docBand('Factura de venta', data.invoiceNumber, data.date)}
     <div class="block">
-      <div class="row"><strong>Factura ${esc(data.invoiceNumber)}</strong><span class="muted num">${esc(data.date)}</span></div>
       <dl class="kv">
         <dt>Cliente</dt><dd>${esc(data.customerName)}</dd>
         ${data.customerPhone ? `<dt>Teléfono</dt><dd class="num">${esc(data.customerPhone)}</dd>` : ''}
-        ${data.repairOrderNumber ? `<dt>Orden</dt><dd class="num">${esc(data.repairOrderNumber)}</dd>` : ''}
-        ${data.deviceInfo ? `<dt>Equipo</dt><dd>${esc(data.deviceInfo)}</dd>` : ''}
-        ${data.technicianName ? `<dt>Técnico</dt><dd>${esc(data.technicianName)}</dd>` : ''}
+        ${data.customerEmail ? `<dt>Correo</dt><dd>${esc(data.customerEmail)}</dd>` : ''}
+        ${referencias}
       </dl>
     </div>
-    <table>
-      <thead><tr><th>Detalle</th><th class="right">Importe</th></tr></thead>
-      <tbody>${filas}</tbody>
-    </table>
-    <hr class="rule">
-    ${totales.map(([k, v]) => `<div class="row"><span class="muted">${k}</span><span class="num">${v}</span></div>`).join('')}
-    <div class="row total"><span>TOTAL</span><span class="num">${money(data.total)}</span></div>
-    <div class="row"><span class="muted">Pago</span><span>${esc(data.paymentMethod)}</span></div>
+    ${tabla}
+    <div class="totals">
+      ${totales.map(([k, v]) => `<div class="row"><span class="muted">${k}</span><span class="num">${v}</span></div>`).join('')}
+      <div class="grand"><span class="label">Total</span><span class="num">${money(data.total)}</span></div>
+      <div class="row"><span class="muted">Forma de pago</span><span>${esc(data.paymentMethod)}</span></div>
+    </div>
     ${data.notes ? `<hr class="rule-soft"><div class="muted">${esc(data.notes)}</div>` : ''}
     ${footer(config)}
   `
@@ -285,13 +466,14 @@ export function serviceOrderHtml(data: ServiceOrderData, config: PrintConfig, qr
         ${data.estimatedDate ? `<dt>Entrega est.</dt><dd class="num">${esc(data.estimatedDate)}</dd>` : ''}
       </dl>
       <div class="box">
-        <div class="muted">Falla reportada</div>
+        <div class="label">Falla reportada</div>
         <div>${esc(data.problem)}</div>
       </div>
       ${data.observations ? `<div class="muted">${esc(data.observations)}</div>` : ''}
       ${
         data.estimatedCost != null
-          ? `<div class="row total"><span>Costo estimado</span><span class="num">${money(data.estimatedCost)}</span></div>`
+          ? `<div class="grand"><span class="label">Costo estimado</span><span class="num">${money(data.estimatedCost)}</span></div>
+             <div class="muted">Valor aproximado. No es una factura; el importe final se confirma al entregar.</div>`
           : ''
       }
     </div>`
@@ -301,8 +483,8 @@ export function serviceOrderHtml(data: ServiceOrderData, config: PrintConfig, qr
     f,
     `
     ${header(config, f)}
+    ${docBand('Orden de trabajo', data.orderNumber, data.date)}
     <div class="block">
-      <div class="row"><strong>Orden de trabajo ${esc(data.orderNumber)}</strong><span class="muted num">${esc(data.date)}</span></div>
       <dl class="kv">
         <dt>Cliente</dt><dd>${esc(data.customerName)}</dd>
         ${data.customerPhone ? `<dt>Teléfono</dt><dd class="num">${esc(data.customerPhone)}</dd>` : ''}
@@ -339,7 +521,8 @@ export function deviceLabelHtml(data: DeviceLabelData): string {
     f,
     `
     <div class="center block">
-      <h1 class="num">${esc(data.orderNumber)}</h1>
+      <div class="kind" style="font-size:${f.small}px;font-weight:700;text-transform:uppercase;letter-spacing:.1em">Orden</div>
+      <div class="num" style="font-size:${f.title + 10}px;font-weight:700;line-height:1.05">${esc(data.orderNumber)}</div>
     </div>
     <hr class="rule">
     <dl class="kv">
@@ -347,7 +530,10 @@ export function deviceLabelHtml(data: DeviceLabelData): string {
       <dt>Teléfono</dt><dd class="num">${esc(data.customerPhone)}</dd>
       <dt>Clave</dt><dd class="num">${clave}</dd>
     </dl>
-    <div class="box">${esc(data.problem)}</div>
+    <div class="box">
+      <div class="label">Falla</div>
+      <div>${esc(data.problem)}</div>
+    </div>
   `
   )
 }
