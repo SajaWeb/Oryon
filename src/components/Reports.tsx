@@ -66,6 +66,9 @@ export function Reports({ accessToken }: ReportsProps) {
   const chart = useChartColors()
   const [tab, setTab] = useState('profits')
   const [loading, setLoading] = useState(true)
+  /* Aparte de `loading`, que tapa la vista con un cargador: al refrescar a mano se
+     quiere el giro del botón y el sello de hora, no la pantalla en blanco. */
+  const [refreshing, setRefreshing] = useState(false)
   const [salesByDay, setSalesByDay] = useState<any[]>([])
   const [repairsByStatus, setRepairsByStatus] = useState<any[]>([])
   const [topProducts, setTopProducts] = useState<any[]>([])
@@ -82,6 +85,12 @@ export function Reports({ accessToken }: ReportsProps) {
   useEffect(() => {
     fetchReports()
   }, [])
+
+  const refresh = async () => {
+    setRefreshing(true)
+    await fetchReports()
+    setRefreshing(false)
+  }
 
   const fetchReports = async () => {
     try {
@@ -154,8 +163,8 @@ export function Reports({ accessToken }: ReportsProps) {
     title: 'Reportes y análisis',
     subtitle: 'Insights para tomar mejores decisiones de negocio',
     eyebrow: 'Análisis',
-    onRefresh: fetchReports,
-    refreshing: loading,
+    onRefresh: refresh,
+    refreshing: refreshing || loading,
   })
 
   if (loading) {

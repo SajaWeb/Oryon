@@ -66,6 +66,8 @@ export function Settings({ accessToken, userProfile, licenseInfo }: SettingsProp
     'Cédula de Extranjería'
   ])
   const [loading, setLoading] = useState(true)
+  /* Ver Reports: `loading` tapa la vista, y refrescar a mano no debe hacerlo. */
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     fetchAllData()
@@ -76,6 +78,12 @@ export function Settings({ accessToken, userProfile, licenseInfo }: SettingsProp
       setIdentificationTypes(company.identificationTypes)
     }
   }, [company])
+
+  const refresh = async () => {
+    setRefreshing(true)
+    await fetchAllData()
+    setRefreshing(false)
+  }
 
   const fetchAllData = async () => {
     try {
@@ -153,8 +161,8 @@ export function Settings({ accessToken, userProfile, licenseInfo }: SettingsProp
     // El nombre de la empresa ya sale en la topbar; repetirlo aquí era ruido.
     subtitle: 'Empresa, usuarios y documentos',
     eyebrow: 'Cuenta',
-    onRefresh: fetchAllData,
-    refreshing: loading,
+    onRefresh: refresh,
+    refreshing: refreshing || loading,
   })
 
   if (loading) {

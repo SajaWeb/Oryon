@@ -138,6 +138,8 @@ export function License({
   const [tab, setTab] = useState('plans');
   const [selectedPlan, setSelectedPlan] = useState<string>("pyme");
   const [loading, setLoading] = useState(false);
+  /** Carga de los datos de la empresa; distinto del `loading` del cobro. */
+  const [loadingData, setLoadingData] = useState(true);
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
   const [companyData, setCompanyData] = useState<any>(null);
   const [validationResult, setValidationResult] = useState<any>(null);
@@ -171,7 +173,11 @@ export function License({
     }
   }, [licenseInfo, accessToken]);
 
+  /* `loading` ya estaba ocupado por el procesamiento del pago. Enganchar el
+     refresco a ese estado hacía girar el botón mientras se cobraba y sellaba la
+     hora al terminar un pago, que no es lo que informa el sello. */
   const loadCompanyData = async () => {
+    setLoadingData(true);
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/company/info`,
@@ -187,6 +193,8 @@ export function License({
       }
     } catch (error) {
       console.error("Error loading company data:", error);
+    } finally {
+      setLoadingData(false);
     }
   };
 
@@ -395,7 +403,7 @@ export function License({
     subtitle: 'Suscripción y facturación',
     eyebrow: 'Cuenta',
     onRefresh: loadCompanyData,
-    refreshing: loading,
+    refreshing: loadingData,
   });
 
   if (showReceipt && receiptData) {
