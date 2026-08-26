@@ -25,7 +25,7 @@ El sistema de tracking tenía un error crítico donde las órdenes de reparació
 - Empresa 1, Orden 5: `repair:1:5` → `/#/tracking/1/5`
 - Empresa 2, Orden 5: `repair:2:5` → `/#/tracking/2/5`
 
-### 2. Cambios en el Backend (`/supabase/functions/server/index.tsx`)
+### 2. Cambios en el Backend (`/supabase/functions/make-server-4d437e50/index.ts`)
 
 #### Endpoints Actualizados:
 
@@ -192,7 +192,7 @@ await kv.del(`repair:${id}`)
 ## Archivos Modificados
 
 ### Backend
-- `/supabase/functions/server/index.tsx`
+- `/supabase/functions/make-server-4d437e50/index.ts`
   - Nuevo endpoint `/tracking/:companyId/:repairId`
   - Nuevo endpoint `/tracking-legacy/:repairId` (temporal)
   - Actualización de todas las operaciones CRUD de repairs

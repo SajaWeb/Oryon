@@ -22,7 +22,7 @@ Componente principal del recibo de pago con:
 - Envío por email
 - Manejo de estados (success/failed/pending)
 
-### 2. Endpoints en `/supabase/functions/server/index.tsx`
+### 2. Endpoints en `/supabase/functions/make-server-4d437e50/index.ts`
 
 #### `POST /make-server-4d437e50/license/payment-details`
 Obtiene los detalles de un pago para mostrar en el recibo.
@@ -498,7 +498,7 @@ El recibo está optimizado para:
 ## 📚 Documentación de Referencia
 
 - Componente: `/components/PaymentReceipt.tsx`
-- Endpoints: `/supabase/functions/server/index.tsx`
+- Endpoints: `/supabase/functions/make-server-4d437e50/index.ts`
 - Tipos: TypeScript interfaces en el componente
 - Estilos: Tailwind CSS + CSS custom para impresión
 

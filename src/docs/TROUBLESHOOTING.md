@@ -68,7 +68,7 @@ El código ya incluye configuración de CORS. Si aún hay problemas:
 
 **Solución:**
 - Redespliega la función
-- Verifica que `kv_store.tsx` esté presente
+- Verifica que `kv_store.ts` esté presente
 - Revisa que todas las importaciones sean correctas
 
 #### 5. Token de acceso inválido o expirado

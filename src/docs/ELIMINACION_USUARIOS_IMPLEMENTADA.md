@@ -10,7 +10,7 @@ Se implementó la funcionalidad de eliminación permanente de usuarios para perm
 
 ## 🚀 Cambios Implementados
 
-### 1. Backend - Nueva Ruta de Eliminación (`/supabase/functions/server/index.tsx`)
+### 1. Backend - Nueva Ruta de Eliminación (`/supabase/functions/make-server-4d437e50/index.ts`)
 
 #### Ruta DELETE: `/make-server-4d437e50/company/users/:userId`
 
@@ -304,7 +304,7 @@ if (targetUser.companyId !== userProfile.companyId) {
 
 ## 🔗 Archivos Modificados
 
-1. `/supabase/functions/server/index.tsx`
+1. `/supabase/functions/make-server-4d437e50/index.ts`
    - Nueva ruta DELETE
    - 4 actualizaciones de validación
 

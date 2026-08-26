@@ -50,7 +50,7 @@ Cliente 2: Intenta crear con "3001234568" → ✅ PERMITIDO
 
 ## 🔧 Implementación Backend
 
-### Archivo: `/supabase/functions/server/index.tsx`
+### Archivo: `/supabase/functions/make-server-4d437e50/index.ts`
 
 #### POST /customers (Crear Cliente)
 

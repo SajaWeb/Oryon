@@ -9,15 +9,16 @@ import { useTurnstile } from './Turnstile'
 
 interface ForgotPasswordProps {
   onBackToLogin: () => void
+  /** Código enviado: continúa en la pantalla de recuperación. */
+  onCodeSent: (email: string) => void
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
-export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
+export function ForgotPassword({ onBackToLogin, onCodeSent }: ForgotPasswordProps) {
   const [email, setEmail] = useState('')
   const [fieldError, setFieldError] = useState<string | undefined>()
   const [alert, setAlert] = useState<AuthMessage | null>(null)
-  const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const { isMobile } = useBreakpoint()
@@ -39,18 +40,18 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
 
     try {
       const { error } = await getSupabaseClient().auth.resetPasswordForEmail(cleanEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
         captchaToken: captcha.captchaToken,
       })
 
-      /* Un límite de envíos sí se le dice al usuario; lo demás se calla a
-         propósito: la respuesta no debe revelar si el correo existe. */
+      /* Un límite de envíos sí se le dice al usuario. Lo demás se calla a
+         propósito: se avanza a la pantalla del código exista o no la cuenta, para
+         que la respuesta no revele qué correos están registrados. */
       if (error && /rate limit|security purposes/i.test(error.message)) {
         setAlert(authMessage(error))
         return
       }
 
-      setSent(true)
+      onCodeSent(cleanEmail)
     } catch (err) {
       setAlert(authMessage(err))
     } finally {
@@ -65,7 +66,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
         <AuthBack onClick={onBackToLogin} />
 
         <AuthHeading title="Recuperar contraseña">
-          Se envía un enlace al correo registrado. Sirve una sola vez y caduca en una hora.
+          Enviamos un código de 6 dígitos al correo registrado. Sirve una sola vez y caduca en una hora.
         </AuthHeading>
 
         {alert && (
@@ -74,42 +75,28 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
           </Alert>
         )}
 
-        {sent ? (
-          <>
-            <Alert variant="success" title="Enlace enviado">
-              Si <span style={{ color: 'var(--text-primary)' }}>{email.trim().toLowerCase()}</span> tiene
-              cuenta en Oryon, el enlace ya va en camino. Revisa también el correo no deseado.
-            </Alert>
-            <Button variant="secondary" size={size} fullWidth onClick={onBackToLogin}>
-              Volver a iniciar sesión
-            </Button>
-          </>
-        ) : (
-          <>
-            <FormField label="Correo" error={fieldError}>
-              <Input
-                type="email"
-                size={size}
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  setFieldError(undefined)
-                }}
-                placeholder="tu@taller.com"
-                iconLeft={Mail}
-                autoComplete="email"
-                autoFocus
-                disabled={loading}
-              />
-            </FormField>
+        <FormField label="Correo" error={fieldError}>
+          <Input
+            type="email"
+            size={size}
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              setFieldError(undefined)
+            }}
+            placeholder="tu@taller.com"
+            iconLeft={Mail}
+            autoComplete="email"
+            autoFocus
+            disabled={loading}
+          />
+        </FormField>
 
-            {captcha.widget}
+        {captcha.widget}
 
-            <Button type="submit" variant="primary" size={size} fullWidth loading={loading} disabled={loading}>
-              {loading ? 'Enviando' : 'Enviar enlace'}
-            </Button>
-          </>
-        )}
+        <Button type="submit" variant="primary" size={size} fullWidth loading={loading} disabled={loading}>
+          {loading ? 'Enviando' : 'Enviar código'}
+        </Button>
       </form>
     </AuthLayout>
   )

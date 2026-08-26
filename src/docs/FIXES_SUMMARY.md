@@ -11,7 +11,7 @@ Error loading data: TypeError: Failed to fetch
 
 ## ✅ Soluciones Implementadas
 
-### 1. Mejoras en el Backend (server/index.tsx)
+### 1. Mejoras en el Backend (make-server-4d437e50/index.ts)
 
 #### a) Configuración CORS Explícita
 **Antes:**
@@ -223,7 +223,7 @@ runDiagnostics()
 ## 📁 Archivos Modificados/Creados
 
 ### Modificados:
-1. `/supabase/functions/server/index.tsx`
+1. `/supabase/functions/make-server-4d437e50/index.ts`
    - CORS mejorado
    - Health check endpoint
    - Manejo global de errores

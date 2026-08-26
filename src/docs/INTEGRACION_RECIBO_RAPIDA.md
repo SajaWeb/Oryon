@@ -376,7 +376,7 @@ Para implementar el recibo en tu módulo:
 
 - **Documentación completa:** `/PAYMENT_RECEIPT_IMPLEMENTATION.md`
 - **Código del componente:** `/components/PaymentReceipt.tsx`
-- **Endpoints del servidor:** `/supabase/functions/server/index.tsx`
+- **Endpoints del servidor:** `/supabase/functions/make-server-4d437e50/index.ts`
 - **Ejemplos de integración:** Este documento
 
 ---

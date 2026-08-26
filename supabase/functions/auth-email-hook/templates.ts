@@ -147,17 +147,28 @@ export function signupEmail({ token, name }: TemplateInput): RenderedEmail {
   }
 }
 
-/** Recuperación: enlace, que es lo que pide el documento de acceso. */
-export function recoveryEmail({ confirmationUrl, name }: TemplateInput): RenderedEmail {
+/**
+ * Recuperación: código de seis dígitos, sin enlace.
+ *
+ * El documento de acceso pedía un enlace, pero con PKCE activo el enlace solo se
+ * puede canjear en el mismo navegador que lo pidió —el code verifier vive en su
+ * localStorage—. Pedir la recuperación en el móvil y abrirla en el computador
+ * fallaba; peor aún, tocar el enlace desde la app de Gmail lo abre en su navegador
+ * interno, con almacenamiento aparte, y fallaba también.
+ *
+ * El código no usa PKCE, así que funciona en cualquier dispositivo. De paso, un
+ * correo sin enlace clicable quita la superficie de phishing más obvia.
+ */
+export function recoveryEmail({ token, name }: TemplateInput): RenderedEmail {
   return {
-    subject: 'Restablece tu contraseña de Oryon',
+    subject: `${token} es tu código para cambiar la contraseña de Oryon`,
     html: shell({
-      preheader: 'Enlace para elegir una contraseña nueva. Vence en una hora.',
-      title: 'Nueva contraseña',
-      intro: `Hola ${escapeHtml(name)}, pediste cambiar la contraseña de tu cuenta de Oryon.`,
-      body: button(confirmationUrl, 'Elegir contraseña nueva'),
+      preheader: `Tu código es ${token}. Vence en una hora.`,
+      title: 'Cambiar contraseña',
+      intro: `Hola ${escapeHtml(name)}, escribe este código en la pantalla de recuperación para elegir una contraseña nueva.`,
+      body: codeBlock(token),
       footnote:
-        'El enlace vence en una hora y sirve una sola vez. Si no fuiste tú, tu contraseña actual sigue funcionando y no hay nada que hacer.',
+        'El código vence en una hora y sirve una sola vez. Si no fuiste tú, tu contraseña actual sigue funcionando y no hay nada que hacer. Nadie de Oryon te va a pedir este código por teléfono ni por WhatsApp.',
     }),
   }
 }

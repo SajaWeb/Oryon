@@ -160,8 +160,10 @@
   "exclude": [
     "src/_redirects",
     "src/docs",
-    /* Edge function de Supabase: corre en Deno, con sus propios globals e imports por URL. */
-    "src/supabase/functions",
+    /* Edge functions de Supabase: corren en Deno, con sus propios globals e imports
+       por URL. Viven en supabase/functions/ —fuera de "include"— porque es la ruta
+       desde la que despliega el CLI (`supabase functions deploy <nombre>`). */
+    "supabase",
     "node_modules",
     "build"
   ]

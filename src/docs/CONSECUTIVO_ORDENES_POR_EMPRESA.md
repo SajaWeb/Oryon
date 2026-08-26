@@ -24,7 +24,7 @@ Cada empresa debe tener su propio consecutivo de órdenes de servicio para:
 
 ### Cambio en el Backend
 
-**Archivo:** `/supabase/functions/server/index.tsx`  
+**Archivo:** `/supabase/functions/make-server-4d437e50/index.ts`  
 **Línea:** 2467
 
 #### ANTES (ID Global):

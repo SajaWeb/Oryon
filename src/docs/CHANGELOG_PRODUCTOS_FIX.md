@@ -19,7 +19,7 @@ No había filtrado para distinguir productos reales de otros registros.
 
 ### ✅ Solución
 
-#### Backend (`/supabase/functions/server/index.tsx`)
+#### Backend (`/supabase/functions/make-server-4d437e50/index.ts`)
 
 **1. Nueva función `filterOnlyProducts()`**
 ```typescript
@@ -115,7 +115,7 @@ const validProducts = data.filter((p: Product) => {
 ### 📝 Archivos Modificados
 
 **Backend**:
-- `/supabase/functions/server/index.tsx` (5 endpoints actualizados)
+- `/supabase/functions/make-server-4d437e50/index.ts` (5 endpoints actualizados)
 
 **Frontend**:
 - `/components/products/ProductCard.tsx`

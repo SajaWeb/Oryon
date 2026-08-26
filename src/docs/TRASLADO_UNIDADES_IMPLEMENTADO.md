@@ -5,7 +5,7 @@ Se ha implementado la funcionalidad completa para trasladar productos con seguim
 
 ## Cambios Realizados
 
-### 1. Backend - Nueva Ruta de API (`/supabase/functions/server/index.tsx`)
+### 1. Backend - Nueva Ruta de API (`/supabase/functions/make-server-4d437e50/index.ts`)
 
 Se agregó una nueva ruta POST: `/make-server-4d437e50/products/:id/transfer-units`
 

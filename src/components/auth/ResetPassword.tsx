@@ -1,38 +1,52 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { getSupabaseClient } from '../../utils/supabase/client'
 import { MIN_PASSWORD_LENGTH, scorePassword } from '../../utils/password-strength'
-import { Alert, Button, FormField, PasswordInput, PasswordMeter } from '../oryon'
+import { Alert, Button, FormField, OTPInput, PasswordInput, PasswordMeter } from '../oryon'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
-import { AuthHeading, AuthLayout } from './AuthLayout'
+import { AuthBack, AuthFootnote, AuthHeading, AuthLayout, AuthLink } from './AuthLayout'
 import { authMessage, type AuthMessage } from './authErrors'
+import { useTurnstile } from './Turnstile'
 
 interface ResetPasswordProps {
   onResetSuccess: () => void
+  onBackToLogin: () => void
 }
 
 /**
- * Nueva contraseña a partir del enlace del correo.
+ * Recuperación de contraseña: código de 6 dígitos y luego contraseña nueva.
  *
- * El enlace trae `token_hash` + `type=recovery`; canjearlo por sesión es lo único
- * que autoriza el cambio. Ya no hay token propio en el KV: los generaba
- * `Math.random()`, vivían una hora y se podían probar sin límite.
+ * Se pasó de enlace a código porque con PKCE el enlace solo se puede canjear en el
+ * navegador que lo pidió: el code verifier vive en su localStorage. Pedirlo en el
+ * móvil y abrirlo en el computador fallaba, y abrirlo desde el navegador interno
+ * de Gmail —almacenamiento aparte— también. `verifyOtp` con código no usa PKCE.
+ *
+ * La rama de `token_hash`/`code` se conserva para los enlaces que ya se enviaron
+ * antes del cambio; caducan en una hora y luego sobra.
  */
-type Phase = 'checking' | 'ready' | 'invalid' | 'done'
+const CODE_LENGTH = 6
+const RESEND_SECONDS = 60
 
-export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
+type Phase = 'checking' | 'code' | 'ready' | 'invalid' | 'done'
+
+export function ResetPassword({ onResetSuccess, onBackToLogin }: ResetPasswordProps) {
   const [phase, setPhase] = useState<Phase>('checking')
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [errors, setErrors] = useState<{ password?: string; confirmPassword?: string }>({})
   const [alert, setAlert] = useState<AuthMessage | null>(null)
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [cooldown, setCooldown] = useState(RESEND_SECONDS)
 
   const { isMobile } = useBreakpoint()
+  const captcha = useTurnstile()
   const size = isMobile ? 'lg' : 'md'
   const strength = useMemo(() => scorePassword(password, { email }), [password, email])
+  const verifying = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -41,34 +55,34 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
       const supabase = getSupabaseClient()
       const params = new URLSearchParams(window.location.search)
       const tokenHash = params.get('token_hash')
-      const code = params.get('code')
+      const legacyCode = params.get('code')
+      const emailParam = params.get('email')
 
+      // Enlaces emitidos antes del cambio a código.
       try {
-        if (tokenHash) {
-          const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+        if (tokenHash || legacyCode) {
+          const { data, error } = tokenHash
+            ? await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+            : await supabase.auth.exchangeCodeForSession(legacyCode!)
           if (cancelled) return
           if (!error && data.session) {
             setEmail(data.user?.email ?? '')
             setPhase('ready')
-            // El token ya se gastó: fuera de la barra para que no se reenvíe ni quede en el historial.
-            window.history.replaceState({}, '', window.location.pathname)
-            return
-          }
-          if (error) setAlert(authMessage(error))
-        } else if (code) {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-          if (cancelled) return
-          if (!error && data.session) {
-            setEmail(data.user?.email ?? '')
-            setPhase('ready')
+            // El token ya se gastó: fuera de la barra para que no quede en el historial.
             window.history.replaceState({}, '', window.location.pathname)
             return
           }
           if (error) setAlert(authMessage(error))
         }
 
-        /* Sin parámetros útiles: puede que detectSessionInUrl ya los haya
-           consumido y la sesión de recuperación esté abierta. */
+        if (emailParam) {
+          if (cancelled) return
+          setEmail(emailParam.toLowerCase())
+          setPhase('code')
+          return
+        }
+
+        // Puede que detectSessionInUrl ya haya abierto la sesión de recuperación.
         const { data } = await supabase.auth.getSession()
         if (cancelled) return
         if (data.session) {
@@ -89,6 +103,65 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (phase !== 'code' || cooldown <= 0) return
+    const id = window.setInterval(() => setCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000)
+    return () => window.clearInterval(id)
+  }, [phase, cooldown])
+
+  const verifyCode = async (value: string) => {
+    if (verifying.current) return
+    if (value.length !== CODE_LENGTH) {
+      setAlert({ title: 'Código incompleto', message: `Escribe los ${CODE_LENGTH} dígitos del correo.` })
+      return
+    }
+
+    verifying.current = true
+    setLoading(true)
+    setAlert(null)
+    try {
+      const { data, error } = await getSupabaseClient().auth.verifyOtp({
+        email,
+        token: value,
+        type: 'recovery',
+      })
+      if (error || !data.session) {
+        setAlert(error ? authMessage(error) : { title: 'Código incorrecto', message: 'Revisa los seis dígitos e intenta de nuevo.' })
+        setCode('')
+        return
+      }
+      setPhase('ready')
+    } catch (err) {
+      setAlert(authMessage(err))
+    } finally {
+      verifying.current = false
+      setLoading(false)
+    }
+  }
+
+  const resend = async () => {
+    if (cooldown > 0) return
+    setResending(true)
+    setAlert(null)
+    try {
+      const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, {
+        captchaToken: captcha.captchaToken,
+      })
+      if (error) {
+        setAlert(authMessage(error))
+        return
+      }
+      toast.success('Te enviamos un código nuevo')
+      setCode('')
+      setCooldown(RESEND_SECONDS)
+    } catch (err) {
+      setAlert(authMessage(err))
+    } finally {
+      captcha.reset()
+      setResending(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -115,7 +188,7 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
       }
 
       /* Cerrar la sesión de recuperación: se entra de nuevo con la contraseña
-         nueva, que además comprueba que quedó bien guardada. */
+         nueva, lo que además comprueba que quedó bien guardada. */
       await supabase.auth.signOut()
       setPhase('done')
       toast.success('Contraseña actualizada')
@@ -127,12 +200,18 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
     }
   }
 
+  const errorAlert = alert && (
+    <Alert role="alert" variant="danger" title={alert.title} onDismiss={() => setAlert(null)}>
+      {alert.message}
+    </Alert>
+  )
+
   if (phase === 'checking') {
     return (
       <AuthLayout variant="support">
         <div style={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
           <span
-            aria-label="Comprobando el enlace"
+            aria-label="Comprobando"
             style={{
               width: 24,
               height: 24,
@@ -147,20 +226,72 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
     )
   }
 
+  if (phase === 'code') {
+    return (
+      <AuthLayout variant="support">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            void verifyCode(code)
+          }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
+        >
+          <AuthBack onClick={onBackToLogin} />
+
+          <AuthHeading title="Escribe el código">
+            Si{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-mono-sm)', color: 'var(--text-primary)' }}>
+              {email}
+            </span>{' '}
+            tiene cuenta en Oryon, ya va en camino un código de {CODE_LENGTH} dígitos.
+          </AuthHeading>
+
+          {errorAlert}
+
+          <OTPInput
+            length={CODE_LENGTH}
+            value={code}
+            onChange={setCode}
+            onComplete={(value) => void verifyCode(value)}
+            invalid={Boolean(alert)}
+            disabled={loading}
+            autoFocus
+            size={isMobile ? 'lg' : 'md'}
+          />
+
+          {captcha.widget}
+
+          <Button type="submit" variant="primary" size={size} fullWidth loading={loading} disabled={loading || resending}>
+            {loading ? 'Verificando' : 'Verificar código'}
+          </Button>
+
+          <AuthFootnote>
+            {cooldown > 0 ? (
+              <>No llegó. Puedes pedir otro en {cooldown}s</>
+            ) : (
+              <>
+                No llegó.{' '}
+                <AuthLink onClick={resend} disabled={resending}>
+                  {resending ? 'Enviando…' : 'Reenviar código'}
+                </AuthLink>
+              </>
+            )}
+          </AuthFootnote>
+        </form>
+      </AuthLayout>
+    )
+  }
+
   if (phase === 'invalid') {
     return (
       <AuthLayout variant="support">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <AuthHeading title="Este enlace ya no sirve">
-            Los enlaces de recuperación se usan una sola vez y caducan en una hora.
+          <AuthHeading title="No hay nada que restablecer">
+            Empieza pidiendo un código desde la pantalla de recuperación.
           </AuthHeading>
-          {alert && (
-            <Alert role="alert" variant="danger" title={alert.title}>
-              {alert.message}
-            </Alert>
-          )}
+          {errorAlert}
           <Button variant="primary" size={size} fullWidth onClick={onResetSuccess}>
-            Pedir un enlace nuevo
+            Ir a recuperar contraseña
           </Button>
         </div>
       </AuthLayout>
@@ -199,11 +330,7 @@ export function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
           )}
         </AuthHeading>
 
-        {alert && (
-          <Alert role="alert" variant="danger" title={alert.title} onDismiss={() => setAlert(null)}>
-            {alert.message}
-          </Alert>
-        )}
+        {errorAlert}
 
         <FormField
           label="Nueva contraseña"

@@ -574,7 +574,10 @@ export default function App() {
     return (
       <ThemeProvider>
         <Toaster position="top-right" />
-        <ResetPassword onResetSuccess={() => navigate("/login")} />
+        <ResetPassword
+          onResetSuccess={() => navigate("/login")}
+          onBackToLogin={() => navigate("/login")}
+        />
       </ThemeProvider>
     );
   }
@@ -667,7 +670,12 @@ export default function App() {
       return (
         <ThemeProvider>
           <Toaster position="top-right" />
-          <ForgotPassword onBackToLogin={() => navigate("/login")} />
+          <ForgotPassword
+            onBackToLogin={() => navigate("/login")}
+            onCodeSent={(email) =>
+              navigate(`/reset-password?email=${encodeURIComponent(email)}`)
+            }
+          />
         </ThemeProvider>
       );
     }

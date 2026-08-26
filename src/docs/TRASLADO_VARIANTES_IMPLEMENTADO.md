@@ -5,7 +5,7 @@ Se ha completado la implementación del traslado de productos con variantes entr
 
 ## Cambios Implementados
 
-### 1. Backend (`/supabase/functions/server/index.tsx`)
+### 1. Backend (`/supabase/functions/make-server-4d437e50/index.ts`)
 **Estado:** ✅ Ya estaba implementado (líneas 1544-1619)
 
 El backend ya contaba con la lógica completa para:
@@ -223,7 +223,7 @@ El algoritmo de distribución es **FIFO por orden de variantes**:
 ```
 /components/products/BranchTransfer.tsx       ✅ Actualizado
 /components/products/index.tsx                ✅ Actualizado
-/supabase/functions/server/index.tsx          ✅ Ya estaba implementado
+/supabase/functions/make-server-4d437e50/index.ts          ✅ Ya estaba implementado
 /components/products/types.ts                 ✅ Sin cambios (tipos ya existían)
 ```
 

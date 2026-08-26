@@ -51,7 +51,7 @@ Nuevo componente dedicado para la extensión de licencia con:
 
 ### 2. **Backend (Server)**
 
-Se agregaron 3 nuevos endpoints en `/supabase/functions/server/index.tsx`:
+Se agregaron 3 nuevos endpoints en `/supabase/functions/make-server-4d437e50/index.ts`:
 
 #### **POST** `/make-server-4d437e50/license/extend`
 Extiende la licencia sumando meses a la fecha actual de vencimiento.
@@ -222,7 +222,7 @@ Ahorro: $192.000 COP
    - Agregado import de ExtendLicenseSection
    - Reorganizado en tabs: "Cambiar Plan" y "Extender Licencia"
 
-✅ MODIFICADO: /supabase/functions/server/index.tsx
+✅ MODIFICADO: /supabase/functions/make-server-4d437e50/index.ts
    - Agregado endpoint POST /license/extend
    - Agregado endpoint POST /license/extend/pse
    - Agregado endpoint POST /license/extend/paddle

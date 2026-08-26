@@ -60,7 +60,7 @@ No había forma de distinguir entre un producto real y otros registros relaciona
 
 ### 1. Nueva Función Helper: `filterOnlyProducts()`
 
-**Archivo**: `/supabase/functions/server/index.tsx`
+**Archivo**: `/supabase/functions/make-server-4d437e50/index.ts`
 
 ```typescript
 // Helper to filter only actual products (exclude transactions, units, variants)
@@ -266,7 +266,7 @@ filterOnlyProducts()
 ## 📝 Archivos Modificados
 
 ### Backend
-- `/supabase/functions/server/index.tsx`
+- `/supabase/functions/make-server-4d437e50/index.ts`
   - ✅ Agregada función `filterOnlyProducts()`
   - ✅ Actualizado GET `/products`
   - ✅ Actualizado POST `/products/transfer`

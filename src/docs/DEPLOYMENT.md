@@ -153,12 +153,12 @@ supabase secrets set SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 
 ### Error: "Module not found: kv_store"
 
-**Causa:** El archivo `kv_store.tsx` no se incluyó en el deployment
+**Causa:** El archivo `kv_store.ts` no se incluyó en el deployment
 
 **Solución:**
 ```bash
 # Verificar que el archivo existe
-ls supabase/functions/server/kv_store.tsx
+ls supabase/functions/make-server-4d437e50/kv_store.ts
 
 # Si existe, redesplegar
 supabase functions deploy make-server-4d437e50

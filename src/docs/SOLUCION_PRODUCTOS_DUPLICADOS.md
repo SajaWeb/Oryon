@@ -16,7 +16,7 @@ Cuando se crea un producto con IMEI o SN, se generan automáticamente dos produc
 
 Se agregó validación para que no se puedan crear unidades sin IMEI o Serial Number.
 
-**Archivo modificado**: `/supabase/functions/server/index.tsx`
+**Archivo modificado**: `/supabase/functions/make-server-4d437e50/index.ts`
 
 En la ruta POST `/make-server-4d437e50/products/:productId/units`:
 - Se valida que al menos uno de los campos (IMEI o Serial) tenga un valor no vacío

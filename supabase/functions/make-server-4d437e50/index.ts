@@ -4,7 +4,8 @@ import { logger } from 'npm:hono/logger'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-import * as kv from './kv_store.tsx'
+import * as kv from './kv_store.ts'
+import { verifyWompiEvent } from './wompi_signature.ts'
 
 const app = new Hono()
 
@@ -542,7 +543,17 @@ app.post('/make-server-4d437e50/license/payment/update', handlePaymentUpdate)
 const handleWompiWebhook = async (c: any) => {
   try {
     const event = await c.req.json()
-    console.log('🔔 Wompi Webhook Event received:', event)
+
+    /* Primero la firma. Este endpoint es público por necesidad —lo llama Wompi—,
+       así que sin verificar era un botón de "extiéndeme la licencia gratis": basta
+       un POST con status APPROVED y la referencia de cualquier empresa. */
+    const signature = await verifyWompiEvent(event, Deno.env.get('WOMPI_EVENTS_SECRET'))
+    if (!signature.ok) {
+      console.error('Evento de Wompi rechazado:', signature.reason)
+      return c.json({ success: false, error: 'Firma inválida' }, 401)
+    }
+
+    console.log('🔔 Evento de Wompi verificado:', event.event, event.data?.transaction?.reference)
 
     if (event.event === 'transaction.updated' && event.data?.transaction) {
       const transaction = event.data.transaction
@@ -5509,89 +5520,11 @@ app.post('/make-server-4d437e50/license/paddle/create', async (c) => {
 })
 
 // Webhook to confirm payment and activate license
-app.post('/make-server-4d437e50/license/webhook', async (c) => {
-  try {
-    const { transactionId, status } = await c.req.json()
-    
-    console.log('Webhook received:', { transactionId, status })
-    
-    if (!transactionId) {
-      console.log('Error: No transaction ID provided')
-      return c.json({ success: false, error: 'Transaction ID required' }, 400)
-    }
-    
-    // Get transaction
-    const transactionStr = await kv.get(`transaction:${transactionId}`)
-    console.log('Transaction found:', transactionStr ? 'Yes' : 'No')
-    
-    if (!transactionStr) {
-      console.log('Error: Transaction not found in database')
-      return c.json({ success: false, error: 'Transaction not found' }, 404)
-    }
-    
-    const transaction = JSON.parse(transactionStr)
-    console.log('Transaction data:', transaction)
-    
-    if (status === 'approved' || status === 'completed') {
-      // Get company
-      const companyStr = await kv.get(`company:${transaction.companyId}`)
-      console.log('Company found:', companyStr ? 'Yes' : 'No')
-      
-      if (!companyStr) {
-        console.log('Error: Company not found:', transaction.companyId)
-        return c.json({ success: false, error: 'Company not found' }, 404)
-      }
-      
-      const company = JSON.parse(companyStr)
-      console.log('Company data before update:', company)
-      
-      // Calculate new expiry date
-      const today = new Date()
-      let startDate = today
-      
-      // Check if company has existing license expiry
-      if (company.licenseExpiry) {
-        const currentExpiry = new Date(company.licenseExpiry)
-        // If current license is still valid, extend from current expiry
-        // Otherwise, start from today
-        startDate = currentExpiry > today ? currentExpiry : today
-      }
-      
-      const newExpiry = new Date(startDate)
-      newExpiry.setDate(newExpiry.getDate() + transaction.duration)
-      
-      // Update company license
-      company.licenseExpiry = newExpiry.toISOString()
-      console.log('Updating company with new expiry:', newExpiry.toISOString())
-      
-      await kv.set(`company:${transaction.companyId}`, JSON.stringify(company))
-      console.log('Company updated successfully')
-      
-      // Update transaction status
-      transaction.status = 'completed'
-      transaction.completedAt = new Date().toISOString()
-      await kv.set(`transaction:${transactionId}`, JSON.stringify(transaction))
-      console.log('Transaction marked as completed')
-      
-      console.log(`License extended for company ${transaction.companyId} until ${newExpiry.toISOString()}`)
-      
-      return c.json({
-        success: true,
-        message: 'License activated successfully',
-        newExpiry: newExpiry.toISOString()
-      })
-    }
-    
-    // Update transaction status for failed/cancelled payments
-    transaction.status = status
-    await kv.set(`transaction:${transactionId}`, JSON.stringify(transaction))
-    
-    return c.json({ success: true, message: 'Transaction updated' })
-  } catch (error) {
-    console.log('Error processing webhook:', error)
-    return c.json({ success: false, error: String(error) }, 500)
-  }
-})
+/* Se retiró `POST /license/webhook`.
+
+   Mismo problema: `{ transactionId, status }` sin firma. Con adivinar un
+   transactionId se extendía la licencia de cualquier empresa. Tampoco lo llamaba
+   nadie en src/. */
 
 // Manual license activation (for testing/admin purposes)
 app.post('/make-server-4d437e50/license/activate', async (c) => {
@@ -5921,73 +5854,15 @@ app.post('/make-server-4d437e50/plans/create-payment', async (c) => {
 
 // Webhook for payment confirmation
 // This endpoint should be called by your payment provider after payment is confirmed
-app.post('/make-server-4d437e50/plans/webhook', async (c) => {
-  try {
-    // IMPORTANT: In production, verify the webhook signature from your payment provider
-    // to ensure the request is authentic
-    
-    const body = await c.req.json()
-    const { paymentIntentId, status, transactionId } = body
-    
-    if (!paymentIntentId) {
-      return c.json({ success: false, error: 'paymentIntentId is required' }, 400)
-    }
-    
-    // Get payment intent
-    const paymentIntentStr = await kv.get(`payment_intent:${paymentIntentId}`)
-    if (!paymentIntentStr) {
-      return c.json({ success: false, error: 'Payment intent not found' }, 404)
-    }
-    
-    const paymentIntent = JSON.parse(paymentIntentStr)
-    
-    // Only process if payment was successful
-    if (status !== 'success' && status !== 'approved' && status !== 'paid') {
-      paymentIntent.status = status || 'failed'
-      paymentIntent.updatedAt = new Date().toISOString()
-      await kv.set(`payment_intent:${paymentIntentId}`, JSON.stringify(paymentIntent))
-      
-      console.log(`Payment ${paymentIntentId} failed or cancelled. Status: ${status}`)
-      return c.json({ success: true, message: 'Payment not successful' })
-    }
-    
-    // Update payment intent
-    paymentIntent.status = 'completed'
-    paymentIntent.transactionId = transactionId
-    paymentIntent.completedAt = new Date().toISOString()
-    await kv.set(`payment_intent:${paymentIntentId}`, JSON.stringify(paymentIntent))
-    
-    // Update company plan
-    const companyStr = await kv.get(`company:${paymentIntent.companyId}`)
-    if (!companyStr) {
-      return c.json({ success: false, error: 'Company not found' }, 404)
-    }
-    
-    const company = JSON.parse(companyStr)
-    const oldPlan = company.planId
-    company.planId = paymentIntent.planId
-    company.updatedAt = new Date().toISOString()
-    
-    // Remove trial fields when upgrading from trial
-    if (company.trialEndsAt) {
-      delete company.trialEndsAt
-    }
-    
-    await kv.set(`company:${paymentIntent.companyId}`, JSON.stringify(company))
-    
-    console.log(`✅ Plan upgraded for company ${paymentIntent.companyId}: ${oldPlan} → ${paymentIntent.planId}`)
-    
-    return c.json({ 
-      success: true, 
-      message: 'Plan updated successfully',
-      oldPlan,
-      newPlan: paymentIntent.planId
-    })
-  } catch (error) {
-    console.log('Error processing payment webhook:', error)
-    return c.json({ success: false, error: String(error) }, 500)
-  }
-})
+/* Se retiró `POST /plans/webhook`.
+
+   Aceptaba `{ paymentIntentId, status }` del cuerpo y, si status decía "success",
+   cambiaba el plan de la empresa. No tenía firma ni autenticación: el propio
+   llamante decidía si el pago se había aprobado. El comentario que llevaba encima
+   —"IMPORTANT: In production, verify the webhook signature"— nunca se atendió.
+
+   No lo llamaba nada en src/. Los pagos reales entran por /license/wompi/webhook,
+   que ahora sí verifica la firma de eventos de Wompi. */
 
 // Get current plan and usage
 app.get('/make-server-4d437e50/plans/current', async (c) => {

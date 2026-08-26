@@ -25,7 +25,7 @@ Un **sistema completo de recibos de pago** que se muestra automáticamente despu
 - ✅ `/components/License.tsx` - Integración del recibo
 
 ### Backend:
-- ✅ `/supabase/functions/server/index.tsx` - 2 nuevos endpoints:
+- ✅ `/supabase/functions/make-server-4d437e50/index.ts` - 2 nuevos endpoints:
   - `POST /license/payment-details` - Obtiene datos del pago
   - `POST /license/send-receipt` - Envía recibo por email
 

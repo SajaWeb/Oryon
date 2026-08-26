@@ -49,9 +49,18 @@ metiendo al usuario nuevo dentro de la empresa de otro.
 
 ## Recuperación
 
-Enlace al correo → `/reset-password?token_hash=…&type=recovery` →
-`verifyOtp({ type: 'recovery' })` → `updateUser({ password })` → se cierra la sesión
-de recuperación para forzar un login con la contraseña nueva.
+`/forgot-password` (correo) → `/reset-password?email=…` (código de 6 dígitos) →
+`verifyOtp({ email, token, type: 'recovery' })` → contraseña nueva →
+`updateUser({ password })` → se cierra la sesión de recuperación para forzar un
+login con la contraseña nueva.
+
+Es código y no enlace por PKCE: el *code verifier* del enlace vive en el
+`localStorage` del navegador que lo pidió, así que pedirlo en el móvil y abrirlo en
+el computador —o abrirlo desde el navegador interno de Gmail— fallaba.
+`/reset-password` mantiene la rama de `token_hash` para los enlaces ya enviados.
+
+Se avanza a la pantalla del código exista o no la cuenta: la respuesta no debe
+revelar qué correos están registrados.
 
 ## Mensajes de error
 

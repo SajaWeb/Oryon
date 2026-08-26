@@ -6,7 +6,7 @@ Se está obteniendo un error 400 al intentar trasladar productos entre sucursale
 ## Cambios Realizados
 
 ### 1. Backend - Mejoras en Validación y Logging
-Se agregaron logs detallados en `/supabase/functions/server/index.tsx` para identificar exactamente dónde falla la validación:
+Se agregaron logs detallados en `/supabase/functions/make-server-4d437e50/index.ts` para identificar exactamente dónde falla la validación:
 
 - ✅ Log de datos recibidos (productId, targetBranchId, quantity, reason)
 - ✅ Log de producto a trasladar (id, name, branchId, quantity, hasVariants, trackByUnit)

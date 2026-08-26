@@ -53,7 +53,7 @@ El problema era causado por **mezcla de transacciones con productos en el backen
 
 ### 1. Nueva Función Helper en Backend para Filtrar Solo Productos
 
-**Archivo**: `/supabase/functions/server/index.tsx`
+**Archivo**: `/supabase/functions/make-server-4d437e50/index.ts`
 
 Se creó una función `filterOnlyProducts()` que distingue productos reales de transacciones, unidades y variantes:
 
@@ -213,7 +213,7 @@ const handleSubmitProduct = async (formData: ProductFormData) => {
 
 ### 7. Validación Estricta en Backend al Crear Productos
 
-**Archivo**: `/supabase/functions/server/index.tsx`
+**Archivo**: `/supabase/functions/make-server-4d437e50/index.ts`
 
 Se agregaron validaciones antes de crear el producto:
 
