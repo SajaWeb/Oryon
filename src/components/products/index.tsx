@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeftRight, ArrowUpDown, History, PackageSearch, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
-import { Alert, Badge, Button, Card, IconButton, KeyValue, type Column } from '../oryon'
+import { Alert, Badge, Button, Card, ConfirmDialog, IconButton, KeyValue, type Column } from '../oryon'
 import { ListPage } from '../patterns/ListPage'
 import { PageBody } from '../layout/PageBody'
 import { ResponsiveDetail } from '../layout/ResponsiveDetail'
@@ -278,9 +278,10 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
     }
   }
 
-  const handleDeleteProduct = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar este producto y todas sus unidades?')) return
+  const [pendingDeleteProduct, setPendingDeleteProduct] = useState<number | null>(null)
+  const [deletingProduct, setDeletingProduct] = useState(false)
 
+  const handleDeleteProduct = async (id: number) => {
     const toastId = toast.loading('🗑️ Eliminando producto...', {
       description: 'Por favor espera'
     })
@@ -1036,7 +1037,7 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
         variant="danger"
         fullWidth
         iconLeft={Trash2}
-        onClick={() => { handleDeleteProduct(detailProduct.id); setDetailProduct(null) }}
+        onClick={() => setPendingDeleteProduct(detailProduct.id)}
       >
         Eliminar
       </Button>
@@ -1233,6 +1234,26 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
           </>
         )}
       </ResponsiveDetail>
+
+      <ConfirmDialog
+        open={pendingDeleteProduct !== null}
+        title="Eliminar producto"
+        description="Se borra el producto con sus unidades, variantes e historial de inventario."
+        confirmLabel="Eliminar"
+        loading={deletingProduct}
+        onCancel={() => setPendingDeleteProduct(null)}
+        onConfirm={async () => {
+          if (pendingDeleteProduct === null) return
+          setDeletingProduct(true)
+          try {
+            await handleDeleteProduct(pendingDeleteProduct)
+            setPendingDeleteProduct(null)
+            setDetailProduct(null)
+          } finally {
+            setDeletingProduct(false)
+          }
+        }}
+      />
 
       {/* Nuevo / editar producto */}
       <FormDialog

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { Printer, Package, Save, Upload, X, Globe } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -110,12 +111,12 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
     if (!file) return
 
     if (file.size > 2 * 1024 * 1024) {
-      alert('El archivo es demasiado grande. El tamaño máximo es 2MB.')
+      toast.error('El archivo es demasiado grande. El tamaño máximo es 2MB.')
       return
     }
 
     if (!file.type.startsWith('image/')) {
-      alert('Por favor selecciona un archivo de imagen válido.')
+      toast.error('Por favor selecciona un archivo de imagen válido.')
       return
     }
 
@@ -156,11 +157,11 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
         setPrintSuccess('Logo cargado exitosamente')
         setTimeout(() => setPrintSuccess(''), 3000)
       } else {
-        alert('Error al subir el logo')
+        toast.error('Error al subir el logo')
       }
     } catch (error) {
       console.error('Error uploading logo:', error)
-      alert('Error al subir el logo')
+      toast.error('Error al subir el logo')
     } finally {
       setUploadingLogo(false)
     }
@@ -229,11 +230,11 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
         setStockSuccess('Configuración de stock guardada exitosamente')
         setTimeout(() => setStockSuccess(''), 5000)
       } else {
-        alert('Error al guardar la configuración')
+        toast.error('Error al guardar la configuración')
       }
     } catch (error) {
       console.error('Error saving stock settings:', error)
-      alert('Error al guardar la configuración de stock')
+      toast.error('Error al guardar la configuración de stock')
     }
   }
 

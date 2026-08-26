@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { ArrowRight, Package, Check } from 'lucide-react'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
@@ -42,7 +43,7 @@ export function UnitsTransfer({
 
   const handleSubmit = async () => {
     if (!transferData.targetBranchId || transferData.unitIds.length === 0 || !transferData.reason.trim()) {
-      alert('Completa todos los campos y selecciona al menos una unidad')
+      toast.error('Completa todos los campos y selecciona al menos una unidad')
       return
     }
 

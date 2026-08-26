@@ -39,6 +39,7 @@ import {
   Settings
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTurnstile } from './auth/Turnstile'
 import {
   Dialog,
   DialogContent,
@@ -139,6 +140,10 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
   const [initialSetupLoading, setInitialSetupLoading] = useState(false)
 
   // Formulario de Login Super Admin
+  /* Supabase exige captcha en todos los inicios de sesión desde que se activó
+     Turnstile. Este panel tiene su propio formulario y se quedó sin él: sin token,
+     Supabase responde captcha_failed y nadie podía entrar. */
+  const captcha = useTurnstile()
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
@@ -312,7 +317,8 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
 
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: initialEmail.trim(),
-        password: initialPassword
+        password: initialPassword,
+        options: { captchaToken: captcha.captchaToken }
       })
 
       if (signInData?.session?.user) {
@@ -345,7 +351,8 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
         if (!token) {
           const { data: retrySignIn } = await supabase.auth.signInWithPassword({
             email: initialEmail.trim(),
-            password: initialPassword
+            password: initialPassword,
+            options: { captchaToken: captcha.captchaToken }
           })
           authUser = retrySignIn?.session?.user || authUser
           token = retrySignIn?.session?.access_token || token
@@ -424,7 +431,8 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
       const supabase = getSupabaseClient()
       const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail.trim(),
-        password: loginPassword
+        password: loginPassword,
+        options: { captchaToken: captcha.captchaToken }
       })
 
       if (error || !data.session) {
@@ -462,7 +470,8 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
             if (!autoToken) {
               const { data: retrySignIn } = await supabase.auth.signInWithPassword({
                 email: loginEmail.trim(),
-                password: loginPassword
+                password: loginPassword,
+                options: { captchaToken: captcha.captchaToken }
               })
               autoToken = retrySignIn?.session?.access_token
               authUser = retrySignIn?.session?.user || authUser
@@ -549,6 +558,8 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
     } catch (err: any) {
       toast.error('Error al iniciar sesión', { description: err.message })
     } finally {
+      // El token de Turnstile es de un solo uso: se resetea salga bien o mal.
+      captcha.reset()
       setLoginLoading(false)
     }
   }
@@ -1196,6 +1207,8 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                       </button>
                     </div>
                   </div>
+
+                  {captcha.widget}
 
                   <Button
                     type="submit"

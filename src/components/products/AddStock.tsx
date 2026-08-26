@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
@@ -27,12 +28,12 @@ export function AddStock({ product, onAdd, onCancel, isLoading = false }: AddSto
     
     const qty = parseInt(quantity)
     if (!qty || qty <= 0) {
-      alert('La cantidad debe ser mayor a 0')
+      toast.error('La cantidad debe ser mayor a 0')
       return
     }
 
     if (!reason.trim()) {
-      alert('Debes proporcionar una razón para agregar stock')
+      toast.error('Debes proporcionar una razón para agregar stock')
       return
     }
 

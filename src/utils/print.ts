@@ -1,3 +1,5 @@
+import { toast } from 'sonner'
+
 // Utility functions for printing
 
 export type PrintFormat = '80mm' | 'half-letter';
@@ -74,29 +76,14 @@ export interface DeviceLabelData {
 // Note: Print config is now stored in the backend via /company/print-config endpoint
 // These functions are kept for backward compatibility but should use backend config
 
-export function printInvoice(data: InvoiceData, config: PrintConfig): void {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Por favor permite las ventanas emergentes para imprimir');
-    return;
-  }
-
-  const html = generateInvoiceHTML(data, config);
-  printWindow.document.write(html);
-  printWindow.document.close();
-  
-  printWindow.onload = () => {
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  };
-}
+/* `printInvoice` se retiró: la factura ahora se genera como PDF en
+   utils/invoicePdf.ts, sin ventana emergente. La impresión de la orden de
+   servicio y de la etiqueta sí siguen usando ventana, que es lo que se quería. */
 
 export async function printServiceOrder(data: ServiceOrderData, config: PrintConfig): Promise<void> {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
-    alert('Por favor permite las ventanas emergentes para imprimir');
+    toast.error('Por favor permite las ventanas emergentes para imprimir');
     return;
   }
 
@@ -132,7 +119,7 @@ export async function printServiceOrder(data: ServiceOrderData, config: PrintCon
 export function printDeviceLabel(data: DeviceLabelData, config: PrintConfig): void {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
-    alert('Por favor permite las ventanas emergentes para imprimir');
+    toast.error('Por favor permite las ventanas emergentes para imprimir');
     return;
   }
 

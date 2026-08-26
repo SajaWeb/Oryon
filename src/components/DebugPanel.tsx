@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -192,7 +193,7 @@ export function DebugPanel() {
                   sessionHash,
                   logs
                 })
-                alert('Info enviada a la consola')
+                toast.info('Info enviada a la consola')
               }}
               size="sm"
               variant="secondary"

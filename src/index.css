@@ -307,6 +307,18 @@
     border-color: var(--border-default);
   }
 
+  /* La lista desplegable de un <select> la dibuja el sistema operativo, no
+     nosotros. El <option> hereda el color de texto del select —claro en tema
+     oscuro— pero su fondo llega transparente, así que el sistema lo pinta con su
+     color propio: en Linux y Windows, blanco. Resultado: texto blanco sobre
+     blanco. `color-scheme: dark` no basta con temas GTK.
+     Dar fondo explícito al option es lo único que lo arregla en los tres sistemas. */
+  select option,
+  select optgroup {
+    background-color: var(--surface-card);
+    color: var(--text-primary);
+  }
+
   body {
     background: var(--bg-base);
     color: var(--text-primary);

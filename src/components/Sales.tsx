@@ -63,7 +63,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from './ui/popover'
-import { printInvoice, InvoiceData, PrintConfig } from '../utils/print'
+import type { InvoiceData, PrintConfig } from '../utils/print'
+import { downloadInvoicePdf } from '../utils/invoicePdf'
 
 interface ProductUnit {
   id: number
@@ -592,8 +593,8 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
         paymentMethod: sale.paymentMethod || 'Efectivo'
       }
 
-      printInvoice(invoiceData, printConfig)
-      toast.success('Factura enviada a impresión')
+      await downloadInvoicePdf(invoiceData, printConfig)
+      toast.success('Factura descargada en PDF')
     } catch (error) {
       console.error('Error loading print config:', error)
       toast.error('Error al cargar la configuración de impresión')
@@ -841,10 +842,12 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
               paymentMethod
             }
             
-            const shouldPrint = confirm('¿Deseas imprimir la factura?')
-            if (shouldPrint) {
-              printInvoice(invoiceData, printConfig)
-            }
+            /* Antes: confirm() nativo y, si aceptabas, una ventana emergente con
+               window.print(). El confirm bloqueaba la página entera y el popup lo
+               bloqueaba el navegador en móvil. Ahora el PDF se genera y se descarga
+               solo; imprimirlo o no es decisión del usuario, después. */
+            await downloadInvoicePdf(invoiceData, printConfig)
+            toast.success('Factura descargada en PDF', { id: 'factura-pdf' })
           }
         } catch (configError) {
           console.error('Error loading print config:', configError)

@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
@@ -32,13 +33,13 @@ export function InventoryAdjustment({
 
   const handleSubmit = async () => {
     if (!adjustmentData.quantity || !adjustmentData.reason.trim()) {
-      alert('Completa todos los campos')
+      toast.error('Completa todos los campos')
       return
     }
 
     const quantity = parseInt(adjustmentData.quantity)
     if (quantity <= 0) {
-      alert('La cantidad debe ser mayor a 0')
+      toast.error('La cantidad debe ser mayor a 0')
       return
     }
 
@@ -46,7 +47,7 @@ export function InventoryAdjustment({
     if (adjustmentData.type === 'subtract') {
       const currentStock = product.quantity || 0
       if (quantity > currentStock) {
-        alert(`No puedes quitar ${quantity} unidades. Stock actual: ${currentStock}`)
+        toast.error(`No puedes quitar ${quantity} unidades. Stock actual: ${currentStock}`)
         return
       }
     }

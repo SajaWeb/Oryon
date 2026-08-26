@@ -4,8 +4,10 @@
  */
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Plus, List, Trash2 } from 'lucide-react'
 import { Label } from '../ui/label'
+import { ConfirmDialog } from '../oryon'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { Button } from '../ui/button'
@@ -50,7 +52,7 @@ export function UnitsManagement({
     e.preventDefault()
     
     if (!unitForm.imei && !unitForm.serialNumber) {
-      alert('Debes ingresar al menos IMEI o Número de Serie')
+      toast.error('Debes ingresar al menos IMEI o Número de Serie')
       return
     }
 
@@ -60,14 +62,14 @@ export function UnitsManagement({
 
   const handleBulkAdd = async () => {
     if (!bulkUnits.trim()) {
-      alert('Ingresa al menos una unidad')
+      toast.error('Ingresa al menos una unidad')
       return
     }
 
     const units = parseBulkUnitsInput(bulkUnits)
     
     if (units.length === 0) {
-      alert('No se encontraron unidades válidas')
+      toast.error('No se encontraron unidades válidas')
       return
     }
 
@@ -75,10 +77,11 @@ export function UnitsManagement({
     setBulkUnits('')
   }
 
-  const handleDeleteUnit = async (unitId: number) => {
-    if (!confirm('¿Estás seguro de eliminar esta unidad?')) return
-    await onDeleteUnit(unitId)
-  }
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null)
+
+  /* Antes era confirm(): además de salirse del sistema de diseño, congelaba la
+     página entera hasta que alguien lo cerrara. */
+  const handleDeleteUnit = (unitId: number) => setPendingDelete(unitId)
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -251,6 +254,19 @@ export function UnitsManagement({
           </div>
         </div>
       )}
-    </div>
+    
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Eliminar unidad"
+        description="La unidad se borra del inventario junto con su IMEI o serial."
+        confirmLabel="Eliminar"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (pendingDelete === null) return
+          await onDeleteUnit(pendingDelete)
+          setPendingDelete(null)
+        }}
+      />
+      </div>
   )
 }

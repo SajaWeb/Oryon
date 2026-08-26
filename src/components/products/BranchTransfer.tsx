@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { ArrowRight, Package } from 'lucide-react'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
@@ -46,13 +47,13 @@ export function BranchTransfer({
 
   const handleSubmit = async () => {
     if (!transferData.targetBranchId || !transferData.quantity || !transferData.reason.trim()) {
-      alert('Completa todos los campos')
+      toast.error('Completa todos los campos')
       return
     }
 
     const quantity = parseInt(transferData.quantity)
     if (quantity <= 0) {
-      alert('La cantidad debe ser mayor a 0')
+      toast.error('La cantidad debe ser mayor a 0')
       return
     }
 
@@ -62,7 +63,7 @@ export function BranchTransfer({
       : (product.quantity || 0)
     
     if (quantity > currentStock) {
-      alert(`No puedes trasladar ${quantity} unidades. Stock disponible: ${currentStock}`)
+      toast.error(`No puedes trasladar ${quantity} unidades. Stock disponible: ${currentStock}`)
       return
     }
 

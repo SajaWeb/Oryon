@@ -1,7 +1,7 @@
 import { projectId } from '../../../utils/supabase/info'
 import { toast } from 'sonner@2.0.3'
 import { 
-  printInvoice, 
+
   printServiceOrder, 
   printDeviceLabel, 
   InvoiceData, 
@@ -9,6 +9,7 @@ import {
   DeviceLabelData, 
   PrintConfig 
 } from '../../../utils/print'
+import { downloadInvoicePdf } from '../../../utils/invoicePdf'
 import { Repair } from '../types'
 import { statusLabels } from '../constants'
 
@@ -17,7 +18,7 @@ export const handlePrintServiceOrder = async (
   accessToken: string | null
 ) => {
   if (!accessToken) {
-    alert('No hay token de acceso disponible')
+    toast.error('No hay token de acceso disponible')
     return
   }
 
@@ -32,7 +33,7 @@ export const handlePrintServiceOrder = async (
     
     const configData = await configResponse.json()
     if (!configData.success || !configData.printConfig) {
-      alert('No se ha configurado la impresión. Por favor configura los datos de impresión en Configuración.')
+      toast.error('No se ha configurado la impresión. Por favor configura los datos de impresión en Configuración.')
       return
     }
 
@@ -61,7 +62,7 @@ export const handlePrintServiceOrder = async (
     await printServiceOrder(serviceOrderData, printConfig)
   } catch (error) {
     console.error('Error printing service order:', error)
-    alert('Error al imprimir la orden de servicio')
+    toast.error('Error al imprimir la orden de servicio')
   }
 }
 
@@ -70,7 +71,7 @@ export const handlePrintDeviceLabel = async (
   accessToken: string | null
 ) => {
   if (!accessToken) {
-    alert('No hay token de acceso disponible')
+    toast.error('No hay token de acceso disponible')
     return
   }
 
@@ -85,7 +86,7 @@ export const handlePrintDeviceLabel = async (
     
     const configData = await configResponse.json()
     if (!configData.success || !configData.printConfig) {
-      alert('No se ha configurado la impresión. Por favor configura los datos de impresión en Configuración.')
+      toast.error('No se ha configurado la impresión. Por favor configura los datos de impresión en Configuración.')
       return
     }
 
@@ -103,7 +104,7 @@ export const handlePrintDeviceLabel = async (
     printDeviceLabel(deviceLabelData, printConfig)
   } catch (error) {
     console.error('Error printing device label:', error)
-    alert('Error al imprimir la etiqueta del equipo')
+    toast.error('Error al imprimir la etiqueta del equipo')
   }
 }
 
@@ -114,7 +115,8 @@ export const handlePrintInvoiceFromRepair = async (
   items: any[],
   additionalNotes: string,
   userName: string,
-  accessToken: string | null
+  accessToken: string | null,
+  paymentMethod: string = 'Efectivo'
 ) => {
   if (!accessToken) {
     return
@@ -145,7 +147,7 @@ export const handlePrintInvoiceFromRepair = async (
         })),
         subtotal: totalAmount,
         total: totalAmount,
-        paymentMethod: 'Efectivo',
+        paymentMethod,
         notes: additionalNotes,
         // Additional repair information
         repairOrderNumber: `#${repair.id}`,
@@ -153,26 +155,13 @@ export const handlePrintInvoiceFromRepair = async (
         technicianName: repair.assignedTo || userName
       }
       
-      // Show print dialog with toast
-      toast.info('Preparando impresión...', {
-        description: 'Haz clic en "Imprimir" para generar el ticket',
-        action: {
-          label: 'Imprimir',
-          onClick: () => {
-            toast.promise(
-              new Promise<void>((resolve) => {
-                printInvoice(printData, printConfig)
-                setTimeout(resolve, 1000)
-              }),
-              {
-                loading: 'Abriendo ventana de impresión...',
-                success: '¡Ticket de factura generado!',
-                error: 'Error al abrir la impresora'
-              }
-            )
-          }
-        },
-        duration: 10000
+      /* La factura se descarga como PDF, igual que en el punto de venta: sin
+         ventana emergente —que el móvil bloquea— ni diálogo del navegador.
+         La impresión de la OT no cambia: esa sí funciona bien como está. */
+      await downloadInvoicePdf(printData, printConfig)
+      toast.success('Factura descargada en PDF', {
+        description: `${invoiceNumber} · ${printData.total.toLocaleString('es-CO')}`,
+        duration: 6000
       })
     } else {
       toast.warning('Configuración de impresión no disponible', {

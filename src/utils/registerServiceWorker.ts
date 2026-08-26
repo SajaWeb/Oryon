@@ -139,11 +139,10 @@ export async function registerServiceWorker() {
           // Hay una nueva versión disponible
           console.log('Nueva versión del Service Worker disponible')
           
-          // Mostrar notificación al usuario
-          if (confirm('Hay una nueva versión disponible. ¿Deseas actualizar?')) {
-            newWorker.postMessage({ type: 'SKIP_WAITING' })
-            window.location.reload()
-          }
+          /* El aviso lo da <PWAUpdatePrompt /> dentro de la app. Aquí había un
+             confirm() nativo que hacía lo mismo por duplicado y, al bloquear la
+             página, dejaba la app congelada en cada despliegue hasta que alguien
+             lo cerrara. */
         }
       })
     })

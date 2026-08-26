@@ -154,7 +154,12 @@ export const updateRepairStatus = async (
         console.log('Status change images uploaded successfully:', imageUrls.length, 'images')
       } else {
         console.error('Error uploading images:', uploadData.error)
-        alert('Error al subir las imágenes. ¿Deseas continuar sin imágenes?')
+        /* Era un alert() con forma de pregunta que solo tenía botón «Aceptar»:
+           no había forma de responder que no, y se continuaba igual. Ahora se
+           avisa sin bloquear. Esta rama es el cambio de estado, no el alta. */
+        toast.warning('No se pudieron subir las fotos', {
+          description: 'El cambio de estado se guarda igual, pero sin las fotos.',
+        })
       }
     }
 

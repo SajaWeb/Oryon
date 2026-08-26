@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { Button } from './controls'
 
 /* ---------------------------------------------------------------------------
    Dialog — la superficie modal del sistema.
@@ -228,5 +229,67 @@ export function Dialog({
         )}
       </div>
     </div>
+  )
+}
+
+/* ---------------------------------------------------------------------------
+   ConfirmDialog — confirmación de una acción que no se puede deshacer.
+
+   Sustituye a `confirm()` del navegador, que además de salirse del sistema de
+   diseño **congela la página entera** hasta que alguien lo cierre: si el usuario
+   deja el equipo un momento, la app queda bloqueada, y en móvil el cuadro nativo
+   aparece pegado a la barra de direcciones, lejos del pulgar.
+
+   El botón peligroso no es el que tiene el foco al abrir: lo toma «Cancelar», que
+   es la salida segura cuando alguien pulsa Enter por inercia.
+   --------------------------------------------------------------------------- */
+export function ConfirmDialog({
+  open,
+  title,
+  description,
+  confirmLabel = 'Confirmar',
+  cancelLabel = 'Cancelar',
+  tone = 'danger',
+  loading = false,
+  onConfirm,
+  onCancel,
+  children,
+}: {
+  open: boolean
+  title: ReactNode
+  description?: ReactNode
+  confirmLabel?: string
+  cancelLabel?: string
+  tone?: 'danger' | 'primary'
+  loading?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+  /** Detalle extra: qué se va a borrar exactamente. */
+  children?: ReactNode
+}) {
+  return (
+    <Dialog
+      open={open}
+      onClose={loading ? undefined : onCancel}
+      title={title}
+      description={description}
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel} disabled={loading}>
+            {cancelLabel}
+          </Button>
+          <Button variant={tone} onClick={onConfirm} loading={loading} disabled={loading}>
+            {confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      {children ?? (
+        <p style={{ margin: 0, fontSize: 'var(--text-body)', lineHeight: 'var(--lh-body)', color: 'var(--text-secondary)' }}>
+          Esta acción no se puede deshacer.
+        </p>
+      )}
+    </Dialog>
   )
 }

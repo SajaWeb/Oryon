@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Badge } from './ui/badge'
 import { Alert, AlertDescription } from './ui/alert'
 import { Switch } from './ui/switch'
+import { ConfirmDialog } from './oryon'
 import {
   Dialog,
   DialogContent,
@@ -161,11 +162,12 @@ export function BranchManager({ accessToken, userProfile, licenseInfo }: BranchM
     }
   }
 
-  const handleDelete = async (branchId: string) => {
-    if (!confirm('¿Estás seguro de eliminar esta sucursal? Los productos asociados también se eliminarán.')) {
-      return
-    }
+  /* Confirmación con el diálogo del sistema en vez de confirm(), que bloquea la
+     página hasta que alguien lo cierre. */
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
+  const handleDelete = async (branchId: string) => {
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/branches/${branchId}`,
@@ -326,7 +328,7 @@ export function BranchManager({ accessToken, userProfile, licenseInfo }: BranchM
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDelete(branch.id)}
+                        onClick={() => setPendingDelete(branch.id)}
                       >
                         <Trash2 size={16} className="text-danger" />
                       </Button>
@@ -368,9 +370,28 @@ export function BranchManager({ accessToken, userProfile, licenseInfo }: BranchM
                 </div>
               </div>
             ))}
-          </div>
+          
+      </div>
         )}
       </CardContent>
+    <ConfirmDialog
+      open={pendingDelete !== null}
+      title="Eliminar sucursal"
+      description="Los productos asociados a esta sucursal también se eliminan."
+      confirmLabel="Eliminar"
+      loading={deleting}
+      onCancel={() => setPendingDelete(null)}
+      onConfirm={async () => {
+        if (!pendingDelete) return
+        setDeleting(true)
+        try {
+          await handleDelete(pendingDelete)
+          setPendingDelete(null)
+        } finally {
+          setDeleting(false)
+        }
+      }}
+    />
     </Card>
   )
 }

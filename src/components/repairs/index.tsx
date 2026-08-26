@@ -17,7 +17,7 @@ import { handlePrintServiceOrder, handlePrintDeviceLabel, handlePrintInvoiceFrom
 import { BranchAlert } from './ui/BranchAlert'
 import { RepairListCard } from './ui/RepairListCard'
 import { RepairDetailPanel } from './ui/RepairDetailPanel'
-import { Button, StatusBadge, normalizeState, type Column } from '../oryon'
+import { Button, ConfirmDialog, StatusBadge, normalizeState, type Column } from '../oryon'
 import { ListPage } from '../patterns/ListPage'
 import { ResponsiveDetail } from '../layout/ResponsiveDetail'
 import { useShell } from '../layout/AppShell'
@@ -130,9 +130,12 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar esta orden de reparación?')) return
+  /* La confirmación es un diálogo del sistema, no el confirm() del navegador:
+     aquel congelaba la página entera hasta que alguien lo cerrara. */
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
+  const handleDelete = async (id: number) => {
     const toastId = toast.loading('🗑️ Eliminando orden de reparación...', {
       description: 'Por favor espera'
     })
@@ -171,7 +174,7 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
       dialogs.setSelectedRepair(null)
     } catch (error) {
       console.error('Error updating status:', error)
-      alert('Error al actualizar el estado: ' + String(error))
+      toast.error('Error al actualizar el estado: ' + String(error))
     }
   }
 
@@ -194,7 +197,8 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
         result.items,
         invoiceData.additionalNotes,
         userName,
-        accessToken
+        accessToken,
+        invoiceData.paymentMethod
       )
 
       await fetchRepairs()
@@ -378,10 +382,7 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
                   fullWidth
                   iconLeft={Trash2}
                   style={{ gridColumn: '1 / -1' }}
-                  onClick={() => {
-                    handleDelete(selected.id)
-                    dialogs.setDetailDialogOpen(false)
-                  }}
+                  onClick={() => setPendingDelete(selected.id)}
                 >
                   Eliminar orden
                 </Button>
@@ -437,6 +438,31 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
         repair={dialogs.selectedRepair}
         onSubmit={handleCreateInvoice}
       />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Eliminar orden"
+        description="Se borra la orden con su historial de estados y sus fotos."
+        confirmLabel="Eliminar"
+        loading={deleting}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (pendingDelete === null) return
+          setDeleting(true)
+          try {
+            await handleDelete(pendingDelete)
+            setPendingDelete(null)
+            dialogs.setDetailDialogOpen(false)
+          } finally {
+            setDeleting(false)
+          }
+        }}
+      >
+        <p style={{ margin: 0, fontSize: 'var(--text-body)', lineHeight: 'var(--lh-body)', color: 'var(--text-secondary)' }}>
+          La orden <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>#{pendingDelete}</span>{' '}
+          se elimina junto con su historial y sus fotos. No se puede deshacer.
+        </p>
+      </ConfirmDialog>
     </>
   )
 }

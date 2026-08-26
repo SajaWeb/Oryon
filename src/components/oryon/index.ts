@@ -14,7 +14,7 @@ export type { Column, KeyValueItem } from './primitives'
 export { Button, IconButton } from './controls'
 export type { ButtonVariant, ButtonSize } from './controls'
 export { Card, Badge, Alert, EmptyState } from './surfaces'
-export { Dialog } from './overlays'
+export { Dialog, ConfirmDialog } from './overlays'
 export type { DialogSize } from './overlays'
 export type { BadgeTone, AlertVariant } from './surfaces'
 export {

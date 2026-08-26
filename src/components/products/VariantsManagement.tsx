@@ -4,8 +4,10 @@
  */
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Plus, Trash2 } from 'lucide-react'
 import { Label } from '../ui/label'
+import { ConfirmDialog } from '../oryon'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
@@ -37,7 +39,7 @@ export function VariantsManagement({
     e.preventDefault()
     
     if (!variantForm.name.trim()) {
-      alert('El nombre de la variante es requerido')
+      toast.error('El nombre de la variante es requerido')
       return
     }
 
@@ -45,10 +47,10 @@ export function VariantsManagement({
     setVariantForm({ name: '', stock: '' })
   }
 
-  const handleDeleteVariant = async (variantId: number) => {
-    if (!confirm('¿Estás seguro de eliminar esta variante?')) return
-    await onDeleteVariant(variantId)
-  }
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null)
+
+  /* Diálogo del sistema en lugar de confirm(), que congela la página. */
+  const handleDeleteVariant = (variantId: number) => setPendingDelete(variantId)
 
   const totalStock = product.variants?.reduce((sum, v) => sum + v.stock, 0) || 0
 
@@ -223,6 +225,19 @@ export function VariantsManagement({
           </p>
         </div>
       )}
-    </div>
+    
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Eliminar variante"
+        description="Se borra la variante y su stock."
+        confirmLabel="Eliminar"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (pendingDelete === null) return
+          await onDeleteVariant(pendingDelete)
+          setPendingDelete(null)
+        }}
+      />
+      </div>
   )
 }
