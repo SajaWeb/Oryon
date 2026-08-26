@@ -14,6 +14,7 @@ import { Separator } from '../ui/separator'
 import type { ProductTransaction, Branch } from './types'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { Loading } from '../oryon'
 
 interface ProductTransactionHistoryProps {
   transactions: ProductTransaction[]
@@ -63,14 +64,7 @@ export function ProductTransactionHistory({
   })
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-fill)] mb-4"></div>
-          <p className="text-ink-tertiary">Cargando historial...</p>
-        </div>
-      </div>
-    )
+    return <Loading minHeight={256} width={88} label="Cargando historial" />
   }
 
   return (

@@ -356,6 +356,54 @@
   to { transform: rotate(360deg); }
 }
 
+/* ---------------------------------------------------------------------------
+   Loader de marca. La geometría vive en <OryonLoader>; el movimiento y el color,
+   aquí, para no repetir un bloque <style> por cada SVG inlineado.
+
+   El barrido recorre la diagonal, se detiene un instante y sale por el otro
+   extremo: es el mismo gesto del sting de apertura, no un giro genérico.
+   Los colores salen de los tokens, así que el tema claro y el oscuro se resuelven
+   solos, sin dos archivos.
+   --------------------------------------------------------------------------- */
+.oryon-track {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 26;
+}
+
+.oryon-sweep {
+  fill: none;
+  stroke: var(--accent-fill);
+  stroke-width: 26;
+  stroke-linecap: butt;
+  stroke-dasharray: 210;
+  stroke-dashoffset: 210;
+  animation: oryon-sweep 1600ms cubic-bezier(.65, 0, .35, 1) infinite;
+}
+
+.oryon-word {
+  fill: var(--text-primary);
+}
+
+@keyframes oryon-sweep {
+  0%   { stroke-dashoffset: 210; }
+  42%  { stroke-dashoffset: 0; }
+  58%  { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -210; }
+}
+
+@keyframes oryon-loader-fade {
+  0%, 100% { opacity: .25; }
+  50%      { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oryon-sweep {
+    animation: oryon-loader-fade 1600ms ease-in-out infinite;
+    stroke-dashoffset: 0;
+  }
+}
+
 /* Movimiento del shell: el drawer de detalle entra desde la derecha en escritorio y la
    hoja sube desde abajo en móvil. Una sola curva, nada de bounce ni parallax. */
 @keyframes oryon-drawer {

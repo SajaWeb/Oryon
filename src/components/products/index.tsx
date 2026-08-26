@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeftRight, ArrowUpDown, History, PackageSearch, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
-import { Alert, Badge, Button, Card, ConfirmDialog, IconButton, KeyValue, type Column } from '../oryon'
+import { Alert, Badge, Button, Card, ConfirmDialog, IconButton, KeyValue, Loading, type Column } from '../oryon'
 import { ListPage } from '../patterns/ListPage'
 import { PageBody } from '../layout/PageBody'
 import { ResponsiveDetail } from '../layout/ResponsiveDetail'
@@ -948,18 +948,7 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
   if (loading) {
     return (
       <PageBody>
-        <Card style={{ height: 200 }} bodyStyle={{ display: 'grid', placeItems: 'center' }}>
-          <span
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: '50%',
-              border: '2px solid var(--border-subtle)',
-              borderBottomColor: 'var(--accent-400)',
-              animation: 'oryon-spin 900ms linear infinite',
-            }}
-          />
-        </Card>
+        <Loading mode="screen" label="Cargando inventario" />
       </PageBody>
     )
   }

@@ -41,6 +41,7 @@ import { Alert, AlertDescription } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
 import { AlertCircle, CreditCard, ShieldAlert } from "lucide-react";
 import { Toaster } from "./components/ui/sonner";
+import { Loading } from "./components/oryon";
 
 export default function App() {
   console.log("🎯 App component rendering...");
@@ -524,12 +525,11 @@ export default function App() {
 
   // Loading state
   if (isLoading) {
+    /* Primera pantalla que ve nadie: el lockup a pantalla completa, con el fondo
+       del tema ya resuelto por el script anti-FOUC de index.html. */
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground text-sm">Cargando Oryon...</p>
-        </div>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
+        <Loading mode="screen" label="Cargando Oryon" />
       </div>
     );
   }

@@ -27,6 +27,7 @@ import { Button } from './ui/button'
 import { Alert, AlertDescription } from './ui/alert'
 import { MetricCard, Tabs, type TabItem } from './oryon'
 import { PageBody } from './layout/PageBody'
+import { Loading } from './oryon'
 import { usePageHeader } from './layout/PageHeaderContext'
 import { useShell } from './layout/AppShell'
 import { useChartColors } from './dashboard/useChartColors'
@@ -170,18 +171,7 @@ export function Reports({ accessToken }: ReportsProps) {
   if (loading) {
     return (
       <PageBody>
-        <div style={{ display: 'grid', placeItems: 'center', height: 240 }}>
-          <span
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              border: '2px solid var(--border-subtle)',
-              borderBottomColor: 'var(--accent-400)',
-              animation: 'oryon-spin 900ms linear infinite',
-            }}
-          />
-        </div>
+        <Loading mode="screen" label="Reuniendo tus cifras" />
       </PageBody>
     )
   }
@@ -478,10 +468,7 @@ export function Reports({ accessToken }: ReportsProps) {
               )}
             </>
           ) : (
-            <div className="py-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-fill)] mx-auto mb-2"></div>
-              <p className="text-sm text-ink-secondary">Calculando ganancias...</p>
-            </div>
+            <Loading minHeight={220} width={88} label="Calculando ganancias" />
           )}
         </div>
         )}

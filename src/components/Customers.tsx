@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from './ui/select'
 // Oryon con alias: esta vista aún usa los primitivos shadcn en el formulario.
-import { Button as OryonButton, KeyValue, type Column } from './oryon'
+import { Button as OryonButton, KeyValue, Loading, type Column } from './oryon'
 import { ListPage } from './patterns/ListPage'
 import { ResponsiveDetail } from './layout/ResponsiveDetail'
 import { useShell } from './layout/AppShell'
@@ -311,7 +311,7 @@ export function Customers({ accessToken, userRole = 'admin' }: CustomersProps) {
   })
 
   if (loading) {
-    return <div className="p-8">Cargando...</div>
+    return <Loading mode="screen" label="Cargando directorio" />
   }
 
   return (

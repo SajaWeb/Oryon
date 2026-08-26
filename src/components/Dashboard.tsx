@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ChevronRight, Package, ReceiptText, TriangleAlert, Users, Wrench } from 'lucide-react'
-import { Alert, Button, Card, EmptyState, MetricCard } from './oryon'
+import { Alert, Button, Card, EmptyState, Loading, MetricCard } from './oryon'
 import { PageBody } from './layout/PageBody'
 import { usePageHeader } from './layout/PageHeaderContext'
 import { useShell } from './layout/AppShell'
@@ -109,22 +109,7 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
   if (loading && !stats) {
     return (
       <PageBody>
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${isMobile || compact ? 2 : 4},minmax(0,1fr))`, gap: 12 }}>
-          {[0, 1, 2, 3].map((i) => (
-            <Card key={i} style={{ height: 104 }} bodyStyle={{ display: 'grid', placeItems: 'center' }}>
-              <span
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  border: '2px solid var(--border-subtle)',
-                  borderBottomColor: 'var(--accent-400)',
-                  animation: 'oryon-spin 900ms linear infinite',
-                }}
-              />
-            </Card>
-          ))}
-        </div>
+        <Loading mode="screen" label="Preparando tu panel" />
       </PageBody>
     )
   }

@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react'
+import { LoaderCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
@@ -155,7 +156,7 @@ export function InventoryAdjustment({
         >
           {isLoading ? (
             <>
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <LoaderCircle size={16} className="mr-2" style={{ animation: 'oryon-spin 900ms linear infinite' }} />
               Procesando...
             </>
           ) : (

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from './ui/alert'
 import { CheckCircle2, Loader2, XCircle, AlertCircle, Clock, Info, ArrowRight } from 'lucide-react'
 import { Badge } from './ui/badge'
 import wompiService, { WompiTransaction } from '../services/WompiService'
+import { OryonLoader } from './oryon'
 
 interface PaymentSuccessProps {
   transactionId: string
@@ -254,7 +255,9 @@ export function PaymentSuccess({
   const getStatusIcon = () => {
     switch (status) {
       case 'processing':
-        return <Loader2 className="h-14 w-14 text-primary animate-spin" />
+        /* Aquí va la marca sola: el lockup completo no cabe en una fila de iconos
+           de estado junto al check y la equis, pero el gesto es el mismo. */
+        return <OryonLoader mark width={56} label="Procesando" />
       case 'success':
         return <CheckCircle2 className="h-14 w-14 text-success" />
       case 'pending':

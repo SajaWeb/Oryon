@@ -9,6 +9,7 @@ import {
   DataTable,
   EmptyState,
   FieldGroup,
+  Loading,
   MetricCard,
   Select,
   type Column,
@@ -234,18 +235,7 @@ export function Cash({ accessToken, userProfile }: CashProps) {
   if (loading) {
     return (
       <PageBody>
-        <div style={{ display: 'grid', placeItems: 'center', height: 240 }}>
-          <span
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              border: '2px solid var(--border-subtle)',
-              borderBottomColor: 'var(--accent-400)',
-              animation: 'oryon-spin 900ms linear infinite',
-            }}
-          />
-        </div>
+        <Loading mode="screen" label="Abriendo la caja" />
       </PageBody>
     )
   }

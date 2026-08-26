@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Badge } from './ui/badge'
 import { Alert, AlertDescription } from './ui/alert'
 import { Switch } from './ui/switch'
-import { ConfirmDialog } from './oryon'
+import { ConfirmDialog, Loading } from './oryon'
 import {
   Dialog,
   DialogContent,
@@ -289,9 +289,7 @@ export function BranchManager({ accessToken, userProfile, licenseInfo }: BranchM
         )}
 
         {loading ? (
-          <div className="text-center py-8 text-ink-tertiary">
-            Cargando sucursales...
-          </div>
+          <Loading minHeight={200} width={88} label="Cargando sucursales" />
         ) : branches.length === 0 ? (
           <div className="text-center py-8 text-ink-tertiary">
             No hay sucursales registradas

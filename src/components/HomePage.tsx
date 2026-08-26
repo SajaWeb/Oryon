@@ -11,8 +11,7 @@ import {
   Smartphone,
   UserRound,
   Wrench,
-  Zap,
-} from 'lucide-react'
+  } from 'lucide-react'
 import { Logo } from './brand/Logo'
 import {
   Column,
@@ -25,6 +24,7 @@ import {
   Section,
   StatusBadge,
 } from './oryon'
+import { Loading } from './oryon'
 
 interface HomePageProps {
   onNavigateToLogin: () => void
@@ -1181,12 +1181,7 @@ export function HomePage({ onNavigateToLogin, onNavigateToRegister }: HomePagePr
           justifyContent: 'center',
         }}
       >
-        <div style={{ textAlign: 'center' }}>
-          <Zap size={28} style={{ color: 'var(--accent-400)', animation: 'oryon-spin 900ms linear infinite' }} />
-          <p style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 13, marginTop: 12 }}>
-            Cargando Oryon…
-          </p>
-        </div>
+        <Loading mode="screen" label="Cargando Oryon" />
       </div>
     )
   }

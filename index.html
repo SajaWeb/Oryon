@@ -64,11 +64,124 @@
       })();
     </script>
 
+    <!-- =======================================================================
+         Sting de apertura. Va inline y antes del bundle: se pinta en el primer
+         frame, sin esperar a React ni a las webfonts (el wordmark es trazado, no
+         texto). Los colores se declaran aquí porque los tokens del sistema aún no
+         han cargado a estas alturas; el script anti-FOUC de arriba ya dejó puesto
+         data-theme, así que claro y oscuro se resuelven solos.
+
+         Termina exactamente donde arranca el loader de la app —mismo lockup, mismo
+         tamaño, misma posición—, así que el relevo no se nota: el anillo se dibuja
+         aquí y allí empieza a barrer.
+         ======================================================================= -->
+    <style>
+      #oryon-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        background: #0b0d0e;
+        opacity: 1;
+        transition: opacity 320ms ease-out;
+      }
+      :root[data-theme='light'] #oryon-splash { background: #f2f5f6; }
+
+      #oryon-splash .oryon-ring {
+        fill: none;
+        stroke: #f2f5f6;
+        stroke-width: 26;
+        stroke-dasharray: 456;
+        stroke-dashoffset: 456;
+        transform: rotate(-90deg);
+        transform-origin: 100px 100px;
+        animation: oryon-draw-ring 900ms cubic-bezier(.16, 1, .3, 1) forwards;
+      }
+      #oryon-splash .oryon-bar,
+      #oryon-splash .oryon-bloom {
+        fill: none;
+        stroke: #35e0ff;
+        stroke-width: 26;
+        stroke-linecap: butt;
+      }
+      #oryon-splash .oryon-bar {
+        stroke-dasharray: 210;
+        stroke-dashoffset: 210;
+        animation: oryon-draw-bar 550ms cubic-bezier(.22, 1, .36, 1) 700ms forwards;
+      }
+      #oryon-splash .oryon-bloom {
+        filter: url(#oryon-splash-bloom);
+        opacity: 0;
+        animation: oryon-bloom-pulse 900ms ease-out 1150ms forwards;
+      }
+      #oryon-splash .oryon-word { fill: #f2f5f6; }
+      #oryon-splash .oryon-wipe-rect {
+        transform: scaleX(0);
+        transform-origin: 0 0;
+        animation: oryon-wipe 600ms cubic-bezier(.22, 1, .36, 1) 1100ms forwards;
+      }
+
+      :root[data-theme='light'] #oryon-splash .oryon-ring,
+      :root[data-theme='light'] #oryon-splash .oryon-word { stroke: #0b0e10; fill: #0b0e10; }
+      :root[data-theme='light'] #oryon-splash .oryon-ring { fill: none; }
+      :root[data-theme='light'] #oryon-splash .oryon-bar,
+      :root[data-theme='light'] #oryon-splash .oryon-bloom { stroke: #0e6f82; }
+
+      @keyframes oryon-draw-ring { to { stroke-dashoffset: 0; } }
+      @keyframes oryon-draw-bar  { to { stroke-dashoffset: 0; } }
+      @keyframes oryon-wipe      { to { transform: scaleX(1); } }
+      @keyframes oryon-bloom-pulse {
+        0%   { opacity: 0; }
+        35%  { opacity: .55; }
+        100% { opacity: 0; }
+      }
+
+      /* Sin movimiento: la marca aparece ya terminada, sin trazo ni barrido. */
+      @media (prefers-reduced-motion: reduce) {
+        #oryon-splash .oryon-ring,
+        #oryon-splash .oryon-bar { animation: none; stroke-dashoffset: 0; }
+        #oryon-splash .oryon-bloom { animation: none; opacity: 0; }
+        #oryon-splash .oryon-wipe-rect { animation: none; transform: scaleX(1); }
+      }
+    </style>
+
     <!-- Wompi Checkout Widget Oficial -->
     <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
   </head>
 
   <body>
+    <div id="oryon-splash" role="status" aria-label="Oryon">
+      <svg viewBox="0 0 200 258" width="128" height="165" aria-hidden="true">
+        <defs>
+          <filter id="oryon-splash-bloom" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="7" />
+          </filter>
+          <clipPath id="oryon-splash-wipe">
+            <rect class="oryon-wipe-rect" x="0" y="205" width="200" height="50" />
+          </clipPath>
+        </defs>
+        <circle class="oryon-ring" cx="100" cy="100" r="72" />
+        <line class="oryon-bloom" x1="25.75" y1="174.25" x2="174.25" y2="25.75" />
+        <line class="oryon-bar" x1="25.75" y1="174.25" x2="174.25" y2="25.75" />
+        <g clip-path="url(#oryon-splash-wipe)">
+          <g class="oryon-word" transform="translate(7.84 243) scale(0.043732 -0.043732)">
+            <path d="M416 -12Q299 -12 216 28Q133 68 89 148Q45 227 45 344Q45 462 89 541Q133 620 216 660Q299 700 416 700Q534 700 617 660Q700 620 744 541Q788 462 788 344Q788 227 744 148Q700 68 617 28Q534 -12 416 -12ZM416 153Q452 153 480 164Q507 176 526 197Q544 218 553 248Q562 277 562 312V376Q562 411 553 440Q544 470 526 491Q507 512 480 524Q452 535 416 535Q380 535 352 524Q325 512 307 491Q289 470 280 440Q271 411 271 376V312Q271 277 280 248Q289 218 307 197Q325 176 352 164Q380 153 416 153ZM947 0V688H1378Q1455 688 1506 657Q1558 626 1584 576Q1610 526 1610 468Q1610 402 1579 350Q1548 299 1495 268L1630 0H1382L1277 231H1168V0ZM1168 384H1323Q1349 384 1367 404Q1385 425 1385 459Q1385 480 1377 496Q1369 512 1355 522Q1341 531 1323 531H1168ZM1971 0V267L1698 688H1952L2084 459H2088L2220 688H2461L2192 267V0ZM2925 -12Q2808 -12 2725 28Q2642 68 2598 148Q2554 227 2554 344Q2554 462 2598 541Q2642 620 2725 660Q2808 700 2925 700Q3043 700 3126 660Q3209 620 3253 541Q3297 462 3297 344Q3297 227 3253 148Q3209 68 3126 28Q3043 -12 2925 -12ZM2925 153Q2961 153 2988 164Q3016 176 3034 197Q3053 218 3062 248Q3071 277 3071 312V376Q3071 411 3062 440Q3053 470 3034 491Q3016 512 2988 524Q2961 535 2925 535Q2889 535 2862 524Q2834 512 2816 491Q2798 470 2789 440Q2780 411 2780 376V312Q2780 277 2789 248Q2798 218 2816 197Q2834 176 2862 164Q2889 153 2925 153ZM3456 0V688H3644L3858 441Q3867 431 3882 412Q3897 393 3912 374Q3928 354 3936 342L3941 344Q3940 372 3940 400Q3940 427 3940 441V688H4141V0H3954L3713 275Q3696 295 3684 312Q3672 328 3661 343L3656 341Q3657 322 3657 303Q3657 284 3657 275V0Z" />
+          </g>
+        </g>
+      </svg>
+    </div>
+    <script>
+      window.__oryonSplashStart = Date.now();
+      /* Red de seguridad: si el bundle no llega a ejecutarse —red caída, error de
+         carga—, nadie retiraría el sting y quedaría una pantalla congelada con el
+         logo. A los 8 s se va solo y al menos se ve el error de la app debajo. */
+      setTimeout(function () {
+        var s = document.getElementById('oryon-splash');
+        if (s) s.remove();
+      }, 8000);
+    </script>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

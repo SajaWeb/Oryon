@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog'
+import { Loading } from '../oryon'
 
 interface ProductUnit {
   id: number
@@ -402,10 +403,7 @@ export function LowStockDialog({
           </DialogHeader>
 
           {loading ? (
-            <div className="py-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--danger)] mx-auto mb-2"></div>
-              <p className="text-sm text-ink-secondary">Cargando productos...</p>
-            </div>
+            <Loading minHeight={220} width={88} label="Revisando el inventario" />
           ) : lowStockProducts.length === 0 ? (
             <div className="py-8 text-center">
               <CheckCircle className="mx-auto text-success mb-2" size={48} />

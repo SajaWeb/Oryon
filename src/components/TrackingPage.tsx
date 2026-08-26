@@ -8,6 +8,7 @@ import { Input } from './ui/input'
 import { statusLabels } from './repairs/constants'
 import { StatusBadge, normalizeState } from './oryon'
 import { projectId, publicAnonKey } from '../utils/supabase/info'
+import { Loading } from './oryon'
 
 interface TrackingPageProps {
   companyId?: string | null
@@ -222,11 +223,8 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-fill)] mx-auto mb-4"></div>
-          <p className="text-ink-secondary">Cargando información...</p>
-        </div>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
+        <Loading mode="screen" label="Buscando tu orden" />
       </div>
     )
   }

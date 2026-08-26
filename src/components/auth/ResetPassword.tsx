@@ -3,7 +3,7 @@ import { Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { getSupabaseClient } from '../../utils/supabase/client'
 import { MIN_PASSWORD_LENGTH, scorePassword } from '../../utils/password-strength'
-import { Alert, Button, FormField, OTPInput, PasswordInput, PasswordMeter } from '../oryon'
+import { Alert, Button, FormField, Loading, OTPInput, PasswordInput, PasswordMeter } from '../oryon'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { AuthBack, AuthFootnote, AuthHeading, AuthLayout, AuthLink } from './AuthLayout'
 import { authMessage, type AuthMessage } from './authErrors'
@@ -209,19 +209,7 @@ export function ResetPassword({ onResetSuccess, onBackToLogin }: ResetPasswordPr
   if (phase === 'checking') {
     return (
       <AuthLayout variant="support">
-        <div style={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
-          <span
-            aria-label="Comprobando"
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              border: '2px solid var(--border-subtle)',
-              borderBottomColor: 'var(--accent-400)',
-              animation: 'oryon-spin 900ms linear infinite',
-            }}
-          />
-        </div>
+        <Loading minHeight={220} width={92} label="Comprobando el enlace" />
       </AuthLayout>
     )
   }

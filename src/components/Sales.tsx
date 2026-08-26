@@ -18,6 +18,7 @@ import {
   FormField as OryonFormField,
   IconButton as OryonIconButton,
   Input as OryonInput,
+  Loading,
   Select as OryonSelect,
   type Column,
 } from './oryon'
@@ -1087,7 +1088,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   }, [productsForSelectedBranch, productSearch])
 
   if (loading) {
-    return <div className="p-8">Cargando...</div>
+    return <Loading mode="screen" label="Cargando facturación" />
   }
 
   return (

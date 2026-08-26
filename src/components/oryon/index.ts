@@ -32,3 +32,5 @@ export {
 export type { SelectOption } from './forms'
 export { SidebarNav, Tabs } from './navigation'
 export type { NavEntry, TabItem } from './navigation'
+export { Loading, OryonLoader } from './Loader'
+export type { LoadingMode } from './Loader'

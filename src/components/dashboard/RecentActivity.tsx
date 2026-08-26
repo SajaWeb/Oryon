@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ReceiptText, Wrench } from 'lucide-react'
 import { projectId } from '../../utils/supabase/info'
-import { Card, DataTable, EmptyState, StatusBadge, normalizeState } from '../oryon'
+import { Card, DataTable, EmptyState, Loading, StatusBadge, normalizeState } from '../oryon'
 import { useShell } from '../layout/AppShell'
 import { statusLabels } from '../repairs/constants'
 
@@ -131,7 +131,15 @@ export function RecentActivity({ accessToken }: { accessToken: string }) {
     ? 'Cargando…'
     : `Últimas ${activities.length} ${activities.length === 1 ? 'operación registrada' : 'operaciones registradas'}`
 
-  if (!loading && activities.length === 0) {
+  if (loading) {
+    return (
+      <Card title="Actividad reciente" subtitle={subtitle}>
+        <Loading width={80} minHeight={168} />
+      </Card>
+    )
+  }
+
+  if (activities.length === 0) {
     return (
       <Card title="Actividad reciente">
         <EmptyState

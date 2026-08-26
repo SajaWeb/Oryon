@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { getSupabaseClient } from '../../utils/supabase/client'
-import { Alert, Button } from '../oryon'
+import { Alert, Button, Loading } from '../oryon'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { AuthHeading, AuthLayout } from './AuthLayout'
 import { authMessage, type AuthMessage } from './authErrors'
@@ -109,18 +109,7 @@ export function ConfirmEmail({ onConfirmSuccess }: ConfirmEmailProps) {
         {status === 'verifying' && (
           <>
             <AuthHeading title="Verificando tu correo">Un momento, estamos comprobando el enlace.</AuthHeading>
-            <div style={{ display: 'grid', placeItems: 'center', minHeight: 120 }}>
-              <span
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  border: '2px solid var(--border-subtle)',
-                  borderBottomColor: 'var(--accent-400)',
-                  animation: 'oryon-spin 900ms linear infinite',
-                }}
-              />
-            </div>
+            <Loading minHeight={160} width={84} />
           </>
         )}
 

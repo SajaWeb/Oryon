@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Tabs, type TabItem } from './oryon'
 import { PageBody } from './layout/PageBody'
+import { Loading } from './oryon'
 import { usePageHeader } from './layout/PageHeaderContext'
 import { CompanyInfoSection } from './settings/CompanyInfoSection'
 import { AppearanceSection } from './settings/AppearanceSection'
@@ -168,18 +169,7 @@ export function Settings({ accessToken, userProfile, licenseInfo }: SettingsProp
   if (loading) {
     return (
       <PageBody>
-        <div style={{ display: 'grid', placeItems: 'center', height: 240 }}>
-          <span
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              border: '2px solid var(--border-subtle)',
-              borderBottomColor: 'var(--accent-400)',
-              animation: 'oryon-spin 900ms linear infinite',
-            }}
-          />
-        </div>
+        <Loading mode="screen" label="Cargando configuración" />
       </PageBody>
     )
   }

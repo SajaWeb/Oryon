@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import PaymentSuccess from './PaymentSuccess'
-import { Loader2 } from 'lucide-react'
+import { Loading } from './oryon'
 
 interface PaymentCallbackProps {
   accessToken: string
@@ -59,7 +59,7 @@ export function PaymentCallback({ accessToken, onComplete }: PaymentCallbackProp
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center max-w-md p-6 bg-card rounded-xl border border-border">
-          <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
+          <Loading width={92} style={{ marginBottom: 16 }} minHeight={0} />
           <p className="text-sm font-semibold text-foreground mb-1">
             Procesando respuesta del pago...
           </p>
