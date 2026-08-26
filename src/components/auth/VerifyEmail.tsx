@@ -88,7 +88,7 @@ export function VerifyEmail({ email, onVerified, onBackToLogin }: VerifyEmailPro
       const { error } = await getSupabaseClient().auth.resend({
         type: 'signup',
         email,
-        options: { captchaToken: captcha.captchaToken },
+        options: { captchaToken: await captcha.getToken() },
       })
       if (error) {
         setAlert(authMessage(error))

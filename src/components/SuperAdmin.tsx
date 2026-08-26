@@ -40,6 +40,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTurnstile } from './auth/Turnstile'
+import { authMessage } from './auth/authErrors'
 import {
   Dialog,
   DialogContent,
@@ -144,6 +145,12 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
      Turnstile. Este panel tiene su propio formulario y se quedó sin él: sin token,
      Supabase responde captcha_failed y nadie podía entrar. */
   const captcha = useTurnstile()
+  /* Cada llamada de Supabase consume el token, así que un reintento necesita uno
+     nuevo: reiniciar el widget y volver a esperar a que Cloudflare responda. */
+  const freshCaptchaToken = async () => {
+    captcha.reset()
+    return captcha.getToken()
+  }
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
@@ -318,7 +325,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: initialEmail.trim(),
         password: initialPassword,
-        options: { captchaToken: captcha.captchaToken }
+        options: { captchaToken: await captcha.getToken() }
       })
 
       if (signInData?.session?.user) {
@@ -330,6 +337,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
           email: initialEmail.trim(),
           password: initialPassword,
           options: {
+            captchaToken: await freshCaptchaToken(),
             data: {
               name: initialName.trim(),
               role: 'superadmin',
@@ -352,7 +360,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
           const { data: retrySignIn } = await supabase.auth.signInWithPassword({
             email: initialEmail.trim(),
             password: initialPassword,
-            options: { captchaToken: captcha.captchaToken }
+            options: { captchaToken: await freshCaptchaToken() }
           })
           authUser = retrySignIn?.session?.user || authUser
           token = retrySignIn?.session?.access_token || token
@@ -412,8 +420,11 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
         setLoginPassword(initialPassword)
       }
     } catch (err: any) {
-      toast.error('Error al inicializar Super Admin', { description: err.message })
+      const aviso = authMessage(err)
+      toast.error('Error al inicializar Super Admin', { description: aviso.message })
     } finally {
+      // El token de Turnstile es de un solo uso, salga bien o mal.
+      captcha.reset()
       setInitialSetupLoading(false)
     }
   }
@@ -432,10 +443,25 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
       const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail.trim(),
         password: loginPassword,
-        options: { captchaToken: captcha.captchaToken }
+        options: { captchaToken: await captcha.getToken() }
       })
 
       if (error || !data.session) {
+        /* La reparación de abajo sólo tiene sentido cuando la cuenta no existe en
+           auth.users. Un captcha caducado o un límite de intentos no se arreglan
+           registrando a nadie, y taparlos con "credenciales incorrectas" es lo que
+           dejaba sin explicación los inicios de sesión fallidos. */
+        const looksLikeMissingAccount = /invalid login credentials|invalid_credentials|user not found/i.test(
+          error?.message ?? ''
+        )
+
+        if (!looksLikeMissingAccount) {
+          const aviso = authMessage(error)
+          toast.error(aviso.title, { description: aviso.message })
+          setLoginLoading(false)
+          return
+        }
+
         // Auto-sincronización: Si el usuario existe en KV como superadmin pero no estaba en auth.users (por truncado o reset)
         try {
           const { data: kvRecords } = await supabase
@@ -456,6 +482,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
               email: loginEmail.trim(),
               password: loginPassword,
               options: {
+                captchaToken: await freshCaptchaToken(),
                 data: {
                   name: 'Alejandro Echavarria Jaramillo',
                   role: 'superadmin',
@@ -471,7 +498,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
               const { data: retrySignIn } = await supabase.auth.signInWithPassword({
                 email: loginEmail.trim(),
                 password: loginPassword,
-                options: { captchaToken: captcha.captchaToken }
+                options: { captchaToken: await freshCaptchaToken() }
               })
               autoToken = retrySignIn?.session?.access_token
               authUser = retrySignIn?.session?.user || authUser
@@ -506,9 +533,8 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
           console.warn('Auto-healing auth notice:', autoErr)
         }
 
-        toast.error('Credenciales incorrectas', {
-          description: error?.message || 'Verifica el usuario y la contraseña'
-        })
+        const aviso = authMessage(error)
+        toast.error(aviso.title, { description: aviso.message })
         setLoginLoading(false)
         return
       }
@@ -556,7 +582,9 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
         })
       }
     } catch (err: any) {
-      toast.error('Error al iniciar sesión', { description: err.message })
+      // Incluye el caso de que Turnstile no responda, que trae su propio código.
+      const aviso = authMessage(err)
+      toast.error(aviso.title, { description: aviso.message })
     } finally {
       // El token de Turnstile es de un solo uso: se resetea salga bien o mal.
       captcha.reset()
@@ -1218,7 +1246,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                     {loginLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Autenticando...
+                        {captcha.verifying ? 'Verificando...' : 'Autenticando...'}
                       </>
                     ) : (
                       <>

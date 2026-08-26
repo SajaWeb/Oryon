@@ -40,7 +40,7 @@ export function ForgotPassword({ onBackToLogin, onCodeSent }: ForgotPasswordProp
 
     try {
       const { error } = await getSupabaseClient().auth.resetPasswordForEmail(cleanEmail, {
-        captchaToken: captcha.captchaToken,
+        captchaToken: await captcha.getToken(),
       })
 
       /* Un límite de envíos sí se le dice al usuario. Lo demás se calla a

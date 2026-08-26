@@ -72,7 +72,14 @@ const BY_CODE: Record<string, AuthMessage> = {
   },
   captcha_failed: {
     title: 'No se pudo verificar que eres humano',
-    message: 'Recarga la página e inténtalo otra vez.',
+    message: 'La comprobación de seguridad caducó. Vuelve a pulsar el botón.',
+  },
+  /* El reto de Cloudflare no llegó a responder: red lenta, o un bloqueador que se
+     come el script. No es lo mismo que un token rechazado y el consejo es otro. */
+  captcha_unavailable: {
+    title: 'No pudimos comprobar que eres humano',
+    message:
+      'La verificación de seguridad no respondió. Revisa tu conexión, y si usas un bloqueador de anuncios permite challenges.cloudflare.com en este sitio.',
   },
   validation_failed: {
     title: 'Revisa los datos',

@@ -45,10 +45,14 @@ export function Login({
       // Debe fijarse antes del login: es lo que decide dónde se guarda la sesión.
       setSessionPersistence(remember)
 
+      /* Se espera al reto en vez de mirar si ya había token: cuando el gestor de
+         contraseñas autocompleta, el envío llega antes que Cloudflare. */
+      const captchaToken = await captcha.getToken()
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password,
-        options: { captchaToken: captcha.captchaToken },
+        options: { captchaToken },
       })
 
       if (error) {
@@ -179,7 +183,7 @@ export function Login({
         {captcha.widget}
 
         <Button type="submit" variant="primary" fullWidth loading={loading} disabled={busy}>
-          {loading ? 'Entrando' : 'Entrar'}
+          {captcha.verifying ? 'Verificando' : loading ? 'Entrando' : 'Entrar'}
         </Button>
 
         <AuthDivider />

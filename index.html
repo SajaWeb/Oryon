@@ -30,6 +30,10 @@
 
     <!-- Archivo (display) · IBM Plex Sans (texto) · JetBrains Mono (datos) ·
          Martian Mono (voz de marca: eyebrows y etiquetas). -->
+    <!-- El reto de Turnstile tarda ~2 s desde que carga la pantalla de acceso y el
+         formulario ya es usable a los 350 ms. Abrir la conexión aquí recorta parte
+         de esa espera, que ahora el botón hace esperar antes de enviar. -->
+    <link rel="preconnect" href="https://challenges.cloudflare.com" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

@@ -146,7 +146,7 @@ export function ResetPassword({ onResetSuccess, onBackToLogin }: ResetPasswordPr
     setAlert(null)
     try {
       const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, {
-        captchaToken: captcha.captchaToken,
+        captchaToken: await captcha.getToken(),
       })
       if (error) {
         setAlert(authMessage(error))

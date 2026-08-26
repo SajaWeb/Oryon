@@ -80,7 +80,7 @@ export function Register({ onRegistered, onSwitchToLogin, onSwitchToForgotPasswo
         options: {
           // El aprovisionamiento de empresa y sucursal lee esto tras verificar.
           data: { name: name.trim(), companyName: companyName.trim() },
-          captchaToken: captcha.captchaToken,
+          captchaToken: await captcha.getToken(),
         },
       })
 
