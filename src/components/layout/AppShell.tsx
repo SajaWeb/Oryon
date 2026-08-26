@@ -28,9 +28,13 @@ const ShellContext = createContext<{
 export const useShell = () => useContext(ShellContext)
 
 function daysToExpiry(licenseInfo: any): number | null {
-  if (!licenseInfo?.expiryDate) return null
-  const diff = new Date(licenseInfo.expiryDate).getTime() - Date.now()
-  return Math.max(0, Math.ceil(diff / 86400000))
+  /* Leía sólo `expiryDate`, que no lo escribe nadie: el estado de licencia usa
+     `licenseExpiry`. El aviso de "vence en N días" no podía aparecer nunca. */
+  const expiry = licenseInfo?.licenseExpiry ?? licenseInfo?.expiryDate
+  if (!expiry) return null
+  const time = new Date(expiry).getTime()
+  if (Number.isNaN(time)) return null
+  return Math.max(0, Math.ceil((time - Date.now()) / 86400000))
 }
 
 export function AppShell({
@@ -38,6 +42,7 @@ export function AppShell({
   onViewChange,
   onLogout,
   userProfile,
+  companyName,
   licenseInfo,
   children,
 }: {
@@ -45,6 +50,7 @@ export function AppShell({
   onViewChange: (view: ViewId) => void
   onLogout: () => void
   userProfile: any
+  companyName?: string
   licenseInfo?: any
   children: ReactNode
 }) {
@@ -90,7 +96,7 @@ export function AppShell({
     const message =
       `Hola, vengo desde *Oryon App* y requiero soporte.%0A%0A` +
       `Nombre: ${userProfile?.name || 'Usuario'}%0A` +
-      `Empresa: ${userProfile?.companyName || 'Sin nombre'}%0A` +
+      `Empresa: ${companyName || userProfile?.companyName || 'Sin nombre'}%0A` +
       `Rol: ${ROLE_LABELS[role] || 'Usuario'}`
     window.open(`https://wa.me/573004001077?text=${message}`, '_blank', 'noopener,noreferrer')
   }
@@ -259,6 +265,7 @@ export function AppShell({
             <AppTopbar
               currentView={currentView}
               userProfile={userProfile}
+              companyName={companyName}
               collapsed={collapsed}
               onToggleSidebar={compact ? undefined : toggleSidebar}
             />

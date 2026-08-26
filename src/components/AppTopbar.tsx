@@ -1,4 +1,4 @@
-import { Bell, Building2, PanelLeft, RefreshCw, Search } from 'lucide-react'
+import { Building2, PanelLeft, RefreshCw } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 import { usePageHeaderValue } from './layout/PageHeaderContext'
 
@@ -19,6 +19,8 @@ export const VIEW_TITLES: Record<string, { title: string; breadcrumb: string }> 
 interface AppTopbarProps {
   currentView: string
   userProfile: any
+  /** Nombre real de la empresa. Viene de `company:<id>.name`, no del perfil. */
+  companyName?: string
   /** Solo en escritorio: en tablet el rail está colapsado a la fuerza y no se ofrece. */
   onToggleSidebar?: () => void
   collapsed?: boolean
@@ -28,9 +30,12 @@ interface AppTopbarProps {
  * Topbar de 52px. Es la pieza que faltaba del shell: hasta ahora el contenido
  * empezaba pegado al borde de la ventana y la marca solo vivía en el sidebar.
  */
-export function AppTopbar({ currentView, userProfile, onToggleSidebar, collapsed }: AppTopbarProps) {
+export function AppTopbar({ currentView, userProfile, companyName, onToggleSidebar, collapsed }: AppTopbarProps) {
   const meta = VIEW_TITLES[currentView] || { title: currentView, breadcrumb: 'Oryon' }
-  const branch = userProfile?.companyName || 'Oryon'
+  /* Antes esto era `userProfile?.companyName || 'Oryon'`, y ningún perfil guarda
+     ese campo: el rótulo decía "Oryon" en todas las cuentas, como si así se
+     llamara el taller. El nombre vive en el registro de la empresa. */
+  const empresa = companyName || userProfile?.companyName || ''
   // La vista puede matizar la cabecera: subtítulo vivo ("actualizado 10:28") y refresco.
   const page = usePageHeaderValue()
 
@@ -115,37 +120,6 @@ export function AppTopbar({ currentView, userProfile, onToggleSidebar, collapsed
         </span>
       )}
 
-      {/* Buscador global: OT, cliente o IMEI — los tres identificadores del taller. */}
-      <div className="hidden md:block" style={{ flex: 1, maxWidth: 340, position: 'relative' }}>
-        <Search
-          size={14}
-          style={{
-            position: 'absolute',
-            left: 10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--text-tertiary)',
-            pointerEvents: 'none',
-          }}
-        />
-        <input
-          type="search"
-          placeholder="Buscar OT, cliente o IMEI"
-          style={{
-            width: '100%',
-            height: 'var(--control-height-sm)',
-            padding: '0 10px 0 30px',
-            fontFamily: 'var(--font-sans)',
-            fontSize: 'var(--text-small)',
-            color: 'var(--text-primary)',
-            background: 'var(--bg-sunken)',
-            border: 'var(--border-width) solid var(--border-default)',
-            borderRadius: 'var(--radius-md)',
-            outline: 'none',
-          }}
-        />
-      </div>
-
       <div style={{ flex: 1 }} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -179,24 +153,7 @@ export function AppTopbar({ currentView, userProfile, onToggleSidebar, collapsed
 
         <ThemeToggle />
 
-        <button
-          aria-label="Notificaciones"
-          className="oryon-nav-item"
-          style={{
-            display: 'grid',
-            placeItems: 'center',
-            width: 32,
-            height: 32,
-            color: 'var(--text-secondary)',
-            background: 'transparent',
-            border: 0,
-            borderRadius: 'var(--radius-sm)',
-            cursor: 'pointer',
-          }}
-        >
-          <Bell size={16} />
-        </button>
-
+        {empresa && (
         <div
           className="hidden sm:flex"
           style={{
@@ -219,9 +176,10 @@ export function AppTopbar({ currentView, userProfile, onToggleSidebar, collapsed
               maxWidth: 180,
             }}
           >
-            {branch}
+            {empresa}
           </span>
         </div>
+        )}
       </div>
     </header>
   )

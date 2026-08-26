@@ -733,6 +733,7 @@ export default function App() {
         onViewChange={(view: ViewId) => setCurrentView(view)}
         onLogout={handleLogout}
         userProfile={userProfile}
+        companyName={companyData?.name}
         licenseInfo={licenseInfo}
       >
         {renderView()}

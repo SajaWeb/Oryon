@@ -6,7 +6,7 @@ import { usePageHeaderValue } from './PageHeaderContext'
 /**
  * Header del layout móvil. Aquí el título es el protagonista (Archivo 700/20px) con el
  * eyebrow en Martian Mono encima, como en los artboards de teléfono — al revés que la
- * topbar de escritorio, donde el título comparte fila con buscador y controles.
+ * topbar de escritorio, donde el título comparte fila con los controles.
  * Reserva el notch con `env(safe-area-inset-top)`.
  */
 export function MobileHeader({ currentView }: { currentView: string }) {
