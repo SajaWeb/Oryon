@@ -1,10 +1,22 @@
-import { useState } from 'react'
-import { UserPlus } from 'lucide-react'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Label } from '../ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { useMemo, useState } from 'react'
+import { Check, Search } from 'lucide-react'
+import { FormField, Input, Select, Tabs, type TabItem } from '../oryon'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { Customer, RepairFormData } from './types'
+
+/**
+ * Elegir cliente: uno que ya existe, o uno nuevo.
+ *
+ * Las dos vías eran dos botones que había que interpretar; ahora son pestañas del
+ * sistema, que es lo que el diseño usa para "una cosa o la otra". La lista de
+ * resultados sustituye a un desplegable: en un taller se busca por teléfono tanto
+ * como por nombre, y hay que ver los dos a la vez para no traspapelar homónimos.
+ */
+
+const MODES: TabItem[] = [
+  { id: 'select', label: 'Cliente existente' },
+  { id: 'new', label: 'Cliente nuevo' },
+]
 
 interface CustomerSelectorProps {
   customers: Customer[]
@@ -19,200 +31,194 @@ export function CustomerSelector({
   identificationTypes,
   formData,
   onFormDataChange,
-  onCustomerSelect
+  onCustomerSelect,
 }: CustomerSelectorProps) {
-  const [customerMode, setCustomerMode] = useState<'select' | 'new'>('select')
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('')
+  const [mode, setMode] = useState<'select' | 'new'>('select')
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [search, setSearch] = useState('')
 
-  const getFilteredCustomers = () => {
-    if (!customerSearchTerm) return customers
-    const search = customerSearchTerm.toLowerCase()
-    return customers.filter(c => 
-      c.name.toLowerCase().includes(search) ||
-      c.phone.includes(search) ||
-      (c.identificationNumber && c.identificationNumber.toLowerCase().includes(search))
+  const { isMobile } = useBreakpoint()
+  const size = isMobile ? 'lg' : 'md'
+  const twoUp = { display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : 'repeat(2, minmax(0,1fr))', gap: 12 } as const
+
+  const filtered = useMemo(() => {
+    if (!search) return customers
+    const q = search.toLowerCase()
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.phone.includes(q) ||
+        (c.identificationNumber && c.identificationNumber.toLowerCase().includes(q))
     )
+  }, [customers, search])
+
+  const selectCustomer = (customerId: number) => {
+    const customer = customers.find((c) => c.id === customerId)
+    if (!customer) return
+    setSelectedId(customerId)
+    onCustomerSelect(customerId)
+    onFormDataChange({
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerEmail: customer.email,
+      customerIdentificationType: customer.identificationType || '',
+      customerIdentificationNumber: customer.identificationNumber || '',
+    })
   }
 
-  const handleCustomerSelect = (customerId: number) => {
-    const customer = customers.find(c => c.id === customerId)
-    if (customer) {
-      setSelectedCustomerId(customerId)
-      onCustomerSelect(customerId)
-      onFormDataChange({
-        customerName: customer.name,
-        customerPhone: customer.phone,
-        customerEmail: customer.email,
-        customerIdentificationType: customer.identificationType || '',
-        customerIdentificationNumber: customer.identificationNumber || ''
-      })
-    }
-  }
-
-  const handleModeChange = (mode: 'select' | 'new') => {
-    setCustomerMode(mode)
-    if (mode === 'new') {
-      setSelectedCustomerId(null)
+  const changeMode = (next: string) => {
+    const value = next as 'select' | 'new'
+    setMode(value)
+    if (value === 'new') {
+      setSelectedId(null)
       onFormDataChange({
         customerName: '',
         customerPhone: '',
         customerEmail: '',
         customerIdentificationType: '',
-        customerIdentificationNumber: ''
+        customerIdentificationNumber: '',
       })
-    } else if (selectedCustomerId) {
-      handleCustomerSelect(selectedCustomerId)
+    } else if (selectedId) {
+      selectCustomer(selectedId)
     }
   }
 
   return (
-    <div className="border rounded-lg p-3 sm:p-4 space-y-3 sm:space-y-4 bg-sunken">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
-        <h4 className="text-base sm:text-lg">Información del Cliente *</h4>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant={customerMode === 'select' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleModeChange('select')}
-            className="flex-1 sm:flex-none text-xs sm:text-sm h-8 sm:h-9"
-          >
-            <span className="hidden sm:inline">Seleccionar Existente</span>
-            <span className="sm:hidden">Existente</span>
-          </Button>
-          <Button
-            type="button"
-            variant={customerMode === 'new' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleModeChange('new')}
-            className="flex-1 sm:flex-none text-xs sm:text-sm h-8 sm:h-9"
-          >
-            <UserPlus size={14} className="mr-1" />
-            <span className="hidden sm:inline">Crear Nuevo</span>
-            <span className="sm:hidden">Nuevo</span>
-          </Button>
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <Tabs items={MODES} value={mode} onChange={changeMode} />
 
-      {customerMode === 'select' ? (
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="customerSearch">Buscar Cliente</Label>
-            <Input
-              id="customerSearch"
-              placeholder="Buscar por nombre, teléfono o identificación..."
-              value={customerSearchTerm}
-              onChange={(e) => setCustomerSearchTerm(e.target.value)}
-              className="mb-2"
-            />
-          </div>
-          <div className="border rounded-md bg-popover max-h-48 overflow-y-auto">
-            {getFilteredCustomers().length > 0 ? (
-              getFilteredCustomers().map((customer) => (
-                <button
-                  key={customer.id}
-                  type="button"
-                  onClick={() => handleCustomerSelect(customer.id)}
-                  className={`w-full text-left p-3 border-b last:border-b-0 hover:bg-sunken transition-colors ${
-                    selectedCustomerId === customer.id ? 'bg-[var(--accent-subtle)]' : ''
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p>{customer.name}</p>
-                      <p className="text-sm text-ink-secondary">
-                        {customer.phone}
-                        {customer.identificationNumber && ` • ${customer.identificationType}: ${customer.identificationNumber}`}
-                      </p>
-                    </div>
-                    {selectedCustomerId === customer.id && (
-                      <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                        <div className="w-2 h-2 rounded-full bg-white"></div>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              ))
+      {mode === 'select' ? (
+        <>
+          <Input
+            size={size}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Nombre, teléfono o identificación"
+            iconLeft={Search}
+            aria-label="Buscar cliente"
+          />
+
+          <div
+            style={{
+              maxHeight: 208,
+              overflowY: 'auto',
+              background: 'var(--bg-sunken)',
+              border: 'var(--border-width) solid var(--border-default)',
+              borderRadius: 'var(--radius-md)',
+            }}
+          >
+            {filtered.length === 0 ? (
+              <p style={{ margin: 0, padding: 16, textAlign: 'center', fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}>
+                {customers.length === 0 ? 'Todavía no hay clientes. Crea uno nuevo.' : 'Ningún cliente coincide.'}
+              </p>
             ) : (
-              <div className="p-4 text-center text-ink-tertiary">
-                {customerSearchTerm ? 'No se encontraron clientes' : 'No hay clientes registrados'}
-              </div>
+              filtered.map((customer, i) => {
+                const active = selectedId === customer.id
+                return (
+                  <button
+                    key={customer.id}
+                    type="button"
+                    onClick={() => selectCustomer(customer.id)}
+                    aria-pressed={active}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      width: '100%',
+                      padding: '10px 12px',
+                      minHeight: 'var(--tap-target)',
+                      textAlign: 'left',
+                      background: active ? 'var(--accent-subtle)' : 'transparent',
+                      border: 0,
+                      borderTop: i === 0 ? 0 : 'var(--border-width) solid var(--border-subtle)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                      <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)' }}>{customer.name}</span>
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 'var(--text-mono-sm)',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        {customer.phone}
+                        {customer.identificationNumber ? ` · ${customer.identificationNumber}` : ''}
+                      </span>
+                    </span>
+                    {active && <Check size={16} strokeWidth={2.2} color="var(--accent-fill)" style={{ flex: '0 0 auto' }} />}
+                  </button>
+                )
+              })
             )}
           </div>
-          {selectedCustomerId && (
-            <div className="p-3 bg-[var(--success-subtle)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] rounded-md">
-              <p className="text-sm text-success">
-                ✓ Cliente seleccionado: <span>{formData.customerName}</span>
-              </p>
-            </div>
+
+          {selectedId && (
+            <p style={{ margin: 0, fontSize: 'var(--text-small)', color: 'var(--text-secondary)' }}>
+              La orden quedará a nombre de{' '}
+              <span style={{ color: 'var(--text-primary)' }}>{formData.customerName}</span>.
+            </p>
           )}
-        </div>
+        </>
       ) : (
-        <div className="space-y-3 sm:space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <Label htmlFor="customerName" className="text-sm sm:text-base">Nombre Completo *</Label>
+        <>
+          <div style={twoUp}>
+            <FormField label="Nombre completo" required>
               <Input
-                id="customerName"
+                size={size}
                 value={formData.customerName}
                 onChange={(e) => onFormDataChange({ customerName: e.target.value })}
-                required
-                className="h-10 text-sm sm:text-base"
+                placeholder="Andrés Chavarría"
+                autoComplete="name"
               />
-            </div>
-            <div>
-              <Label htmlFor="customerPhone" className="text-sm sm:text-base">Teléfono *</Label>
+            </FormField>
+            <FormField label="Teléfono" required>
               <Input
-                id="customerPhone"
+                size={size}
+                mono
+                inputMode="tel"
                 value={formData.customerPhone}
                 onChange={(e) => onFormDataChange({ customerPhone: e.target.value })}
-                required
-                className="h-10 text-sm sm:text-base"
+                placeholder="3001234567"
+                autoComplete="tel"
               />
-            </div>
+            </FormField>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <Label htmlFor="customerIdentificationType" className="text-sm sm:text-base">Tipo de Identificación</Label>
+
+          <div style={twoUp}>
+            <FormField label="Tipo de identificación">
               <Select
+                size={size}
                 value={formData.customerIdentificationType}
-                onValueChange={(value) => onFormDataChange({ customerIdentificationType: value })}
-              >
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Seleccionar tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {identificationTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="customerIdentificationNumber" className="text-sm sm:text-base">Número de Identificación</Label>
+                onChange={(e) => onFormDataChange({ customerIdentificationType: e.target.value })}
+                placeholder="Sin especificar"
+                options={identificationTypes.map((t) => ({ value: t, label: t }))}
+              />
+            </FormField>
+            <FormField label="Número de identificación">
               <Input
-                id="customerIdentificationNumber"
+                size={size}
+                mono
                 value={formData.customerIdentificationNumber}
                 onChange={(e) => onFormDataChange({ customerIdentificationNumber: e.target.value })}
-                placeholder="Ej: 1234567890"
-                className="h-10 text-sm sm:text-base"
+                placeholder="1234567890"
               />
-            </div>
+            </FormField>
           </div>
-          <div>
-            <Label htmlFor="customerEmail">Email</Label>
+
+          <FormField label="Correo" hint="Opcional. Sirve para avisarle cuando el equipo esté listo.">
             <Input
-              id="customerEmail"
+              size={size}
               type="email"
               value={formData.customerEmail}
               onChange={(e) => onFormDataChange({ customerEmail: e.target.value })}
-              placeholder="correo@ejemplo.com"
+              placeholder="cliente@correo.com"
+              autoComplete="email"
             />
-          </div>
-        </div>
+          </FormField>
+        </>
       )}
     </div>
   )

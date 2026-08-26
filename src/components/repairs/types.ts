@@ -83,4 +83,6 @@ export interface InvoiceFormData {
   laborItems: LaborItem[]
   parts: RepairPart[]
   additionalNotes: string
+  /** Cómo paga el cliente. Antes el servidor lo fijaba en 'efectivo' sin preguntar. */
+  paymentMethod: string
 }

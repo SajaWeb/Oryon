@@ -1,5 +1,6 @@
 import {
   ChartColumn,
+  Wallet,
   CreditCard,
   LayoutDashboard,
   Package,
@@ -22,6 +23,7 @@ export type ViewId =
   | 'products'
   | 'repairs'
   | 'sales'
+  | 'cash'
   | 'customers'
   | 'reports'
   | 'license'
@@ -47,7 +49,10 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'products', label: 'Productos', shortLabel: 'Productos', icon: Package, section: 'Operación', roles: ['admin', 'asesor'], primary: true },
   { id: 'repairs', label: 'Reparaciones', shortLabel: 'OT', icon: Wrench, section: 'Operación', roles: ['admin', 'asesor', 'tecnico'], primary: true },
   { id: 'sales', label: 'Ventas', shortLabel: 'Ventas', icon: ReceiptText, section: 'Operación', roles: ['admin', 'asesor'], primary: true },
-  { id: 'customers', label: 'Clientes', shortLabel: 'Clientes', icon: Users, section: 'Operación', roles: ['admin'], primary: true },
+  { id: 'cash', label: 'Caja', shortLabel: 'Caja', icon: Wallet, section: 'Operación', roles: ['admin', 'asesor'], primary: true, hint: 'Apertura, movimientos y cierre' },
+  /* Caja entra en la barra de móvil y Clientes sale: la caja se toca cada día, la
+     ficha de un cliente se abre desde la OT o la venta. */
+  { id: 'customers', label: 'Clientes', shortLabel: 'Clientes', icon: Users, section: 'Operación', roles: ['admin'], primary: false, hint: 'Directorio de clientes' },
   { id: 'reports', label: 'Reportes', shortLabel: 'Reportes', icon: ChartColumn, section: 'Administración', roles: ['admin'], primary: false, hint: 'Insights de negocio' },
   { id: 'license', label: 'Licencia', shortLabel: 'Licencia', icon: CreditCard, section: 'Administración', roles: ['admin'], primary: false, hint: 'Suscripción y facturación' },
   { id: 'settings', label: 'Configuración', shortLabel: 'Ajustes', icon: Settings, section: 'Administración', roles: ['admin'], primary: false, hint: 'Empresa, usuarios, documentos' },

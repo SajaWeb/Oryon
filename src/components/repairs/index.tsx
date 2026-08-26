@@ -22,7 +22,6 @@ import { ListPage } from '../patterns/ListPage'
 import { ResponsiveDetail } from '../layout/ResponsiveDetail'
 import { useShell } from '../layout/AppShell'
 import { usePageHeader } from '../layout/PageHeaderContext'
-import { TrackingAlert } from './ui/TrackingAlert'
 import { LoadingState } from './ui/LoadingState'
 import { ErrorState } from './ui/ErrorState'
 
@@ -332,10 +331,7 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
         }}
         chips={isMobile ? statusChips : undefined}
         banner={
-          <>
-            {userRole !== 'admin' && userProfile && <BranchAlert userProfile={userProfile} />}
-            <TrackingAlert />
-          </>
+          userRole !== 'admin' && userProfile ? <BranchAlert userProfile={userProfile} /> : undefined
         }
       />
 

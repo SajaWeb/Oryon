@@ -10,12 +10,13 @@ import { Alert, Badge, Button, Card, IconButton, KeyValue, type Column } from '.
 import { ListPage } from '../patterns/ListPage'
 import { PageBody } from '../layout/PageBody'
 import { ResponsiveDetail } from '../layout/ResponsiveDetail'
+import { FormDialog } from '../layout/FormDialog'
 import { useShell } from '../layout/AppShell'
 import { usePageHeader } from '../layout/PageHeaderContext'
 import { ProductListCard } from './ProductListCard'
 import { toast } from 'sonner@2.0.3'
 import { projectId } from '../../utils/supabase/info'
-import { ProductForm } from './ProductForm'
+import { ProductForm, PRODUCT_FORM_ID } from './ProductForm'
 import { UnitsManagement } from './UnitsManagement'
 import { VariantsManagement } from './VariantsManagement'
 import { InventoryAdjustment } from './InventoryAdjustment'
@@ -1234,26 +1235,39 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
       </ResponsiveDetail>
 
       {/* Nuevo / editar producto */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingProduct ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
-            <DialogDescription>
-              {editingProduct
-                ? 'Actualiza la información del producto'
-                : 'Crea un nuevo producto en tu inventario'}
-            </DialogDescription>
-          </DialogHeader>
-          <ProductForm
-            product={editingProduct}
-            branches={availableBranches}
-            onSubmit={handleSubmitProduct}
-            onCancel={closeDialog}
-            isSubmitting={isSubmitting}
-            userRole={userRole}
-          />
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={dialogOpen}
+        onClose={closeDialog}
+        title={editingProduct ? 'Editar producto' : 'Nuevo producto'}
+        description={
+          editingProduct
+            ? 'Actualiza la información del producto'
+            : 'Los campos con * son los mínimos para poder venderlo o repararlo.'
+        }
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeDialog} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form={PRODUCT_FORM_ID}
+              variant="primary"
+              loading={isSubmitting}
+              disabled={isSubmitting || availableBranches.length === 0}
+            >
+              {editingProduct ? 'Guardar cambios' : 'Crear producto'}
+            </Button>
+          </>
+        }
+      >
+        <ProductForm
+          product={editingProduct}
+          branches={availableBranches}
+          onSubmit={handleSubmitProduct}
+          userRole={userRole}
+        />
+      </FormDialog>
 
       {/* Units Management Dialog */}
       <Dialog open={unitsDialogOpen} onOpenChange={setUnitsDialogOpen}>

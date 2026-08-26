@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { projectId } from '../utils/supabase/info'
 import { Plus, Trash2, ShoppingCart, Printer, Package, Check, User, Search, X, ReceiptText } from 'lucide-react'
 import { Button } from './ui/button'
@@ -10,7 +10,24 @@ import { Badge } from './ui/badge'
 import { toast } from 'sonner@2.0.3'
 // Oryon se importa con alias: esta vista aún usa los primitivos shadcn en el punto de venta
 // y los nombres chocarían.
-import { Button as OryonButton, Badge as OryonBadge, type Column } from './oryon'
+import {
+  Alert as OryonAlert,
+  Badge as OryonBadge,
+  Button as OryonButton,
+  FieldGroup,
+  FormField as OryonFormField,
+  IconButton as OryonIconButton,
+  Input as OryonInput,
+  Select as OryonSelect,
+  type Column,
+} from './oryon'
+import { FormDialog } from './layout/FormDialog'
+import { OpenCashDialog } from './cash/OpenCashDialog'
+import { CASH_SESSION_REQUIRED, openSession } from './cash/api'
+import { useBreakpoint } from '../hooks/useBreakpoint'
+
+/** Los métodos que acepta el taller. Antes estaban escritos a mano en el JSX. */
+const PAYMENT_METHODS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Nequi', 'Daviplata', 'Crédito'] as const
 import { ListPage } from './patterns/ListPage'
 import { ResponsiveDetail } from './layout/ResponsiveDetail'
 import { useShell } from './layout/AppShell'
@@ -147,6 +164,12 @@ interface SalesProps {
 
 export function Sales({ accessToken, userName, userRole, userProfile }: SalesProps) {
   const { compact } = useShell()
+  const { isMobile: isMobileView, isDesktop } = useBreakpoint()
+  const controlSize = isMobileView ? 'lg' : 'md'
+  const [openCashDialog, setOpenCashDialog] = useState(false)
+  const [openingCash, setOpeningCash] = useState(false)
+  /** Al abrir la caja desde el cobro, se reintenta la venta que quedó a medias. */
+  const [pendingSaleAfterCash, setPendingSaleAfterCash] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [sales, setSales] = useState<Sale[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
@@ -710,6 +733,27 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
     setCustomerSearch('')
   }
 
+  const handleOpenCashFromSale = async (targetBranch: string, baseAmount: number) => {
+    setOpeningCash(true)
+    try {
+      const res = await openSession(accessToken, targetBranch, baseAmount)
+      if (!res.success) {
+        toast.error(res.error || 'No se pudo abrir la caja')
+        return
+      }
+      toast.success('Caja abierta')
+      setOpenCashDialog(false)
+      if (pendingSaleAfterCash) {
+        setPendingSaleAfterCash(false)
+        await completeSale()
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo abrir la caja')
+    } finally {
+      setOpeningCash(false)
+    }
+  }
+
   const completeSale = async () => {
     if (cart.length === 0) {
       toast.error('El carrito está vacío')
@@ -816,6 +860,12 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
         fetchProducts()
         fetchSales()
         toast.success('Venta completada exitosamente')
+      } else if (data.code === CASH_SESSION_REQUIRED) {
+        /* Sin caja abierta no se cobra. En vez de mandar al usuario a otra
+           pantalla con un cliente delante, se ofrece abrirla aquí mismo y la
+           venta se reintenta sola. */
+        setPendingSaleAfterCash(true)
+        setOpenCashDialog(true)
       } else {
         console.error('Error completing sale:', data.error)
         toast.error('Error al completar la venta: ' + (data.error || 'Error desconocido'))
@@ -942,6 +992,8 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   const filteredSales = filterSales()
 
   const formatMoney = (n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`
+  /** Las categorías se guardan en minúscula («celulares»); en pantalla van con mayúscula. */
+  const capitalize = (v?: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : '—')
 
   usePageHeader({
     title: 'Ventas',
@@ -1006,9 +1058,32 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   ]
   
   // Filter products by selected branch
+  /* Coincidencias de los dos buscadores del punto de venta. Antes el de clientes
+     repetía el mismo filter tres veces en el JSX y el de productos vivía dentro de
+     un Command dentro de un Popover dentro del modal. */
+  const matchingCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase()
+    if (!q) return []
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.phone?.includes(q) ||
+        c.identificationNumber?.includes(q) ||
+        c.email?.toLowerCase().includes(q)
+    )
+  }, [customers, customerSearch])
+
   const productsForSelectedBranch = selectedBranchId 
     ? products.filter(p => (p as any).branchId === selectedBranchId)
     : products
+
+  const matchingProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    if (!q) return productsForSelectedBranch
+    return productsForSelectedBranch.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q)
+    )
+  }, [productsForSelectedBranch, productSearch])
 
   if (loading) {
     return <div className="p-8">Cargando...</div>
@@ -1018,427 +1093,444 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
     <>
       {/* El título y la acción principal los aporta el shell y ListPage: aquí solo queda
           el punto de venta, que vive en su propio diálogo. */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full p-4 sm:p-6">
-            <DialogHeader>
-              <DialogTitle className="text-lg sm:text-xl">Nueva Venta</DialogTitle>
-              <DialogDescription>Registra una nueva venta agregando productos al carrito</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-6">
-              {/* Customer Search and Selection */}
-              <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <Label>Información del Cliente *</Label>
-                  {selectedCustomerId && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearCustomerForm}
-                    >
-                      <Plus size={16} className="mr-1" />
-                      Cambiar Cliente
-                    </Button>
-                  )}
-                </div>
-
-                {!selectedCustomerId ? (
-                  <>
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor="customerSearch">Buscar Cliente Existente</Label>
-                        <div className="relative">
-                          <Input
-                            id="customerSearch"
-                            value={customerSearch}
-                            onChange={(e) => {
-                              setCustomerSearch(e.target.value)
-                              setCustomerSearchOpen(e.target.value.length > 0)
-                            }}
-                            placeholder="Buscar por nombre, teléfono o identificación..."
-                          />
-                          {customerSearchOpen && customerSearch && (
-                            <div className="absolute z-10 w-full mt-1 bg-popover border border-line rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                              {customers.filter(c =>
-                                c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-                                c.phone?.includes(customerSearch) ||
-                                c.identificationNumber?.includes(customerSearch) ||
-                                c.email?.toLowerCase().includes(customerSearch.toLowerCase())
-                              ).length > 0 ? (
-                                customers
-                                  .filter(c =>
-                                    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-                                    c.phone?.includes(customerSearch) ||
-                                    c.identificationNumber?.includes(customerSearch) ||
-                                    c.email?.toLowerCase().includes(customerSearch.toLowerCase())
-                                  )
-                                  .map(customer => (
-                                    <div
-                                      key={customer.id}
-                                      className="p-3 hover:bg-sunken cursor-pointer border-b last:border-b-0"
-                                      onClick={() => handleSelectCustomer(customer)}
-                                    >
-                                      <p className="font-semibold">{customer.name}</p>
-                                      <p className="text-sm text-ink-secondary">
-                                        {customer.identificationType} {customer.identificationNumber} - {customer.phone}
-                                      </p>
-                                    </div>
-                                  ))
-                              ) : (
-                                <div className="p-3 text-center text-ink-tertiary">
-                                  No se encontraron clientes
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 border-t border-line"></div>
-                        <span className="text-sm text-ink-secondary">o</span>
-                        <div className="flex-1 border-t border-line"></div>
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => {
-                          setNewCustomerDialogOpen(true)
-                          setCustomerSearchOpen(false)
-                        }}
-                      >
-                        <Plus size={16} className="mr-2" />
-                        Crear Nuevo Cliente
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-2 bg-sunken p-3 rounded-lg">
-                    <p><strong>Cliente:</strong> {customerName}</p>
-                    <p className="text-sm text-ink-secondary">
-                      {customerIdType} {customerIdNumber}
-                    </p>
-                    <p className="text-sm text-ink-secondary">
-                      Tel: {customerPhone} | Email: {customerEmail}
-                    </p>
-                    {customerAddress && (
-                      <p className="text-sm text-ink-secondary">Dirección: {customerAddress}</p>
+      <FormDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        title="Nueva venta"
+        description="Elige el cliente, arma el carrito y cobra."
+        footer={
+          <>
+            <OryonButton variant="ghost" onClick={() => setDialogOpen(false)}>
+              Cancelar
+            </OryonButton>
+            <OryonButton
+              variant="primary"
+              iconLeft={ShoppingCart}
+              onClick={completeSale}
+              disabled={!selectedCustomerId || cart.length === 0}
+            >
+              {cart.length > 0 ? `Cobrar ${formatMoney(calculateTotal())}` : 'Cobrar'}
+            </OryonButton>
+          </>
+        }
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isDesktop ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)',
+            alignItems: 'start',
+            gap: isDesktop ? 28 : 22,
+          }}
+        >
+          {/* ── Se arma la venta ─────────────────────────────────────── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 22, minWidth: 0 }}>
+            <FieldGroup title="Cliente">
+              {selectedCustomerId ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    padding: '10px 12px',
+                    background: 'var(--bg-sunken)',
+                    border: 'var(--border-width) solid var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                    <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)' }}>{customerName}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-mono-sm)', color: 'var(--text-secondary)' }}>
+                      {[customerIdType, customerIdNumber].filter(Boolean).join(' ')}
+                      {customerPhone ? ` · ${customerPhone}` : ''}
+                    </span>
+                    {customerEmail && (
+                      <span style={{ fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>{customerEmail}</span>
                     )}
                   </div>
-                )}
-              </div>
-
-              {/* Only show if customer is selected */}
-              {!selectedCustomerId && (
-                <div className="text-center text-sm text-ink-tertiary italic">
-                  Por favor selecciona o crea un cliente para continuar
+                  <OryonButton size="sm" variant="ghost" onClick={clearCustomerForm}>
+                    Cambiar
+                  </OryonButton>
                 </div>
-              )}
-
-              {selectedCustomerId && (
+              ) : (
                 <>
-              <div className="grid grid-cols-2 gap-4 opacity-0 h-0 overflow-hidden">
-                <div>
-                  <Label htmlFor="customerEmail">Email</Label>
-                  <Input
-                    id="customerEmail"
-                    type="email"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    placeholder="cliente@email.com"
+                  <OryonInput
+                    size={controlSize}
+                    value={customerSearch}
+                    onChange={(e) => {
+                      setCustomerSearch(e.target.value)
+                      setCustomerSearchOpen(e.target.value.length > 0)
+                    }}
+                    placeholder="Nombre, teléfono o identificación"
+                    iconLeft={Search}
+                    aria-label="Buscar cliente"
                   />
-                </div>
-                <div>
-                  <Label htmlFor="paymentMethod">Método de Pago</Label>
-                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Efectivo">Efectivo</SelectItem>
-                      <SelectItem value="Tarjeta">Tarjeta</SelectItem>
-                      <SelectItem value="Transferencia">Transferencia</SelectItem>
-                      <SelectItem value="Nequi">Nequi</SelectItem>
-                      <SelectItem value="Daviplata">Daviplata</SelectItem>
-                      <SelectItem value="Crédito">Crédito</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+
+                  {customerSearch && (
+                    <div
+                      style={{
+                        maxHeight: 180,
+                        overflowY: 'auto',
+                        background: 'var(--bg-sunken)',
+                        border: 'var(--border-width) solid var(--border-default)',
+                        borderRadius: 'var(--radius-md)',
+                      }}
+                    >
+                      {matchingCustomers.length > 0 ? (
+                        matchingCustomers.map((customer, i) => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            onClick={() => handleSelectCustomer(customer)}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 2,
+                              width: '100%',
+                              padding: '10px 12px',
+                              minHeight: 'var(--tap-target)',
+                              textAlign: 'left',
+                              background: 'transparent',
+                              border: 0,
+                              borderTop: i === 0 ? 0 : 'var(--border-width) solid var(--border-subtle)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)' }}>{customer.name}</span>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-mono-sm)', color: 'var(--text-secondary)' }}>
+                              {[customer.identificationType, customer.identificationNumber].filter(Boolean).join(' ')}
+                              {customer.phone ? ` · ${customer.phone}` : ''}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <p style={{ margin: 0, padding: 16, textAlign: 'center', fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}>
+                          Ningún cliente coincide.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <OryonButton
+                    variant="secondary"
+                    size={controlSize}
+                    iconLeft={Plus}
+                    fullWidth
+                    onClick={() => {
+                      setNewCustomerDialogOpen(true)
+                      setCustomerSearchOpen(false)
+                    }}
+                  >
+                    Crear cliente nuevo
+                  </OryonButton>
+                </>
+              )}
+            </FieldGroup>
+
+            <FieldGroup title="Condiciones">
+              <div style={{ display: 'grid', gridTemplateColumns: isMobileView ? 'minmax(0,1fr)' : 'repeat(2, minmax(0,1fr))', gap: 12 }}>
+                <OryonFormField
+                  label="Sucursal"
+                  required
+                  hint="Solo se venden productos de esta sucursal"
+                >
+                  <OryonSelect
+                    size={controlSize}
+                    value={selectedBranchId}
+                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                    placeholder="Elige la sucursal"
+                    options={branches.map((b) => ({ value: b.id, label: b.name }))}
+                  />
+                </OryonFormField>
+
+                {/* Este selector estaba oculto con opacity-0/h-0: toda venta se
+                    guardaba como Efectivo y el crédito era inalcanzable. */}
+                <OryonFormField label="Método de pago" required>
+                  <OryonSelect
+                    size={controlSize}
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+                  />
+                </OryonFormField>
               </div>
 
-              {/* Credit Days - Only show if payment method is Crédito */}
               {paymentMethod === 'Crédito' && (
-                <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-4">
-                  <Label htmlFor="creditDays">Días de Crédito</Label>
-                  <Input
-                    id="creditDays"
+                <OryonFormField
+                  label="Días de crédito"
+                  required
+                  hint={
+                    creditDays > 0
+                      ? `Vence el ${new Date(Date.now() + creditDays * 86400000).toLocaleDateString('es-CO')}`
+                      : 'A cuántos días se compromete a pagar el cliente.'
+                  }
+                >
+                  <OryonInput
+                    size={controlSize}
                     type="number"
+                    min="1"
+                    inputMode="numeric"
+                    mono
                     value={creditDays || ''}
                     onChange={(e) => setCreditDays(parseInt(e.target.value) || 0)}
                     placeholder="30"
-                    min="1"
-                    className="mt-2"
                   />
-                  <p className="text-xs text-ink-secondary mt-1">
-                    {creditDays > 0 && `Fecha de vencimiento: ${new Date(Date.now() + creditDays * 24 * 60 * 60 * 1000).toLocaleDateString('es-CO')}`}
-                  </p>
-                </div>
+                </OryonFormField>
               )}
+            </FieldGroup>
 
-              {/* Branch Selector */}
-              <div className="bg-[var(--success-subtle)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] rounded-lg p-4">
-                <Label htmlFor="branchSelect">Sucursal de Venta *</Label>
-                {userRole === 'asesor' && branches.length === 1 && (
-                  <p className="text-xs text-primary mb-2 mt-1">
-                    📍 Tu sucursal asignada: {branches[0].name}
-                  </p>
-                )}
-                <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
-                  <SelectTrigger id="branchSelect" className="mt-2">
-                    <SelectValue placeholder="Selecciona la sucursal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map((branch) => (
-                      <SelectItem key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-ink-secondary mt-1">
-                  Solo se mostrarán productos de la sucursal seleccionada
-                  {userRole === 'asesor' && ' (solo tus sucursales asignadas)'}
-                </p>
-              </div>
+            <FieldGroup title="Agregar productos">
+              {!selectedBranchId ? (
+                <OryonAlert variant="info" title="Falta la sucursal">
+                  Elige primero la sucursal para ver qué hay disponible.
+                </OryonAlert>
+              ) : productsForSelectedBranch.length === 0 ? (
+                <OryonAlert variant="warning" title="No hay productos disponibles">
+                  En {branches.find((b) => b.id === selectedBranchId)?.name} no hay stock que vender. Revisa el
+                  inventario: los productos por unidades necesitan unidades con IMEI o serial, y los de cantidad
+                  necesitan stock.
+                </OryonAlert>
+              ) : (
+                <>
+                  <OryonInput
+                    size={controlSize}
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    placeholder="Buscar por nombre o categoría"
+                    iconLeft={Search}
+                    aria-label="Buscar producto"
+                  />
 
-              {/* Add Products - Only show if customer is selected */}
-              <div className="border-t pt-4">
-                <h4 className="mb-3">Agregar Productos</h4>
-                
-                {productsForSelectedBranch.length === 0 && selectedBranchId && (
-                  <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-4 mb-3">
-                    <p className="text-sm text-warning">
-                      <span className="block mb-1">⚠️ No hay productos disponibles en esta sucursal</span>
-                      <span className="text-xs">
-                        Selecciona otra sucursal o agrega productos a {branches.find(b => b.id === selectedBranchId)?.name}
-                      </span>
-                    </p>
-                  </div>
-                )}
-                
-                {!selectedBranchId && (
-                  <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-4 mb-3">
-                    <p className="text-sm text-primary">
-                      ℹ️ Por favor selecciona una sucursal primero
-                    </p>
-                  </div>
-                )}
-                
-                {products.length === 0 && selectedBranchId && productsForSelectedBranch.length === 0 && (
-                  <div className="bg-[var(--warning-subtle)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] rounded-lg p-4 mb-3">
-                    <p className="text-sm text-warning">
-                      <span className="block mb-1">⚠️ No hay productos disponibles para venta</span>
-                      <span className="text-xs">
-                        Asegúrate de:
-                      </span>
-                    </p>
-                    <ul className="text-xs text-warning mt-2 ml-4 list-disc space-y-1">
-                      <li>Haber creado productos en el módulo de <span className="font-semibold">Productos</span></li>
-                      <li>Si el producto se maneja por unidades: haber agregado <span className="font-semibold">unidades</span> con IMEI/Serial</li>
-                      <li>Si el producto se maneja por cantidad: tener <span className="font-semibold">stock disponible</span></li>
-                    </ul>
-                  </div>
-                )}
-                
-                <div className="space-y-3">
-                  {/* Product Search with Command */}
-                  <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={productSearchOpen}
-                        className="w-full justify-between"
-                        disabled={!selectedBranchId || productsForSelectedBranch.length === 0}
-                      >
-                        {selectedProductId && productsForSelectedBranch.find(p => p.id === parseInt(selectedProductId)) ? (
-                          <span className="flex items-center gap-2">
-                            <Package size={16} />
-                            {productsForSelectedBranch.find(p => p.id === parseInt(selectedProductId))?.name}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground flex items-center gap-2">
-                            <Search size={16} />
-                            {!selectedBranchId ? "Selecciona una sucursal primero" : productsForSelectedBranch.length === 0 ? "No hay productos disponibles" : "Buscar producto..."}
-                          </span>
-                        )}
-                        {selectedProductId && (
-                          <X
-                            size={16}
-                            className="opacity-50 hover:opacity-100"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedProductId('')
-                              setProductSearch('')
+                  <div
+                    style={{
+                      maxHeight: 220,
+                      overflowY: 'auto',
+                      background: 'var(--bg-sunken)',
+                      border: 'var(--border-width) solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)',
+                    }}
+                  >
+                    {matchingProducts.length === 0 ? (
+                      <p style={{ margin: 0, padding: 16, textAlign: 'center', fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}>
+                        Ningún producto coincide.
+                      </p>
+                    ) : (
+                      matchingProducts.map((product, i) => {
+                        const active = selectedProductId === product.id.toString()
+                        const available = product.trackByUnit
+                          ? product.units?.filter((u) => u.status === 'available').length || 0
+                          : product.hasVariants
+                            ? product.variants?.reduce((sum, v) => sum + v.stock, 0) || 0
+                            : product.quantity || 0
+                        const kind = product.trackByUnit ? 'IMEI/SN' : product.hasVariants ? 'Variantes' : null
+
+                        return (
+                          <button
+                            key={product.id}
+                            type="button"
+                            onClick={() => setSelectedProductId(product.id.toString())}
+                            aria-pressed={active}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 12,
+                              width: '100%',
+                              padding: '10px 12px',
+                              minHeight: 'var(--tap-target)',
+                              textAlign: 'left',
+                              background: active ? 'var(--accent-subtle)' : 'transparent',
+                              border: 0,
+                              borderTop: i === 0 ? 0 : 'var(--border-width) solid var(--border-subtle)',
+                              cursor: 'pointer',
                             }}
-                          />
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <CommandInput 
-                          placeholder="Buscar por nombre, categoría..." 
-                          value={productSearch}
-                          onValueChange={setProductSearch}
-                        />
-                        <CommandList>
-                          <CommandEmpty>No se encontraron productos</CommandEmpty>
-                          <CommandGroup heading="Productos Disponibles">
-                            {productsForSelectedBranch.map(product => {
-                              let available = 0
-                              let typeIcon = <Package size={14} />
-                              let typeLabel = 'Cantidad'
-                              
-                              if (product.trackByUnit) {
-                                available = product.units?.filter(u => u.status === 'available').length || 0
-                                typeIcon = <Badge variant="outline" className="text-xs">IMEI/SN</Badge>
-                                typeLabel = 'Unidades únicas'
-                              } else if (product.hasVariants) {
-                                available = product.variants?.reduce((sum, v) => sum + v.stock, 0) || 0
-                                typeIcon = <Badge variant="outline" className="text-xs">Variantes</Badge>
-                                typeLabel = 'Con variantes'
-                              } else {
-                                available = product.quantity || 0
-                              }
-                              
-                              return (
-                                <CommandItem
-                                  key={product.id}
-                                  value={`${product.name} ${product.category} ${product.id}`}
-                                  onSelect={() => {
-                                    setSelectedProductId(product.id.toString())
-                                    setProductSearchOpen(false)
-                                    setProductSearch('')
-                                  }}
-                                  className="flex items-center justify-between"
-                                >
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <span>{product.name}</span>
-                                      {typeIcon}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      {product.category} • ${product.price.toFixed(2)} • {available} disponibles
-                                    </div>
-                                  </div>
-                                  {selectedProductId === product.id.toString() && (
-                                    <Check size={16} className="text-primary" />
-                                  )}
-                                </CommandItem>
-                              )
-                            })}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  
-                  {/* Action Button - Dynamic based on product type */}
-                  {selectedProductId && (() => {
-                    const product = productsForSelectedBranch.find(p => p.id === parseInt(selectedProductId))
-                    if (!product) return null
-                    
-                    let buttonText = 'Agregar al Carrito'
-                    let buttonVariant: "default" | "secondary" = "default"
-                    
-                    if (product.trackByUnit) {
-                      const availableUnits = product.units?.filter(u => u.status === 'available').length || 0
-                      buttonText = `Seleccionar Unidades (${availableUnits} disponibles)`
-                      buttonVariant = "secondary"
-                    } else if (product.hasVariants) {
-                      const variantCount = product.variants?.length || 0
-                      buttonText = `Seleccionar Variante (${variantCount} opciones)`
-                      buttonVariant = "secondary"
-                    }
-                    
-                    return (
-                      <Button 
-                        onClick={openUnitSelection} 
-                        className="w-full"
-                        variant={buttonVariant}
-                      >
-                        <ShoppingCart size={16} className="mr-2" />
-                        {buttonText}
-                      </Button>
-                    )
-                  })()}
-                </div>
-              </div>
+                          >
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)' }}>{product.name}</span>
+                                {kind && <OryonBadge tone="neutral">{kind}</OryonBadge>}
+                              </span>
+                              <span style={{ fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>
+                                {capitalize(product.category)} · {available} disponibles
+                              </span>
+                            </span>
+                            <span
+                              style={{
+                                flex: '0 0 auto',
+                                fontFamily: 'var(--font-mono)',
+                                fontVariantNumeric: 'tabular-nums',
+                                fontSize: 'var(--text-small)',
+                                color: 'var(--text-primary)',
+                              }}
+                            >
+                              {formatMoney(product.price)}
+                            </span>
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
 
-              {/* Cart */}
-              {cart.length > 0 && (
-                <div className="border rounded-lg p-4">
-                  <h4 className="mb-3">Carrito de Compras</h4>
-                  <div className="space-y-2">
+                  {selectedProductId &&
+                    (() => {
+                      const product = productsForSelectedBranch.find((p) => p.id === parseInt(selectedProductId))
+                      if (!product) return null
+                      const label = product.trackByUnit
+                        ? `Elegir unidades (${product.units?.filter((u) => u.status === 'available').length || 0} disponibles)`
+                        : product.hasVariants
+                          ? `Elegir variante (${product.variants?.length || 0} opciones)`
+                          : 'Agregar al carrito'
+                      return (
+                        <OryonButton variant="primary" size={controlSize} iconLeft={ShoppingCart} fullWidth onClick={openUnitSelection}>
+                          {label}
+                        </OryonButton>
+                      )
+                    })()}
+                </>
+              )}
+            </FieldGroup>
+          </div>
+
+          {/* ── El carrito, siempre a la vista ────────────────────────── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 22, minWidth: 0 }}>
+            <FieldGroup title={`Carrito${cart.length > 0 ? ` · ${cart.length}` : ''}`}>
+              {cart.length === 0 ? (
+                <div
+                  style={{
+                    display: 'grid',
+                    placeItems: 'center',
+                    gap: 6,
+                    padding: '32px 16px',
+                    background: 'var(--bg-sunken)',
+                    border: '1px dashed var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    textAlign: 'center',
+                  }}
+                >
+                  <ShoppingCart size={22} strokeWidth={1.6} color="var(--text-tertiary)" />
+                  <span style={{ fontSize: 'var(--text-small)', color: 'var(--text-secondary)' }}>El carrito está vacío</span>
+                  <span style={{ fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>
+                    Los productos que agregues aparecen aquí.
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      background: 'var(--surface-card)',
+                      border: 'var(--border-width) solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)',
+                    }}
+                  >
                     {cart.map((item, idx) => (
-                      <div key={`${item.productId}-${item.variantId || ''}-${idx}`} className="flex justify-between items-start p-2 bg-sunken rounded">
-                        <div className="flex-1">
-                          <p>{item.productName}</p>
-                          {item.variantName && (
-                            <Badge variant="outline" className="text-xs mt-1 mb-1">
-                              {item.variantName}
-                            </Badge>
-                          )}
-                          <p className="text-sm text-ink-secondary">
-                            Cantidad: {item.quantity} x ${item.price.toFixed(2)} = ${(item.price * item.quantity).toFixed(2)}
-                          </p>
+                      <div
+                        key={`${item.productId}-${item.variantId || ''}-${idx}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 10,
+                          padding: '10px 12px',
+                          borderTop: idx === 0 ? 0 : 'var(--border-width) solid var(--border-subtle)',
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)' }}>{item.productName}</span>
+                            {item.variantName && <OryonBadge tone="neutral">{item.variantName}</OryonBadge>}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontVariantNumeric: 'tabular-nums',
+                              fontSize: 'var(--text-mono-sm)',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            {item.quantity} × {formatMoney(item.price)}
+                          </span>
                           {item.unitDetails && item.unitDetails.length > 0 && (
-                            <div className="mt-1">
-                              <p className="text-xs text-ink-tertiary">Unidades:</p>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {item.unitDetails.map((detail, idx) => (
-                                  <Badge key={idx} variant="outline" className="text-xs">
-                                    {detail}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
+                            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {item.unitDetails.map((detail, i) => (
+                                <OryonBadge key={i} tone="neutral">
+                                  {detail}
+                                </OryonBadge>
+                              ))}
+                            </span>
                           )}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeFromCart(item.productId)}
+                        <span
+                          style={{
+                            flex: '0 0 auto',
+                            fontFamily: 'var(--font-mono)',
+                            fontVariantNumeric: 'tabular-nums',
+                            fontSize: 'var(--text-body)',
+                            color: 'var(--text-primary)',
+                          }}
                         >
-                          <Trash2 size={16} />
-                        </Button>
+                          {formatMoney(item.price * item.quantity)}
+                        </span>
+                        <OryonIconButton
+                          icon={Trash2}
+                          label={`Quitar ${item.productName}`}
+                          size="sm"
+                          onClick={() => removeFromCart(item.productId)}
+                        />
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex justify-between text-xl">
-                      <span>Total:</span>
-                      <span className="text-success">${calculateTotal().toFixed(2)}</span>
-                    </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      padding: '12px 14px',
+                      background: 'var(--bg-sunken)',
+                      border: 'var(--border-width) solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)',
+                    }}
+                  >
+                    <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-secondary)' }}>Total</span>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontVariantNumeric: 'tabular-nums',
+                        fontSize: 'var(--text-h3)',
+                        fontWeight: 'var(--fw-semibold)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      {formatMoney(calculateTotal())}
+                    </span>
                   </div>
-                </div>
+                </>
               )}
 
-              <Button 
-                onClick={completeSale} 
-                className="w-full" 
-                size="lg"
-                disabled={!selectedCustomerId || cart.length === 0}
-              >
-                <ShoppingCart className="mr-2" />
-                Completar Venta
-              </Button>
-              </>
+              {cart.length > 0 && !selectedCustomerId && (
+                <p style={{ margin: 0, fontSize: 'var(--text-small)', color: 'var(--warning)' }}>
+                  Falta elegir el cliente para poder cobrar.
+                </p>
               )}
-            </div>
-          </DialogContent>
-      </Dialog>
+            </FieldGroup>
+          </div>
+        </div>
+      </FormDialog>
+
+      <OpenCashDialog
+        open={openCashDialog}
+        onClose={() => {
+          setOpenCashDialog(false)
+          setPendingSaleAfterCash(false)
+        }}
+        branches={branches}
+        defaultBranchId={selectedBranchId}
+        lockBranch
+        submitting={openingCash}
+        onSubmit={handleOpenCashFromSale}
+      />
 
       {/* Unit Selection Dialog */}
       <Dialog open={unitSelectionOpen} onOpenChange={setUnitSelectionOpen}>

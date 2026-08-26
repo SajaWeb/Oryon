@@ -241,13 +241,32 @@ export const createInvoiceForRepair = async (
           items,
           notes: invoiceData.additionalNotes,
           totalAmount,
-          userName
+          userName,
+          paymentMethod: invoiceData.paymentMethod
         })
       }
     )
 
     if (!response.ok) {
+      /* 409 con CASH_SESSION_REQUIRED no es un fallo del servidor: es que falta
+         abrir la caja de esa sucursal. Se propaga con su código para que la vista
+         pueda ofrecer abrirla. */
       const text = await response.text()
+      try {
+        const parsed = JSON.parse(text)
+        if (parsed?.code === 'CASH_SESSION_REQUIRED') {
+          toast.error('No hay caja abierta en esta sucursal', {
+            id: toastId,
+            description: 'Ábrela desde Caja para poder facturar.',
+          })
+          const err: any = new Error(parsed.error)
+          err.code = 'CASH_SESSION_REQUIRED'
+          err.branchId = parsed.branchId
+          throw err
+        }
+      } catch (parseError: any) {
+        if (parseError?.code === 'CASH_SESSION_REQUIRED') throw parseError
+      }
       console.error('Server response error:', text)
       throw new Error(`Server error: ${response.status}`)
     }

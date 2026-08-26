@@ -490,3 +490,49 @@ export function DataTable<T extends Record<string, any>>({
     </div>
   )
 }
+
+/* ---------------------------------------------------------------------------
+   FieldGroup — bloque titulado dentro de un formulario.
+
+   El título va en Martian Mono pequeña y en mayúsculas, como la numeración de un
+   plano: marca la sección sin competir con las etiquetas de los campos. Sustituye
+   a las cajas de colores que se usaban antes para separar bloques, que gritaban
+   más que el contenido y rompían la regla de "sin superficies decorativas".
+   --------------------------------------------------------------------------- */
+export function FieldGroup({
+  title,
+  hint,
+  children,
+  style,
+}: {
+  title: ReactNode
+  hint?: ReactNode
+  children: ReactNode
+  style?: CSSProperties
+}) {
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, ...style }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <h4
+          style={{
+            margin: 0,
+            fontFamily: 'var(--font-mono-display)',
+            fontSize: 'var(--text-caption)',
+            letterSpacing: 'var(--tr-caption)',
+            textTransform: 'uppercase',
+            fontWeight: 'var(--fw-regular)',
+            color: 'var(--text-tertiary)',
+          }}
+        >
+          {title}
+        </h4>
+        {hint && (
+          <p style={{ margin: 0, fontSize: 'var(--text-small)', lineHeight: 'var(--lh-small)', color: 'var(--text-secondary)' }}>
+            {hint}
+          </p>
+        )}
+      </div>
+      {children}
+    </section>
+  )
+}

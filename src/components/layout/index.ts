@@ -17,3 +17,4 @@ export {
   ROLE_LABELS,
 } from './navItems'
 export type { ViewId, NavItem, Role } from './navItems'
+export { FormDialog } from './FormDialog'

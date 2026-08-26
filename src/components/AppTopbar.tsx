@@ -7,7 +7,9 @@ export const VIEW_TITLES: Record<string, { title: string; breadcrumb: string }> 
   dashboard: { title: 'Dashboard', breadcrumb: 'Resumen' },
   products: { title: 'Productos', breadcrumb: 'Inventario' },
   repairs: { title: 'Reparaciones', breadcrumb: 'Órdenes de trabajo' },
-  sales: { title: 'Ventas', breadcrumb: 'Caja' },
+  /* 'Caja' dejó de servir como breadcrumb de Ventas: ahora es una vista propia. */
+  sales: { title: 'Ventas', breadcrumb: 'Facturación' },
+  cash: { title: 'Caja', breadcrumb: 'Operación' },
   customers: { title: 'Clientes', breadcrumb: 'Directorio' },
   reports: { title: 'Reportes', breadcrumb: 'Análisis' },
   license: { title: 'Licencia', breadcrumb: 'Cuenta' },

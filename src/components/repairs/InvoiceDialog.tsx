@@ -6,7 +6,11 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import { Alert, AlertDescription } from '../ui/alert'
+import { Select as OryonSelect } from '../oryon'
 import { Repair, InvoiceFormData, LaborItem, RepairPart } from './types'
+
+/** Los mismos que acepta el punto de venta. */
+const PAYMENT_METHODS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Nequi', 'Daviplata', 'Crédito'] as const
 
 interface InvoiceDialogProps {
   open: boolean
@@ -24,7 +28,8 @@ export function InvoiceDialog({
   const [invoiceData, setInvoiceData] = useState<InvoiceFormData>({
     laborItems: [{ description: '', hours: 0, hourlyRate: 0 }],
     parts: [{ description: '', purchaseCost: 0, salePrice: 0, quantity: 1 }],
-    additionalNotes: ''
+    additionalNotes: '',
+    paymentMethod: 'Efectivo'
   })
   const [submitting, setSubmitting] = useState(false)
 
@@ -88,7 +93,8 @@ export function InvoiceDialog({
       setInvoiceData({
         laborItems: [{ description: '', hours: 0, hourlyRate: 0 }],
         parts: [{ description: '', purchaseCost: 0, salePrice: 0, quantity: 1 }],
-        additionalNotes: ''
+        additionalNotes: '',
+        paymentMethod: 'Efectivo'
       })
       onOpenChange(false)
     } finally {
@@ -281,6 +287,21 @@ export function InvoiceDialog({
               placeholder="Notas adicionales para la factura..."
               rows={3}
             />
+          </div>
+
+          {/* Cómo paga. Es lo que decide si el dinero entra al cajón o no:
+              sin esto, el arqueo de caja nunca cuadraría. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <Label htmlFor="invoicePaymentMethod">Método de pago *</Label>
+            <OryonSelect
+              id="invoicePaymentMethod"
+              value={invoiceData.paymentMethod}
+              onChange={(e) => setInvoiceData({ ...invoiceData, paymentMethod: e.target.value })}
+              options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+            />
+            <p style={{ fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>
+              Solo el efectivo entra al cajón; lo demás suma al día pero no al conteo.
+            </p>
           </div>
 
           {/* Resumen Total */}

@@ -18,6 +18,7 @@ import { Dashboard } from "./components/Dashboard";
 import { Products } from "./components/products";
 import { Repairs } from "./components/repairs";
 import { Sales } from "./components/Sales";
+import { Cash } from "./components/cash";
 import { Customers } from "./components/Customers";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
@@ -458,6 +459,8 @@ export default function App() {
             userProfile={userProfile}
           />
         );
+      case "cash":
+        return <Cash accessToken={accessToken} userProfile={userProfile} />;
       case "customers":
         return (
           <Customers accessToken={accessToken} userRole={userProfile.role} />

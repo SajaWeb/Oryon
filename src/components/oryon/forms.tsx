@@ -6,6 +6,7 @@ import type {
   KeyboardEvent,
   ReactNode,
   SelectHTMLAttributes,
+  TextareaHTMLAttributes,
 } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Check, ChevronDown, Eye, EyeOff } from 'lucide-react'
@@ -695,5 +696,147 @@ export function OTPInput({
         )
       })}
     </div>
+  )
+}
+
+/* ---------------------------------------------------------------------------
+   Textarea — mismo lenguaje que Input: borde de 1px, foco con anillo de 3px y
+   `invalid` en --danger. Solo crece en vertical; el ancho lo manda la rejilla.
+   --------------------------------------------------------------------------- */
+export function Textarea({
+  rows = 4,
+  invalid = false,
+  disabled = false,
+  mono = false,
+  style,
+  onFocus,
+  onBlur,
+  ...rest
+}: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'style'> & {
+  invalid?: boolean
+  mono?: boolean
+  style?: CSSProperties
+}) {
+  const [focused, setFocused] = useState(false)
+  const border = invalid ? 'var(--danger)' : focused ? 'var(--border-focus)' : 'var(--border-default)'
+
+  return (
+    <textarea
+      rows={rows}
+      disabled={disabled}
+      {...rest}
+      onFocus={(e) => { setFocused(true); onFocus?.(e) }}
+      onBlur={(e) => { setFocused(false); onBlur?.(e) }}
+      style={{
+        display: 'block',
+        width: '100%',
+        padding: '8px 10px',
+        fontFamily: mono ? 'var(--font-mono)' : 'var(--font-sans)',
+        fontSize: 'var(--text-body)',
+        lineHeight: 'var(--lh-body)',
+        color: 'var(--text-primary)',
+        background: disabled ? 'var(--bg-sunken)' : 'var(--surface-card)',
+        border: `var(--border-width) solid ${border}`,
+        borderRadius: 'var(--radius-md)',
+        boxShadow: focused ? focusRing : 'none',
+        outline: 'none',
+        resize: 'vertical',
+        ...style,
+      }}
+    />
+  )
+}
+
+/* ---------------------------------------------------------------------------
+   RadioCard — opción con título y explicación, en una caja seleccionable.
+
+   Un <select> no sirve cuando cada opción necesita una frase que explique qué
+   implica: el usuario tendría que abrirlo para leer y cerrarlo para comparar.
+   Aquí las tres caben a la vez y se leen de un vistazo, que es lo que pide una
+   decisión que luego no se puede cambiar.
+   --------------------------------------------------------------------------- */
+export function RadioCard({
+  name,
+  checked = false,
+  onChange,
+  title,
+  description,
+  disabled = false,
+  style,
+}: {
+  name: string
+  checked?: boolean
+  onChange?: () => void
+  title: ReactNode
+  description?: ReactNode
+  disabled?: boolean
+  style?: CSSProperties
+}) {
+  const [focused, setFocused] = useState(false)
+
+  return (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        padding: '10px 12px',
+        minHeight: 'var(--tap-target)',
+        background: checked ? 'var(--accent-subtle)' : 'var(--surface-card)',
+        border: `var(--border-width) solid ${checked ? 'var(--accent-subtle-border)' : 'var(--border-default)'}`,
+        borderRadius: 'var(--radius-md)',
+        boxShadow: focused ? focusRing : 'none',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: 'background var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease)',
+        ...style,
+      }}
+    >
+      <input
+        type="radio"
+        name={name}
+        checked={checked}
+        disabled={disabled}
+        onChange={() => onChange?.()}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+      />
+      <span
+        aria-hidden="true"
+        style={{
+          display: 'grid',
+          placeItems: 'center',
+          flex: '0 0 auto',
+          width: 16,
+          height: 16,
+          marginTop: 2,
+          borderRadius: 'var(--radius-pill)',
+          border: `var(--border-width) solid ${checked ? 'var(--accent-fill)' : 'var(--border-strong)'}`,
+          background: 'var(--surface-card)',
+        }}
+      >
+        {checked && (
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 'var(--radius-pill)',
+              background: 'var(--accent-fill)',
+            }}
+          />
+        )}
+      </span>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        <span style={{ fontSize: 'var(--text-body)', fontWeight: 'var(--fw-medium)', color: 'var(--text-primary)' }}>
+          {title}
+        </span>
+        {description && (
+          <span style={{ fontSize: 'var(--text-small)', lineHeight: 'var(--lh-small)', color: 'var(--text-secondary)' }}>
+            {description}
+          </span>
+        )}
+      </span>
+    </label>
   )
 }

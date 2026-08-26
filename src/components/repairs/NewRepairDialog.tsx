@@ -1,16 +1,31 @@
-import { useState, useEffect } from 'react'
-import { Upload, X, Lock } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Label } from '../ui/label'
-import { Textarea } from '../ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
+import { useEffect, useState } from 'react'
+import { Lock, Upload, X } from 'lucide-react'
+import type { CSSProperties, ReactNode } from 'react'
+import { Button, FieldGroup, FormField, Input, Select, Tabs, Textarea, type TabItem } from '../oryon'
+import { FormDialog } from '../layout/FormDialog'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { PatternLock } from '../PatternLock'
 import { CustomerSelector } from './CustomerSelector'
 import { Customer, RepairFormData } from './types'
 import { deviceTypes } from './constants'
+
+/**
+ * Alta de orden de reparación.
+ *
+ * En escritorio va a dos columnas: a la izquierda quién trae el equipo y cuál es,
+ * a la derecha qué le pasa y qué se acordó. Antes eran once bloques apilados en
+ * 672px, con el costo estimado —lo que el cliente firma— al final del scroll.
+ *
+ * El bloque de contraseña/patrón se queda en la derecha junto al problema: son los
+ * datos que el técnico necesita para empezar a trabajar.
+ */
+
+export const REPAIR_FORM_ID = 'nueva-orden-form'
+
+const PASSWORD_MODES: TabItem[] = [
+  { id: 'text', label: 'PIN o contraseña' },
+  { id: 'pattern', label: 'Patrón' },
+]
 
 interface Branch {
   id: string
@@ -27,6 +42,27 @@ interface NewRepairDialogProps {
   onSubmit: (formData: RepairFormData, uploadedImages: string[], selectedCustomerId: number | null) => Promise<void>
 }
 
+
+const emptyForm = (branchId?: string): RepairFormData => ({
+  customerName: '',
+  customerPhone: '',
+  customerEmail: '',
+  customerIdentificationType: '',
+  customerIdentificationNumber: '',
+  deviceType: 'celular',
+  deviceBrand: '',
+  deviceModel: '',
+  imei: '',
+  serialNumber: '',
+  problem: '',
+  estimatedCost: '',
+  notes: '',
+  devicePasswordType: 'text',
+  devicePassword: '',
+  devicePattern: [],
+  branchId,
+})
+
 export function NewRepairDialog({
   open,
   onOpenChange,
@@ -34,345 +70,304 @@ export function NewRepairDialog({
   identificationTypes,
   branches,
   userRole,
-  onSubmit
+  onSubmit,
 }: NewRepairDialogProps) {
-  const [formData, setFormData] = useState<RepairFormData>({
-    customerName: '',
-    customerPhone: '',
-    customerEmail: '',
-    customerIdentificationType: '',
-    customerIdentificationNumber: '',
-    deviceType: 'celular',
-    deviceBrand: '',
-    deviceModel: '',
-    imei: '',
-    serialNumber: '',
-    problem: '',
-    estimatedCost: '',
-    notes: '',
-    devicePasswordType: 'text',
-    devicePassword: '',
-    devicePattern: [],
-    branchId: branches.length > 0 ? branches[0].id : undefined
-  })
-  
-  // Update branchId when branches change
-  useEffect(() => {
-    if (branches.length > 0 && !formData.branchId) {
-      setFormData(prev => ({ ...prev, branchId: branches[0].id }))
-    }
-  }, [branches])
+  const [formData, setFormData] = useState<RepairFormData>(() => emptyForm(branches[0]?.id))
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [errors, setErrors] = useState<Partial<Record<'customerName' | 'customerPhone' | 'deviceBrand' | 'deviceModel' | 'problem' | 'estimatedCost', string>>>({})
+
+  const { isMobile, isDesktop } = useBreakpoint()
+  const size = isMobile ? 'lg' : 'md'
+  const twoUp = { display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : 'repeat(2, minmax(0,1fr))', gap: 12 } as const
+
+  useEffect(() => {
+    if (branches.length > 0 && !formData.branchId) {
+      setFormData((prev) => ({ ...prev, branchId: branches[0].id }))
+    }
+  }, [branches, formData.branchId])
+
+  const change = (data: Partial<RepairFormData>) => {
+    setFormData((prev) => ({ ...prev, ...data }))
+    setErrors((prev) => {
+      const next = { ...prev }
+      for (const key of Object.keys(data)) delete next[key as keyof typeof next]
+      return next
+    })
+  }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
-
     Array.from(files).forEach((file) => {
       const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64String = reader.result as string
-        setUploadedImages(prev => [...prev, base64String])
-      }
+      reader.onloadend = () => setUploadedImages((prev) => [...prev, reader.result as string])
       reader.readAsDataURL(file)
     })
   }
 
-  const removeImage = (index: number) => {
-    setUploadedImages(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const handleFormDataChange = (data: Partial<RepairFormData>) => {
-    setFormData(prev => ({ ...prev, ...data }))
-  }
+  const removeImage = (index: number) => setUploadedImages((prev) => prev.filter((_, i) => i !== index))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const next: typeof errors = {}
+    if (!formData.customerName.trim()) next.customerName = 'Elige un cliente o escribe su nombre.'
+    if (!formData.customerPhone.trim()) next.customerPhone = 'El teléfono es como se le avisa al cliente.'
+    if (!formData.deviceBrand.trim()) next.deviceBrand = 'Escribe la marca.'
+    if (!formData.deviceModel.trim()) next.deviceModel = 'Escribe el modelo.'
+    if (!formData.problem.trim()) next.problem = 'Describe la falla que reporta el cliente.'
+    if (formData.estimatedCost === '' || Number(formData.estimatedCost) < 0) {
+      next.estimatedCost = 'Escribe el costo estimado, aunque sea 0.'
+    }
+
+    setErrors(next)
+    if (Object.keys(next).length > 0) {
+      document.querySelector<HTMLElement>(`#${REPAIR_FORM_ID} [aria-invalid="true"]`)?.focus()
+      return
+    }
+
     setSubmitting(true)
     try {
       await onSubmit(formData, uploadedImages, selectedCustomerId)
-      // Reset form
-      setFormData({
-        customerName: '',
-        customerPhone: '',
-        customerEmail: '',
-        customerIdentificationType: '',
-        customerIdentificationNumber: '',
-        deviceType: 'celular',
-        deviceBrand: '',
-        deviceModel: '',
-        imei: '',
-        serialNumber: '',
-        problem: '',
-        estimatedCost: '',
-        notes: '',
-        devicePasswordType: 'text',
-        devicePassword: '',
-        devicePattern: []
-      })
+      setFormData(emptyForm(branches[0]?.id))
       setUploadedImages([])
       setSelectedCustomerId(null)
+      setErrors({})
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full p-4 sm:p-6">
-        <DialogHeader>
-          <DialogTitle className="text-lg sm:text-xl">Nueva Orden de Reparación</DialogTitle>
-          <DialogDescription className="text-sm">
-            Registra una nueva orden de reparación con los datos del cliente y del equipo
-          </DialogDescription>
-        </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Selector de Cliente */}
-          <CustomerSelector
-            customers={customers}
-            identificationTypes={identificationTypes}
-            formData={formData}
-            onFormDataChange={handleFormDataChange}
-            onCustomerSelect={setSelectedCustomerId}
-          />
-
-          {/* Selector de Sucursal */}
-          <div className="bg-[var(--success-subtle)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] rounded-lg p-4">
-            <Label htmlFor="branchSelect">Sucursal *</Label>
-            {userRole !== 'admin' && branches.length === 1 && (
-              <p className="text-xs text-primary mb-2 mt-1">
-                📍 Tu sucursal asignada: {branches[0].name}
+    <FormDialog
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Nueva orden de reparación"
+      description="Los campos con * son los que necesita la orden para poder entregarse y cobrarse."
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+            Cancelar
+          </Button>
+          <Button type="submit" form={REPAIR_FORM_ID} variant="primary" loading={submitting} disabled={submitting}>
+            {submitting && uploadedImages.length > 0 ? 'Subiendo fotos' : 'Crear orden'}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={REPAIR_FORM_ID}
+        onSubmit={handleSubmit}
+        noValidate
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isDesktop ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)',
+          alignItems: 'start',
+          gap: isDesktop ? 28 : 22,
+        }}
+      >
+        {/* ── Quién trae el equipo y cuál es ──────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22, minWidth: 0 }}>
+          <FieldGroup title="Cliente">
+            <CustomerSelector
+              customers={customers}
+              identificationTypes={identificationTypes}
+              formData={formData}
+              onFormDataChange={change}
+              onCustomerSelect={setSelectedCustomerId}
+            />
+            {(errors.customerName || errors.customerPhone) && (
+              <p role="alert" style={{ margin: 0, fontSize: 'var(--text-caption)', color: 'var(--danger)' }}>
+                {errors.customerName ?? errors.customerPhone}
               </p>
             )}
-            <Select 
-              value={formData.branchId} 
-              onValueChange={(value) => handleFormDataChange({ branchId: value })}
-            >
-              <SelectTrigger id="branchSelect" className="mt-2">
-                <SelectValue placeholder="Selecciona la sucursal" />
-              </SelectTrigger>
-              <SelectContent>
-                {branches.map((branch) => (
-                  <SelectItem key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-ink-secondary mt-1">
-              La orden de reparación se asignará a esta sucursal
-            </p>
-          </div>
+          </FieldGroup>
 
-          {/* Información del Equipo */}
-          <div className="border-t pt-4 space-y-4">
-            <h4 className="text-base sm:text-lg">Información del Equipo</h4>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="deviceType">Tipo de Dispositivo</Label>
+          <FieldGroup title="Equipo">
+            <div style={twoUp}>
+              <FormField label="Tipo">
                 <Select
+                  size={size}
                   value={formData.deviceType}
-                  onValueChange={(value) => handleFormDataChange({ deviceType: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {deviceTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="deviceBrand">Marca</Label>
-                <Input
-                  id="deviceBrand"
-                  value={formData.deviceBrand}
-                  onChange={(e) => handleFormDataChange({ deviceBrand: e.target.value })}
-                  required
+                  onChange={(e) => change({ deviceType: e.target.value })}
+                  options={deviceTypes.map((t) => ({ value: t.value, label: t.label }))}
                 />
-              </div>
-              <div>
-                <Label htmlFor="deviceModel">Modelo</Label>
-                <Input
-                  id="deviceModel"
-                  value={formData.deviceModel}
-                  onChange={(e) => handleFormDataChange({ deviceModel: e.target.value })}
-                  required
+              </FormField>
+              <FormField label="Sucursal" required hint={branches.length === 1 ? `Se asignará a ${branches[0].name}` : undefined}>
+                <Select
+                  size={size}
+                  value={formData.branchId ?? ''}
+                  onChange={(e) => change({ branchId: e.target.value })}
+                  placeholder="Elige la sucursal"
+                  disabled={userRole !== 'admin' && branches.length === 1}
+                  options={branches.map((b) => ({ value: b.id, label: b.name }))}
                 />
-              </div>
+              </FormField>
             </div>
 
-            {/* IMEI/Serial */}
-            <div className="border-t pt-4 space-y-4">
-              <h4 className="text-sm sm:text-base">Identificación del Equipo (Opcional)</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="imei">IMEI</Label>
-                  <Input
-                    id="imei"
-                    value={formData.imei}
-                    onChange={(e) => handleFormDataChange({ imei: e.target.value })}
-                    placeholder="356938035643809"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="serialNumber">Número de Serie</Label>
-                  <Input
-                    id="serialNumber"
-                    value={formData.serialNumber}
-                    onChange={(e) => handleFormDataChange({ serialNumber: e.target.value })}
-                    placeholder="SN123456789"
-                  />
-                </div>
-              </div>
+            <div style={twoUp}>
+              <FormField label="Marca" required error={errors.deviceBrand}>
+                <Input size={size} value={formData.deviceBrand} onChange={(e) => change({ deviceBrand: e.target.value })} placeholder="Apple" />
+              </FormField>
+              <FormField label="Modelo" required error={errors.deviceModel}>
+                <Input size={size} value={formData.deviceModel} onChange={(e) => change({ deviceModel: e.target.value })} placeholder="iPhone 12" />
+              </FormField>
             </div>
 
-            {/* Contraseña/Patrón */}
-            <div className="border-t pt-4 space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Lock size={16} className="text-ink-secondary" />
-                <h4 className="text-sm sm:text-base">Contraseña/Patrón del Equipo (Opcional)</h4>
-              </div>
-              <Tabs 
-                value={formData.devicePasswordType} 
-                onValueChange={(value) => handleFormDataChange({ 
-                  devicePasswordType: value as 'text' | 'pattern', 
-                  devicePassword: '', 
-                  devicePattern: [] 
-                })}
-              >
-                <TabsList className="grid w-full grid-cols-2 h-auto">
-                  <TabsTrigger value="text" className="text-xs sm:text-sm py-2">PIN/Contraseña</TabsTrigger>
-                  <TabsTrigger value="pattern" className="text-xs sm:text-sm py-2">Patrón</TabsTrigger>
-                </TabsList>
-                <TabsContent value="text" className="space-y-2">
-                  <Label htmlFor="devicePassword">Contraseña o PIN</Label>
-                  <Input
-                    id="devicePassword"
-                    type="text"
-                    value={formData.devicePassword}
-                    onChange={(e) => handleFormDataChange({ devicePassword: e.target.value })}
-                    placeholder="Ej: 1234, contraseña123"
-                  />
-                  <p className="text-xs text-ink-tertiary">Ingresa el PIN, contraseña o código de desbloqueo</p>
-                </TabsContent>
-                <TabsContent value="pattern" className="space-y-2">
-                  <Label>Patrón de Desbloqueo</Label>
-                  <div className="flex justify-center py-2">
-                    <PatternLock
-                      value={formData.devicePattern}
-                      onPatternComplete={(pattern) => handleFormDataChange({ devicePattern: pattern })}
+            <div style={twoUp}>
+              <FormField label="IMEI" hint="Opcional">
+                <Input size={size} mono inputMode="numeric" value={formData.imei} onChange={(e) => change({ imei: e.target.value })} placeholder="356938035643809" />
+              </FormField>
+              <FormField label="Número de serie" hint="Opcional">
+                <Input size={size} mono value={formData.serialNumber} onChange={(e) => change({ serialNumber: e.target.value })} placeholder="SN123456789" />
+              </FormField>
+            </div>
+          </FieldGroup>
+
+          <FieldGroup title="Estado de recepción" hint="Las fotos son la prueba de cómo llegó el equipo. Evitan discusiones al entregar.">
+            <label
+              htmlFor="image-upload"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                padding: '18px 12px',
+                background: 'var(--bg-sunken)',
+                border: '1px dashed var(--border-strong)',
+                borderRadius: 'var(--radius-md)',
+                cursor: 'pointer',
+              }}
+            >
+              <Upload size={22} strokeWidth={1.6} color="var(--text-tertiary)" />
+              <span style={{ fontSize: 'var(--text-small)', color: 'var(--text-secondary)' }}>
+                {isMobile ? 'Toca para tomar o subir fotos' : 'Haz clic para subir fotos'}
+              </span>
+              <span style={{ fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>PNG o JPG, hasta 5 MB</span>
+            </label>
+            <input
+              id="image-upload"
+              type="file"
+              accept="image/*"
+              multiple
+              capture="environment"
+              onChange={handleImageUpload}
+              style={{ display: 'none' }}
+            />
+
+            {uploadedImages.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8 }}>
+                {uploadedImages.map((image, index) => (
+                  <div key={index} style={{ position: 'relative' }}>
+                    <img
+                      src={image}
+                      alt={`Foto ${index + 1}`}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        height: 72,
+                        objectFit: 'cover',
+                        border: 'var(--border-width) solid var(--border-default)',
+                        borderRadius: 'var(--radius-sm)',
+                      }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      aria-label={`Quitar foto ${index + 1}`}
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        display: 'grid',
+                        placeItems: 'center',
+                        width: 22,
+                        height: 22,
+                        color: '#fff',
+                        background: 'var(--danger)',
+                        border: 0,
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <X size={13} strokeWidth={2.4} />
+                    </button>
                   </div>
-                  <p className="text-xs text-ink-tertiary text-center">Dibuja el patrón de desbloqueo del dispositivo</p>
-                </TabsContent>
-              </Tabs>
-            </div>
+                ))}
+              </div>
+            )}
+          </FieldGroup>
+        </div>
 
-            <div>
-              <Label htmlFor="problem">Problema Reportado</Label>
+        {/* ── Qué le pasa y qué se acordó ──────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22, minWidth: 0 }}>
+          <FieldGroup title="Servicio">
+            <FormField label="Falla reportada" required error={errors.problem}>
               <Textarea
-                id="problem"
-                value={formData.problem}
-                onChange={(e) => handleFormDataChange({ problem: e.target.value })}
                 rows={3}
-                required
+                value={formData.problem}
+                onChange={(e) => change({ problem: e.target.value })}
+                placeholder="Lo que dice el cliente, con sus palabras."
               />
-            </div>
+            </FormField>
 
-            <div>
-              <Label htmlFor="estimatedCost">Costo Estimado</Label>
+            <FormField label="Costo estimado" required error={errors.estimatedCost} hint="Lo que se le dice al cliente al recibir el equipo.">
               <Input
-                id="estimatedCost"
+                size={size}
                 type="number"
                 step="0.01"
+                min="0"
+                inputMode="decimal"
+                mono
                 value={formData.estimatedCost}
-                onChange={(e) => handleFormDataChange({ estimatedCost: e.target.value })}
-                required
+                onChange={(e) => change({ estimatedCost: e.target.value })}
+                placeholder="0"
+              />
+            </FormField>
+
+            <FormField label="Notas internas" hint="No las ve el cliente.">
+              <Textarea rows={2} value={formData.notes} onChange={(e) => change({ notes: e.target.value })} placeholder="Detalles para el técnico." />
+            </FormField>
+          </FieldGroup>
+
+          <FieldGroup title="Desbloqueo" hint="Opcional, pero sin esto el técnico no puede probar el equipo.">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)' }}>
+              <Lock size={14} strokeWidth={1.8} />
+              <Tabs
+                items={PASSWORD_MODES}
+                value={formData.devicePasswordType}
+                onChange={(value) => change({ devicePasswordType: value as 'text' | 'pattern', devicePassword: '', devicePattern: [] })}
+                style={{ flex: 1 }}
               />
             </div>
 
-            <div>
-              <Label htmlFor="notes">Notas Adicionales</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => handleFormDataChange({ notes: e.target.value })}
-                rows={2}
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm sm:text-base">Imágenes del Estado del Equipo</Label>
-              <div className="mt-2">
-                <label htmlFor="image-upload" className="cursor-pointer">
-                  <div className="border-2 border-dashed border-line rounded-lg p-3 sm:p-4 text-center hover:border-line transition-colors active:bg-sunken">
-                    <Upload className="mx-auto mb-2 text-ink-tertiary" size={28} />
-                    <p className="text-sm text-ink-secondary">Toca para subir imágenes</p>
-                    <p className="text-xs text-ink-tertiary mt-1">PNG, JPG hasta 5MB</p>
-                  </div>
-                </label>
-                <input
-                  id="image-upload"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handleImageUpload}
-                  capture="environment"
+            {formData.devicePasswordType === 'text' ? (
+              <FormField label="PIN o contraseña">
+                <Input
+                  size={size}
+                  mono
+                  value={formData.devicePassword}
+                  onChange={(e) => change({ devicePassword: e.target.value })}
+                  placeholder="1234"
                 />
+              </FormField>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <PatternLock
+                  value={formData.devicePattern}
+                  onPatternComplete={(pattern) => change({ devicePattern: pattern })}
+                />
+                <p style={{ margin: 0, fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>
+                  Dibuja el patrón tal como lo hace el cliente.
+                </p>
               </div>
-              
-              {uploadedImages.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-                  {uploadedImages.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={image}
-                        alt={`Upload ${index + 1}`}
-                        className="w-full h-24 sm:h-24 object-cover rounded-lg border"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute top-1 right-1 bg-danger text-on-danger rounded-full p-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-md"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+            )}
+          </FieldGroup>
 
-          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => onOpenChange(false)}
-              className="w-full sm:w-auto order-2 sm:order-1"
-            >
-              Cancelar
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={submitting}
-              className="w-full sm:w-auto order-1 sm:order-2"
-            >
-              {submitting ? (uploadedImages.length > 0 ? 'Subiendo imágenes...' : 'Guardando...') : 'Crear Orden'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </form>
+    </FormDialog>
   )
 }

@@ -29,7 +29,6 @@ El módulo sigue un patrón de separación de responsabilidades dividido en capa
 │   ├── RepairsList.tsx        # Lista/grid de reparaciones
 │   ├── RepairsPagination.tsx  # Componente de paginación
 │   ├── BranchAlert.tsx        # Alert de información de sucursal
-│   ├── TrackingAlert.tsx      # Alert de seguimiento para clientes
 │   ├── LoadingState.tsx       # Estado de carga
 │   └── ErrorState.tsx         # Estado de error
 │
@@ -122,7 +121,6 @@ Componentes pequeños y enfocados en la presentación:
 - **RepairsList**: Grid responsive de tarjetas
 - **RepairsPagination**: Paginación con navegación inteligente
 - **BranchAlert**: Información contextual de sucursales
-- **TrackingAlert**: Info de seguimiento para clientes
 - **LoadingState**: Estado de carga consistente
 - **ErrorState**: Manejo de errores con sugerencias
 

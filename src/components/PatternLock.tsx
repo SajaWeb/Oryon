@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTheme } from '../utils/ThemeContext'
 
 interface Point {
   x: number
@@ -19,6 +20,29 @@ export function PatternLock({ onPatternComplete, value = [], gridSize = 3, readO
   const [pattern, setPattern] = useState<number[]>(value)
   const [points, setPoints] = useState<Point[]>([])
   const [currentPoint, setCurrentPoint] = useState<{ x: number; y: number } | null>(null)
+
+  /* El canvas no entiende var(), así que los tokens se resuelven a hex antes de
+     pintar — el mismo recurso que usa useChartColors para Recharts. Antes estaban
+     en duro y el patrón salía con fondo blanco dentro del modal grafito. */
+  const { effectiveTheme } = useTheme()
+  const palette = useMemo(() => {
+    const read = (name: string, fallback: string) => {
+      if (typeof window === 'undefined') return fallback
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+    }
+    return {
+      surface: read('--bg-sunken', '#070909'),
+      trace: read('--accent-fill', '#35E0FF'),
+      dot: read('--border-strong', '#3E4649'),
+      dotRing: read('--border-default', '#2C3335'),
+      dotOn: read('--accent-fill', '#35E0FF'),
+      dotOnRing: read('--accent-fill-active', '#17BCDB'),
+      numberOn: read('--text-on-accent', '#04181D'),
+      number: read('--text-tertiary', '#6E787C'),
+    }
+    // effectiveTheme entra como dependencia para repintar al cambiar de tema.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveTheme])
 
   const CANVAS_SIZE = 300
   const POINT_RADIUS = 20
@@ -53,19 +77,20 @@ export function PatternLock({ onPatternComplete, value = [], gridSize = 3, readO
     setPoints(newPoints)
 
     drawCanvas(ctx, newPoints)
-  }, [gridSize, pattern, currentPoint])
+    // `palette` entra aquí para que el patrón se repinte al cambiar de tema.
+  }, [gridSize, pattern, currentPoint, palette])
 
   const drawCanvas = (ctx: CanvasRenderingContext2D, pts: Point[]) => {
     // Limpiar canvas
     ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
 
     // Dibujar fondo
-    ctx.fillStyle = '#f3f4f6'
+    ctx.fillStyle = palette.surface
     ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
 
     // Dibujar líneas del patrón
     if (pattern.length > 0) {
-      ctx.strokeStyle = '#17BCDB'
+      ctx.strokeStyle = palette.trace
       ctx.lineWidth = LINE_WIDTH
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
@@ -94,9 +119,9 @@ export function PatternLock({ onPatternComplete, value = [], gridSize = 3, readO
       // Círculo exterior
       ctx.beginPath()
       ctx.arc(point.x, point.y, isSelected ? SELECTED_RADIUS : POINT_RADIUS, 0, 2 * Math.PI)
-      ctx.fillStyle = isSelected ? '#17BCDB' : '#C2CACD'
+      ctx.fillStyle = isSelected ? palette.dotOn : palette.dot
       ctx.fill()
-      ctx.strokeStyle = isSelected ? '#0E6F82' : '#98A2A6'
+      ctx.strokeStyle = isSelected ? palette.dotOnRing : palette.dotRing
       ctx.lineWidth = 2
       ctx.stroke()
 
@@ -104,12 +129,12 @@ export function PatternLock({ onPatternComplete, value = [], gridSize = 3, readO
       if (isSelected) {
         ctx.beginPath()
         ctx.arc(point.x, point.y, 8, 0, 2 * Math.PI)
-        ctx.fillStyle = '#ffffff'
+        ctx.fillStyle = palette.trace
         ctx.fill()
       }
 
       // Número del punto
-      ctx.fillStyle = isSelected ? '#ffffff' : '#6b7280'
+      ctx.fillStyle = isSelected ? palette.numberOn : palette.number
       ctx.font = '12px sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
