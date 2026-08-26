@@ -154,6 +154,8 @@ export function Reports({ accessToken }: ReportsProps) {
     title: 'Reportes y análisis',
     subtitle: 'Insights para tomar mejores decisiones de negocio',
     eyebrow: 'Análisis',
+    onRefresh: fetchReports,
+    refreshing: loading,
   })
 
   if (loading) {

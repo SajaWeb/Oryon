@@ -395,6 +395,7 @@ export function License({
     subtitle: 'Suscripción y facturación',
     eyebrow: 'Cuenta',
     onRefresh: loadCompanyData,
+    refreshing: loading,
   });
 
   if (showReceipt && receiptData) {

@@ -14,6 +14,17 @@ export interface PageHeader {
   eyebrow?: string
   onRefresh?: () => void
   refreshing?: boolean
+  /**
+   * Momento en que la vista terminó de cargar. No lo pasa nadie: lo estampa el
+   * propio hook al ver que `refreshing` pasa de true a false. Así el sello de
+   * "actualizado 10:28" sale en todas las vistas sin que ninguna lo repita.
+   */
+  updatedAt?: Date | null
+}
+
+/** Hora corta para el sello del header. */
+export function stampTime(date: Date): string {
+  return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 const PageHeaderCtx = createContext<
@@ -49,7 +60,17 @@ export function usePageHeader({ title, subtitle, eyebrow, onRefresh, refreshing 
     [hasRefresh],
   )
 
+  /* El sello de hora se deduce del propio ciclo de carga: cuando `refreshing`
+     baja de true a false, los datos acaban de llegar. Depende sólo de
+     `refreshing`, así que no se realimenta con el render que provoca. */
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  const wasRefreshing = useRef(false)
   useEffect(() => {
-    set?.({ title, subtitle, eyebrow, onRefresh: stableRefresh, refreshing })
-  }, [set, title, subtitle, eyebrow, stableRefresh, refreshing])
+    if (wasRefreshing.current && !refreshing) setUpdatedAt(new Date())
+    wasRefreshing.current = !!refreshing
+  }, [refreshing])
+
+  useEffect(() => {
+    set?.({ title, subtitle, eyebrow, onRefresh: stableRefresh, refreshing, updatedAt })
+  }, [set, title, subtitle, eyebrow, stableRefresh, refreshing, updatedAt])
 }

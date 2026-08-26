@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { ReceiptText, Wrench } from 'lucide-react'
 import { projectId } from '../../utils/supabase/info'
-import { Card, DataTable, EmptyState } from '../oryon'
+import { Card, DataTable, EmptyState, StatusBadge, normalizeState } from '../oryon'
 import { useShell } from '../layout/AppShell'
+import { statusLabels } from '../repairs/constants'
 
 /**
  * Actividad reciente. En escritorio es una tabla (hora · operación · referencia · monto),
@@ -12,14 +13,44 @@ import { useShell } from '../layout/AppShell'
 interface Activity {
   id: string
   type: 'repair' | 'sale'
-  title: string
-  subtitle: string
   timestamp: string
+  /** Número de OT o de factura. */
+  orderNumber?: number | string
   status?: string
+  device?: string
+  problem?: string
+  customerName?: string
+  itemCount?: number
   amount?: number
+  /** true en las OT: el monto es el presupuesto, no dinero cobrado. */
+  estimated?: boolean
+  /** Respaldo para respuestas del servidor anteriores a los campos de arriba. */
+  title?: string
+  subtitle?: string
 }
 
 const money = (n: number) => `$${Number(n).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
+
+/** Qué operación es. En una OT lo que importa es en qué punto está. */
+function operationLabel(a: Activity): string {
+  if (a.orderNumber === undefined) return a.title || (a.type === 'sale' ? 'Venta' : 'Orden de trabajo')
+  return a.type === 'sale' ? `Venta #${a.orderNumber}` : `OT #${a.orderNumber}`
+}
+
+/** `deviceType` se guarda en minúscula ("celular"), y encabeza la referencia. */
+const capitalize = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t)
+
+/** Referencia: qué equipo entró y por qué, o a quién se le vendió. */
+function referenceLabel(a: Activity): string {
+  if (a.type === 'repair') {
+    const partes = [a.device ? capitalize(a.device) : '', a.problem].filter(Boolean)
+    return partes.length ? partes.join(' · ') : a.subtitle || '—'
+  }
+  const unidades = a.itemCount
+  const detalle = unidades === undefined ? '' : `${unidades} ${unidades === 1 ? 'producto' : 'productos'}`
+  const partes = [a.customerName, detalle].filter(Boolean)
+  return partes.length ? partes.join(' · ') : a.subtitle || '—'
+}
 
 /** Hora corta para la tabla; en el taller la fecha del día se da por supuesta. */
 function shortTime(iso: string) {
@@ -29,6 +60,37 @@ function shortTime(iso: string) {
   return sameDay
     ? d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })
     : d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit' })
+}
+
+/**
+ * El monto, distinguiendo lo cobrado de lo presupuestado.
+ *
+ * Una OT sin facturar lleva su estimado, y va rotulado: en una lista donde las
+ * ventas son dinero real, una cifra pelada se lee como venta cerrada.
+ */
+function Amount({ activity }: { activity: Activity }) {
+  if (!activity.amount) {
+    return <span style={{ color: 'var(--text-disabled)' }}>—</span>
+  }
+  if (!activity.estimated) {
+    return <>{money(activity.amount)}</>
+  }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, color: 'var(--text-tertiary)' }}>
+      {money(activity.amount)}
+      <span
+        style={{
+          fontFamily: 'var(--font-mono-display)',
+          fontSize: 'var(--text-caption)',
+          letterSpacing: 'var(--tr-caption)',
+          textTransform: 'uppercase',
+          color: 'var(--text-disabled)',
+        }}
+      >
+        estimado
+      </span>
+    </span>
+  )
 }
 
 export function RecentActivity({ accessToken }: { accessToken: string }) {
@@ -114,9 +176,22 @@ export function RecentActivity({ accessToken }: { accessToken: string }) {
                 >
                   <Icon size={13} color={tone} strokeWidth={1.8} />
                 </span>
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)', textWrap: 'pretty' }}>
-                    {a.title}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      fontSize: 'var(--text-body)',
+                      color: 'var(--text-primary)',
+                      textWrap: 'pretty',
+                    }}
+                  >
+                    {operationLabel(a)}
+                    {a.type === 'repair' && a.status && (
+                      <StatusBadge status={normalizeState(a.status)} label={statusLabels[a.status]} size="sm" />
+                    )}
                   </span>
                   <span
                     style={{
@@ -125,9 +200,13 @@ export function RecentActivity({ accessToken }: { accessToken: string }) {
                       color: 'var(--text-tertiary)',
                     }}
                   >
-                    {a.subtitle}
-                    {a.amount ? ` · ${money(a.amount)}` : ''}
+                    {referenceLabel(a)}
                   </span>
+                  {Boolean(a.amount) && (
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-mono-sm)' }}>
+                      <Amount activity={a} />
+                    </span>
+                  )}
                 </div>
                 <span
                   style={{
@@ -153,16 +232,41 @@ export function RecentActivity({ accessToken }: { accessToken: string }) {
       <DataTable
         dense
         emptyMessage="Sin movimientos registrados."
-        rows={activities.map((a) => ({
-          ...a,
-          time: shortTime(a.timestamp),
-          amountF: a.amount ? money(a.amount) : '—',
-        }))}
+        rows={activities.map((a) => ({ ...a, time: shortTime(a.timestamp) }))}
         columns={[
           { key: 'time', label: 'Hora', mono: true, width: 80 },
-          { key: 'title', label: 'Operación' },
-          { key: 'subtitle', label: 'Referencia', muted: true, hideOnCompact: true },
-          { key: 'amountF', label: 'Monto', mono: true, align: 'right' },
+          {
+            key: 'operation',
+            label: 'Operación',
+            /* En una OT el estado es la información: antes esta columna mostraba
+               `deviceType`, o sea la categoría del aparato ("Celular"). */
+            render: (a: Activity) => (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <span style={{ whiteSpace: 'nowrap' }}>{operationLabel(a)}</span>
+                {a.type === 'repair' && a.status && (
+                  <StatusBadge
+                    status={normalizeState(a.status)}
+                    label={statusLabels[a.status]}
+                    size="sm"
+                  />
+                )}
+              </span>
+            ),
+          },
+          {
+            key: 'reference',
+            label: 'Referencia',
+            muted: true,
+            hideOnCompact: true,
+            render: (a: Activity) => referenceLabel(a),
+          },
+          {
+            key: 'amount',
+            label: 'Monto',
+            mono: true,
+            align: 'right',
+            render: (a: Activity) => <Amount activity={a} />,
+          },
         ]}
       />
     </Card>

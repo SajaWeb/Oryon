@@ -5189,13 +5189,29 @@ app.get('/make-server-4d437e50/stats/recent-activity', async (c) => {
       .slice(0, 10)
     
     for (const repair of recentRepairs) {
+      /* `issue` no existe en el registro: el campo es `problem`. Por eso la
+         referencia decía "Sin descripción" en todas las órdenes. */
+      const motivo = repair.problem || repair.issue || ''
+      const equipo = [repair.deviceType, repair.deviceBrand, repair.deviceModel]
+        .filter(Boolean)
+        .join(' ')
+
       activities.push({
         id: `repair-${repair.id}`,
         type: 'repair',
-        title: repair.deviceType || 'Reparación',
-        subtitle: `${repair.customerName} - ${repair.issue || 'Sin descripción'}`,
+        orderNumber: repair.id,
+        status: repair.status,
+        device: equipo,
+        problem: motivo,
+        customerName: repair.customerName || '',
         timestamp: repair.createdAt,
-        status: repair.status
+        /* El estimado de la OT. Va marcado como tal: todavía no se ha facturado y
+           confundirlo con una venta cerrada falsea la lectura del día. */
+        amount: Number(repair.estimatedCost) || 0,
+        estimated: true,
+        // Campos planos para clientes anteriores a este cambio.
+        title: `OT #${repair.id}`,
+        subtitle: [equipo, motivo].filter(Boolean).join(' · ')
       })
     }
     
@@ -5205,13 +5221,21 @@ app.get('/make-server-4d437e50/stats/recent-activity', async (c) => {
       .slice(0, 10)
     
     for (const sale of recentSales) {
+      const unidades = sale.items?.length || 0
+      const detalle = `${unidades} ${unidades === 1 ? 'producto' : 'productos'}`
+
       activities.push({
         id: `sale-${sale.id}`,
         type: 'sale',
-        title: `Venta #${sale.invoiceNumber || sale.id}`,
-        subtitle: `${sale.items?.length || 0} producto(s)`,
+        orderNumber: sale.invoiceNumber || sale.id,
+        customerName: sale.customerName || '',
+        itemCount: unidades,
         timestamp: sale.createdAt,
-        amount: sale.total
+        amount: Number(sale.total) || 0,
+        // Una venta sí es dinero cobrado.
+        estimated: false,
+        title: `Venta #${sale.invoiceNumber || sale.id}`,
+        subtitle: [sale.customerName, detalle].filter(Boolean).join(' · ')
       })
     }
     

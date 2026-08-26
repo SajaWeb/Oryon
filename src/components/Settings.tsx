@@ -150,8 +150,11 @@ export function Settings({ accessToken, userProfile, licenseInfo }: SettingsProp
 
   usePageHeader({
     title: 'Configuración',
-    subtitle: company?.name ? `${company.name} · empresa, usuarios y documentos` : 'Empresa, usuarios y documentos',
+    // El nombre de la empresa ya sale en la topbar; repetirlo aquí era ruido.
+    subtitle: 'Empresa, usuarios y documentos',
     eyebrow: 'Cuenta',
+    onRefresh: fetchAllData,
+    refreshing: loading,
   })
 
   if (loading) {

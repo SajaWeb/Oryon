@@ -56,7 +56,6 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lowStockOpen, setLowStockOpen] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const firstName = userProfile?.name?.split(' ')[0]
 
@@ -75,7 +74,6 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
 
       if (data.success) {
         setStats(data.stats)
-        setLastUpdated(new Date())
       } else {
         setError(data.error || 'No se pudieron cargar las estadísticas')
       }
@@ -101,9 +99,8 @@ export function Dashboard({ accessToken, userProfile, onNavigate }: DashboardPro
 
   usePageHeader({
     title: firstName ? `${greeting()}, ${firstName}` : 'Dashboard',
-    subtitle: lastUpdated
-      ? `Resumen del negocio · actualizado ${lastUpdated.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-      : 'Resumen del negocio',
+    // El sello de hora lo pone el shell para todas las vistas por igual.
+    subtitle: 'Resumen del negocio',
     eyebrow: 'Taller',
     onRefresh: handleRefresh,
     refreshing: refreshing || loading,

@@ -1,6 +1,6 @@
 import { Building2, PanelLeft, RefreshCw } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
-import { usePageHeaderValue } from './layout/PageHeaderContext'
+import { stampTime, usePageHeaderValue } from './layout/PageHeaderContext'
 
 /** Título y eyebrow de cada vista. Lo comparten la topbar de escritorio y el header móvil. */
 export const VIEW_TITLES: Record<string, { title: string; breadcrumb: string }> = {
@@ -103,12 +103,12 @@ export function AppTopbar({ currentView, userProfile, companyName, onToggleSideb
         </div>
       </div>
 
-      {page.subtitle && (
+      {(page.subtitle || page.updatedAt) && (
         <span
           className="hidden lg:block"
           style={{
             minWidth: 0,
-            maxWidth: 320,
+            maxWidth: 360,
             fontSize: 'var(--text-small)',
             color: 'var(--text-tertiary)',
             whiteSpace: 'nowrap',
@@ -117,6 +117,7 @@ export function AppTopbar({ currentView, userProfile, companyName, onToggleSideb
           }}
         >
           {page.subtitle}
+          {page.updatedAt && `${page.subtitle ? ' · ' : ''}actualizado ${stampTime(page.updatedAt)}`}
         </span>
       )}
 

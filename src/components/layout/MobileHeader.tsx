@@ -1,7 +1,7 @@
 import { RefreshCw } from 'lucide-react'
 import { VIEW_TITLES } from '../AppTopbar'
 import { ThemeToggle } from '../ThemeToggle'
-import { usePageHeaderValue } from './PageHeaderContext'
+import { stampTime, usePageHeaderValue } from './PageHeaderContext'
 
 /**
  * Header del layout móvil. Aquí el título es el protagonista (Archivo 700/20px) con el
@@ -54,8 +54,11 @@ export function MobileHeader({ currentView }: { currentView: string }) {
         >
           {title}
         </span>
-        {page.subtitle && (
-          <span style={{ fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}>{page.subtitle}</span>
+        {(page.subtitle || page.updatedAt) && (
+          <span style={{ fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}>
+            {page.subtitle}
+            {page.updatedAt && `${page.subtitle ? ' · ' : ''}actualizado ${stampTime(page.updatedAt)}`}
+          </span>
         )}
       </div>
 
