@@ -47,6 +47,11 @@ export interface Repair {
   invoiced?: boolean
   invoiceId?: number
   customerId?: number
+  /* El servidor guarda el cuerpo del alta tal cual, así que estos dos sí viajan
+     en la orden aunque no estuvieran declarados. Faltaban en el tipo y por eso
+     printActions llevaba dos errores de compilación desde hacía tiempo. */
+  customerEmail?: string
+  assignedTo?: string
 }
 
 export interface Customer {

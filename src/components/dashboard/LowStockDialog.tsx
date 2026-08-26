@@ -12,6 +12,7 @@ import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { ScrollArea } from '../ui/scroll-area'
 import { toast } from 'sonner@2.0.3'
+import { printHtml } from '../../utils/printing'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -218,13 +219,6 @@ export function LowStockDialog({
   }
 
   const handlePrintPDF = () => {
-    // Create print window with formatted content
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      toast.error('No se pudo abrir la ventana de impresión. Verifica los permisos del navegador.')
-      return
-    }
-
     const currentDate = new Date().toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
@@ -388,10 +382,9 @@ export function LowStockDialog({
       </html>
     `
 
-    printWindow.document.write(htmlContent)
-    printWindow.document.close()
-    
-    toast.success('Abriendo vista de impresión...')
+    /* Iframe oculto en vez de ventana emergente, igual que el resto. */
+    printHtml(htmlContent)
+    toast.success('Enviado a la impresora')
   }
 
   return (

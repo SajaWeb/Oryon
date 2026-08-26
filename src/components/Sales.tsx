@@ -63,8 +63,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from './ui/popover'
-import type { InvoiceData, PrintConfig } from '../utils/print'
-import { downloadInvoicePdf } from '../utils/invoicePdf'
+import { printInvoice, type InvoiceData, type PrintConfig } from '../utils/printing'
 
 interface ProductUnit {
   id: number
@@ -593,8 +592,8 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
         paymentMethod: sale.paymentMethod || 'Efectivo'
       }
 
-      await downloadInvoicePdf(invoiceData, printConfig)
-      toast.success('Factura descargada en PDF')
+      printInvoice(invoiceData, printConfig)
+      toast.success('Factura enviada a la impresora')
     } catch (error) {
       console.error('Error loading print config:', error)
       toast.error('Error al cargar la configuración de impresión')
@@ -846,8 +845,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                window.print(). El confirm bloqueaba la página entera y el popup lo
                bloqueaba el navegador en móvil. Ahora el PDF se genera y se descarga
                solo; imprimirlo o no es decisión del usuario, después. */
-            await downloadInvoicePdf(invoiceData, printConfig)
-            toast.success('Factura descargada en PDF', { id: 'factura-pdf' })
+            printInvoice(invoiceData, printConfig)
           }
         } catch (configError) {
           console.error('Error loading print config:', configError)

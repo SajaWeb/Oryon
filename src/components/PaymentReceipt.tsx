@@ -20,6 +20,7 @@ import {
   Home
 } from 'lucide-react'
 import { toast } from 'sonner@2.0.3'
+import { printHtml } from '../utils/printing'
 
 interface PaymentReceiptProps {
   paymentIntentId?: string
@@ -153,16 +154,11 @@ export function PaymentReceipt({
     try {
       toast.loading('Generando PDF...', { id: 'pdf-generation' })
       
-      // Usar window.print() con CSS especial para PDF
-      const printWindow = window.open('', '_blank')
-      if (!printWindow) {
-        toast.error('Por favor permite ventanas emergentes')
-        return
-      }
-
       const receiptHTML = receiptRef.current?.innerHTML || ''
-      
-      printWindow.document.write(`
+
+      /* Se imprime desde un iframe oculto, como el resto de documentos: la
+         ventana emergente que se usaba antes la bloquea el navegador en móvil. */
+      const html = `
         <!DOCTYPE html>
         <html>
           <head>
@@ -443,14 +439,10 @@ export function PaymentReceipt({
             </div>
           </body>
         </html>
-      `)
-      
-      printWindow.document.close()
-      
-      setTimeout(() => {
-        printWindow.print()
-        toast.success('PDF generado', { id: 'pdf-generation' })
-      }, 500)
+      `
+
+      printHtml(html)
+      toast.success('Recibo enviado a la impresora', { id: 'pdf-generation' })
       
     } catch (error) {
       console.error('Error generating PDF:', error)

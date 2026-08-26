@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select'
-import { PrintConfig } from '../../utils/print'
+import { FORMATS, normalizeFormat, type PrintConfig, type PrintFormat } from '../../utils/printing'
 import { projectId } from '../../utils/supabase/info'
 import { TAX_ID_TYPES, getTaxIdType } from '../../utils/tax-id-types'
 
@@ -336,17 +336,23 @@ export function GeneralSection({ accessToken, companyName }: GeneralSectionProps
             <div>
               <Label>Formato de Impresión</Label>
               <Select
-                value={printConfig.format}
-                onValueChange={(value: '80mm' | 'A4') => setPrintConfig({ ...printConfig, format: value })}
+                value={normalizeFormat(printConfig.format)}
+                onValueChange={(value: PrintFormat) => setPrintConfig({ ...printConfig, format: value })}
               >
                 <SelectTrigger className="max-w-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="80mm">Ticket 80mm (Impresora térmica)</SelectItem>
-                  <SelectItem value="A4">Hoja A4 (Impresora estándar)</SelectItem>
+                  {(Object.keys(FORMATS) as PrintFormat[]).map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {FORMATS[key].label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-ink-tertiary mt-1">
+                Se aplica a facturas y órdenes de trabajo. La etiqueta del equipo va siempre en rollo de 55&nbsp;mm.
+              </p>
             </div>
 
             {/* Company Info */}

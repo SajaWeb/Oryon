@@ -1,15 +1,14 @@
 import { projectId } from '../../../utils/supabase/info'
 import { toast } from 'sonner@2.0.3'
-import { 
-
-  printServiceOrder, 
-  printDeviceLabel, 
-  InvoiceData, 
-  ServiceOrderData, 
-  DeviceLabelData, 
-  PrintConfig 
-} from '../../../utils/print'
-import { downloadInvoicePdf } from '../../../utils/invoicePdf'
+import {
+  printDeviceLabel,
+  printInvoice,
+  printServiceOrder,
+  type DeviceLabelData,
+  type InvoiceData,
+  type PrintConfig,
+  type ServiceOrderData,
+} from '../../../utils/printing'
 import { Repair } from '../types'
 import { statusLabels } from '../constants'
 
@@ -101,7 +100,9 @@ export const handlePrintDeviceLabel = async (
       devicePasswordType: repair.devicePasswordType
     }
     
-    printDeviceLabel(deviceLabelData, printConfig)
+    /* La etiqueta no toma formato: siempre va en rollo de 55 mm, porque es un
+       adhesivo que se pega al equipo. */
+    printDeviceLabel(deviceLabelData)
   } catch (error) {
     console.error('Error printing device label:', error)
     toast.error('Error al imprimir la etiqueta del equipo')
@@ -158,7 +159,7 @@ export const handlePrintInvoiceFromRepair = async (
       /* La factura se descarga como PDF, igual que en el punto de venta: sin
          ventana emergente —que el móvil bloquea— ni diálogo del navegador.
          La impresión de la OT no cambia: esa sí funciona bien como está. */
-      await downloadInvoicePdf(printData, printConfig)
+      printInvoice(printData, printConfig)
       toast.success('Factura descargada en PDF', {
         description: `${invoiceNumber} · ${printData.total.toLocaleString('es-CO')}`,
         duration: 6000
