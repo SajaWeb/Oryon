@@ -98,7 +98,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 export function validateCustomerDraft(draft: CustomerDraft): CustomerErrors {
   const e: CustomerErrors = {}
   if (draft.mode === 'existing') {
-    if (!draft.customerId) e.customer = 'Busca y elige un cliente, o crea uno nuevo.'
+    if (!draft.customerId) e.customer = 'Busca el cliente y tócalo, o elige «Crear cliente».'
     return e
   }
   if (!draft.name.trim()) e.name = 'Escribe el nombre del cliente.'

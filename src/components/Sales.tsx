@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { projectId } from '../utils/supabase/info'
-import { Plus, Trash2, ShoppingCart, Printer, Package, Check, User, Search, X, ReceiptText } from 'lucide-react'
+import { Trash2, ShoppingCart, Printer, X, ReceiptText } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Textarea } from './ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { toast } from 'sonner@2.0.3'
 // Oryon se importa con alias: esta vista aún usa los primitivos shadcn en el punto de venta
@@ -24,6 +23,8 @@ import {
 } from './oryon'
 import { FormDialog } from './layout/FormDialog'
 import { CustomerPicker } from './customers/CustomerPicker'
+import { ProductPicker, QuantityStepper, type CartAddition } from './sales/ProductPicker'
+import { useBusiness } from '../utils/BusinessContext'
 import {
   draftFromCustomer,
   emptyCustomerDraft,
@@ -52,27 +53,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from './ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select'
-import { Checkbox } from './ui/checkbox'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from './ui/command'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from './ui/popover'
 import { printInvoice, type InvoiceData, type PrintConfig } from '../utils/printing'
 
 interface ProductUnit {
@@ -176,6 +156,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   const { compact } = useShell()
   const { isMobile: isMobileView, isDesktop } = useBreakpoint()
   const controlSize = isMobileView ? 'lg' : 'md'
+  const { profile } = useBusiness()
   const [openCashDialog, setOpenCashDialog] = useState(false)
   const [openingCash, setOpeningCash] = useState(false)
   /** Al abrir la caja desde el cobro, se reintenta la venta que quedó a medias. */
@@ -183,10 +164,6 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   const [products, setProducts] = useState<Product[]>([])
   const [sales, setSales] = useState<Sale[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
-  const [selectedProductId, setSelectedProductId] = useState<string>('')
-  const [selectedUnits, setSelectedUnits] = useState<number[]>([])
-  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null)
-  const [variantQuantity, setVariantQuantity] = useState<number>(1)
   /* El cliente de la venta: el mismo selector y las mismas reglas que en una
      orden nueva (components/customers). */
   const [customer, setCustomer] = useState<CustomerDraft>(emptyCustomerDraft)
@@ -198,15 +175,11 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   const [creditDays, setCreditDays] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [unitSelectionOpen, setUnitSelectionOpen] = useState(false)
-  const [variantSelectionOpen, setVariantSelectionOpen] = useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [customers, setCustomers] = useState<any[]>([])
   const [identificationTypes, setIdentificationTypes] = useState<string[]>(['Cédula', 'NIT', 'Pasaporte'])
-  const [productSearchOpen, setProductSearchOpen] = useState(false)
-  const [productSearch, setProductSearch] = useState('')
   
   // Filtros
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -371,190 +344,43 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
     }
   }
 
-  const openUnitSelection = () => {
-    if (!selectedProductId) {
-      toast.error('Selecciona un producto primero')
-      return
-    }
-    
-    const productsForBranch = selectedBranchId 
-      ? products.filter(p => (p as any).branchId === selectedBranchId)
-      : products
-    
-    const product = productsForBranch.find(p => p.id === parseInt(selectedProductId))
-    if (!product) return
-    
-    // If product tracks by individual units (IMEI/Serial)
-    if (product.trackByUnit) {
-      setSelectedUnits([])
-      setProductSearch('')
-      setUnitSelectionOpen(true)
-      return
-    }
-    
-    // If product has variants (colors)
-    if (product.hasVariants) {
-      setSelectedVariantId(null)
-      setVariantQuantity(1)
-      setVariantSelectionOpen(true)
-      return
-    }
-    
-    // Simple quantity product - add directly
-    addQuantityProductToCart(product)
-  }
+  /* Clave de una línea del carrito: el mismo producto en dos variantes son dos
+     líneas. Antes se quitaba por productId y desaparecían todas las variantes. */
+  const lineKey = (item: { productId: number; variantId?: number }) => `${item.productId}:${item.variantId ?? ''}`
 
-  const addQuantityProductToCart = (product: Product, quantityToAdd: number = 1) => {
-    const existingItem = cart.find(item => item.productId === product.id)
-    if (existingItem) {
-      setCart(cart.map(item =>
-        item.productId === product.id
-          ? { ...item, quantity: item.quantity + quantityToAdd }
+  /** Agrega lo que entrega el buscador; si la línea ya existe, suma. */
+  const addToCart = (add: CartAddition) => {
+    setCart((current) => {
+      const key = lineKey(add)
+      const existing = current.find((item) => lineKey(item) === key)
+      if (!existing) return [...current, { ...add }]
+      return current.map((item) =>
+        lineKey(item) === key
+          ? {
+              ...item,
+              quantity: item.quantity + add.quantity,
+              unitIds: add.unitIds ? [...(item.unitIds ?? []), ...add.unitIds] : item.unitIds,
+              unitDetails: add.unitDetails ? [...(item.unitDetails ?? []), ...add.unitDetails] : item.unitDetails,
+            }
           : item
-      ))
-    } else {
-      setCart([...cart, {
-        productId: product.id,
-        productName: product.name,
-        price: product.price,
-        cost: product.cost || 0,
-        quantity: quantityToAdd
-      }])
-    }
-    setSelectedProductId('')
-  }
-
-  const toggleUnitSelection = (unitId: number) => {
-    if (selectedUnits.includes(unitId)) {
-      setSelectedUnits(selectedUnits.filter(id => id !== unitId))
-    } else {
-      setSelectedUnits([...selectedUnits, unitId])
-    }
-  }
-
-  const addToCart = () => {
-    if (!selectedProductId) return
-
-    const productsForBranch = selectedBranchId 
-      ? products.filter(p => (p as any).branchId === selectedBranchId)
-      : products
-
-    const product = productsForBranch.find(p => p.id === parseInt(selectedProductId))
-    if (!product) return
-
-    // Track by individual units (IMEI/Serial)
-    if (product.trackByUnit) {
-      if (selectedUnits.length === 0) {
-        toast.error('Selecciona al menos una unidad para agregar al carrito')
-        return
-      }
-
-      const unitDetails = selectedUnits.map(unitId => {
-        const unit = product.units?.find(u => u.id === unitId)
-        if (unit) {
-          return unit.imei || unit.serialNumber || `Unidad #${unitId}`
-        }
-        return `Unidad #${unitId}`
-      })
-
-      const existingItem = cart.find(item => item.productId === product.id)
-      if (existingItem) {
-        setCart(cart.map(item =>
-          item.productId === product.id
-            ? {
-                ...item,
-                quantity: item.quantity + selectedUnits.length,
-                unitIds: [...(item.unitIds || []), ...selectedUnits],
-                unitDetails: [...(item.unitDetails || []), ...unitDetails]
-              }
-            : item
-        ))
-      } else {
-        setCart([...cart, {
-          productId: product.id,
-          productName: product.name,
-          price: product.price,
-          cost: product.cost || 0,
-          quantity: selectedUnits.length,
-          unitIds: selectedUnits,
-          unitDetails
-        }])
-      }
-
-      setSelectedProductId('')
-      setSelectedUnits([])
-      setProductSearch('')
-      setUnitSelectionOpen(false)
-      toast.success(`${selectedUnits.length} unidad${selectedUnits.length !== 1 ? 'es' : ''} agregada${selectedUnits.length !== 1 ? 's' : ''} al carrito`)
-    } 
-    // Track by variants (colors)
-    else if (product.hasVariants) {
-      if (!selectedVariantId) {
-        toast.error('Selecciona una variante (color) para agregar al carrito')
-        return
-      }
-
-      const variant = product.variants?.find(v => v.id === selectedVariantId)
-      if (!variant) {
-        toast.error('Variante no encontrada')
-        return
-      }
-
-      if (variantQuantity <= 0 || variantQuantity > variant.stock) {
-        toast.error(`Cantidad inválida. Stock disponible: ${variant.stock}`)
-        return
-      }
-
-      // Check if this variant is already in cart
-      const existingItem = cart.find(item => 
-        item.productId === product.id && item.variantId === selectedVariantId
       )
-
-      if (existingItem) {
-        const newQuantity = existingItem.quantity + variantQuantity
-        if (newQuantity > variant.stock) {
-          toast.error(`No hay suficiente stock. Disponible: ${variant.stock}`)
-          return
-        }
-        setCart(cart.map(item =>
-          item.productId === product.id && item.variantId === selectedVariantId
-            ? { ...item, quantity: newQuantity }
-            : item
-        ))
-      } else {
-        setCart([...cart, {
-          productId: product.id,
-          productName: `${product.name} - ${variant.name}`,
-          price: product.price,
-          cost: product.cost || 0,
-          quantity: variantQuantity,
-          variantId: selectedVariantId,
-          variantName: variant.name
-        }])
-      }
-
-      setSelectedProductId('')
-      setSelectedVariantId(null)
-      setVariantQuantity(1)
-      setVariantSelectionOpen(false)
-      toast.success(`${variantQuantity} ${variant.name} agregado${variantQuantity !== 1 ? 's' : ''} al carrito`)
-    }
-    // Simple quantity tracking
-    else {
-      // This case should be handled in the UI directly without opening a dialog
-      setCart([...cart, {
-        productId: product.id,
-        productName: product.name,
-        price: product.price,
-        cost: product.cost || 0,
-        quantity: 1
-      }])
-      setSelectedProductId('')
-    }
+    })
   }
 
-  const removeFromCart = (productId: number) => {
-    setCart(cart.filter(item => item.productId !== productId))
+  /** Tope de una línea: el stock del producto o de la variante. Las unidades no se suman con +. */
+  const lineMax = (item: CartItem): number => {
+    const product = products.find((p) => p.id === item.productId)
+    if (!product) return item.quantity
+    if (item.variantId != null) return product.variants?.find((v) => v.id === item.variantId)?.stock ?? item.quantity
+    return product.quantity ?? item.quantity
+  }
+
+  const setLineQuantity = (key: string, quantity: number) => {
+    setCart((current) => current.map((item) => (lineKey(item) === key ? { ...item, quantity: Math.max(1, quantity) } : item)))
+  }
+
+  const removeLine = (key: string) => {
+    setCart((current) => current.filter((item) => lineKey(item) !== key))
   }
 
   const calculateTotal = () => {
@@ -881,13 +707,9 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
     return filtered
   }
 
-  const selectedProduct = products.find(p => p.id === parseInt(selectedProductId))
-  const availableUnits = selectedProduct?.units?.filter(u => u.status === 'available') || []
   const filteredSales = filterSales()
 
   const formatMoney = (n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`
-  /** Las categorías se guardan en minúscula («celulares»); en pantalla van con mayúscula. */
-  const capitalize = (v?: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : '—')
 
   usePageHeader({
     title: 'Ventas',
@@ -960,13 +782,6 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
     ? products.filter(p => (p as any).branchId === selectedBranchId)
     : products
 
-  const matchingProducts = useMemo(() => {
-    const q = productSearch.trim().toLowerCase()
-    if (!q) return productsForSelectedBranch
-    return productsForSelectedBranch.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q)
-    )
-  }, [productsForSelectedBranch, productSearch])
 
   if (loading) {
     return <Loading mode="screen" label="Cargando facturación" />
@@ -1087,102 +902,13 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                   necesitan stock.
                 </OryonAlert>
               ) : (
-                <>
-                  <OryonInput
-                    size={controlSize}
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    placeholder="Buscar por nombre o categoría"
-                    iconLeft={Search}
-                    aria-label="Buscar producto"
-                  />
-
-                  <div
-                    style={{
-                      maxHeight: 220,
-                      overflowY: 'auto',
-                      background: 'var(--bg-sunken)',
-                      border: 'var(--border-width) solid var(--border-default)',
-                      borderRadius: 'var(--radius-md)',
-                    }}
-                  >
-                    {matchingProducts.length === 0 ? (
-                      <p style={{ margin: 0, padding: 16, textAlign: 'center', fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}>
-                        Ningún producto coincide.
-                      </p>
-                    ) : (
-                      matchingProducts.map((product, i) => {
-                        const active = selectedProductId === product.id.toString()
-                        const available = product.trackByUnit
-                          ? product.units?.filter((u) => u.status === 'available').length || 0
-                          : product.hasVariants
-                            ? product.variants?.reduce((sum, v) => sum + v.stock, 0) || 0
-                            : product.quantity || 0
-                        const kind = product.trackByUnit ? 'IMEI/SN' : product.hasVariants ? 'Variantes' : null
-
-                        return (
-                          <button
-                            key={product.id}
-                            type="button"
-                            onClick={() => setSelectedProductId(product.id.toString())}
-                            aria-pressed={active}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 12,
-                              width: '100%',
-                              padding: '10px 12px',
-                              minHeight: 'var(--tap-target)',
-                              textAlign: 'left',
-                              background: active ? 'var(--accent-subtle)' : 'transparent',
-                              border: 0,
-                              borderTop: i === 0 ? 0 : 'var(--border-width) solid var(--border-subtle)',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)' }}>{product.name}</span>
-                                {kind && <OryonBadge tone="neutral">{kind}</OryonBadge>}
-                              </span>
-                              <span style={{ fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>
-                                {capitalize(product.category)} · {available} disponibles
-                              </span>
-                            </span>
-                            <span
-                              style={{
-                                flex: '0 0 auto',
-                                fontFamily: 'var(--font-mono)',
-                                fontVariantNumeric: 'tabular-nums',
-                                fontSize: 'var(--text-small)',
-                                color: 'var(--text-primary)',
-                              }}
-                            >
-                              {formatMoney(product.price)}
-                            </span>
-                          </button>
-                        )
-                      })
-                    )}
-                  </div>
-
-                  {selectedProductId &&
-                    (() => {
-                      const product = productsForSelectedBranch.find((p) => p.id === parseInt(selectedProductId))
-                      if (!product) return null
-                      const label = product.trackByUnit
-                        ? `Elegir unidades (${product.units?.filter((u) => u.status === 'available').length || 0} disponibles)`
-                        : product.hasVariants
-                          ? `Elegir variante (${product.variants?.length || 0} opciones)`
-                          : 'Agregar al carrito'
-                      return (
-                        <OryonButton variant="primary" size={controlSize} iconLeft={ShoppingCart} fullWidth onClick={openUnitSelection}>
-                          {label}
-                        </OryonButton>
-                      )
-                    })()}
-                </>
+                <ProductPicker
+                  products={productsForSelectedBranch}
+                  cart={cart}
+                  onAdd={addToCart}
+                  size={controlSize === 'lg' ? 'lg' : 'md'}
+                  unitLabelName={profile.unitTrackingLabel}
+                />
               )}
             </FieldGroup>
           </div>
@@ -1222,7 +948,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                   >
                     {cart.map((item, idx) => (
                       <div
-                        key={`${item.productId}-${item.variantId || ''}-${idx}`}
+                        key={lineKey(item)}
                         style={{
                           display: 'flex',
                           alignItems: 'flex-start',
@@ -1236,15 +962,27 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                             <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)' }}>{item.productName}</span>
                             {item.variantName && <OryonBadge tone="neutral">{item.variantName}</OryonBadge>}
                           </span>
-                          <span
-                            style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontVariantNumeric: 'tabular-nums',
-                              fontSize: 'var(--text-mono-sm)',
-                              color: 'var(--text-secondary)',
-                            }}
-                          >
-                            {item.quantity} × {formatMoney(item.price)}
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            {/* Las unidades se eligen una a una (IMEI/serial); el resto, con − y +. */}
+                            {!item.unitIds?.length && (
+                              <QuantityStepper
+                                size="sm"
+                                value={item.quantity}
+                                max={lineMax(item)}
+                                onChange={(n) => setLineQuantity(lineKey(item), n)}
+                              />
+                            )}
+                            <span
+                              style={{
+                                fontFamily: 'var(--font-mono)',
+                                fontVariantNumeric: 'tabular-nums',
+                                fontSize: 'var(--text-mono-sm)',
+                                color: 'var(--text-secondary)',
+                              }}
+                            >
+                              {item.unitIds?.length ? `${item.quantity} × ` : '× '}
+                              {formatMoney(item.price)}
+                            </span>
                           </span>
                           {item.unitDetails && item.unitDetails.length > 0 && (
                             <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -1271,7 +1009,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                           icon={Trash2}
                           label={`Quitar ${item.productName}`}
                           size="sm"
-                          onClick={() => removeFromCart(item.productId)}
+                          onClick={() => removeLine(lineKey(item))}
                         />
                       </div>
                     ))}
@@ -1327,268 +1065,6 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
         submitting={openingCash}
         onSubmit={handleOpenCashFromSale}
       />
-
-      {/* Unit Selection Dialog */}
-      <Dialog open={unitSelectionOpen} onOpenChange={setUnitSelectionOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full">
-          <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Seleccionar Unidades - {selectedProduct?.name}</DialogTitle>
-            <DialogDescription>
-              Selecciona las unidades específicas (IMEI/Serial) que deseas agregar al carrito
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {availableUnits.length > 0 ? (
-              <>
-                {/* Search for units */}
-                <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
-                  <Input
-                    placeholder="Buscar por IMEI o Serial..."
-                    className="pl-10"
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                  />
-                </div>
-                
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {availableUnits.filter(unit => {
-                    if (!productSearch) return true
-                    const searchLower = productSearch.toLowerCase()
-                    return (
-                      unit.imei?.toLowerCase().includes(searchLower) ||
-                      unit.serialNumber?.toLowerCase().includes(searchLower)
-                    )
-                  }).map(unit => (
-                    <div
-                      key={unit.id}
-                      className={`flex items-center justify-between p-3 sm:p-4 border rounded-lg cursor-pointer transition-colors ${
-                        selectedUnits.includes(unit.id) 
-                          ? 'bg-[var(--accent-subtle)] border-[var(--accent-fill)]' 
-                          : 'hover:bg-sunken'
-                      }`}
-                      onClick={() => toggleUnitSelection(unit.id)}
-                    >
-                      <div className="flex items-center gap-3 flex-1">
-                        <Checkbox
-                          checked={selectedUnits.includes(unit.id)}
-                          onCheckedChange={() => toggleUnitSelection(unit.id)}
-                        />
-                        <div className="flex-1 min-w-0">
-                          {unit.imei && (
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                              <span className="text-xs sm:text-sm text-ink-secondary">IMEI:</span>
-                              <span className="font-mono text-sm sm:text-base break-all">{unit.imei}</span>
-                            </div>
-                          )}
-                          {unit.serialNumber && (
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                              <span className="text-xs sm:text-sm text-ink-secondary">Serial:</span>
-                              <span className="font-mono text-sm sm:text-base break-all">{unit.serialNumber}</span>
-                            </div>
-                          )}
-                          {!unit.imei && !unit.serialNumber && (
-                            <p className="text-sm text-ink-tertiary">Unidad #{unit.id}</p>
-                          )}
-                        </div>
-                      </div>
-                      {selectedUnits.includes(unit.id) && (
-                        <Check size={20} className="text-primary flex-shrink-0" />
-                      )}
-                    </div>
-                  ))}
-                  {availableUnits.filter(unit => {
-                    if (!productSearch) return true
-                    const searchLower = productSearch.toLowerCase()
-                    return (
-                      unit.imei?.toLowerCase().includes(searchLower) ||
-                      unit.serialNumber?.toLowerCase().includes(searchLower)
-                    )
-                  }).length === 0 && (
-                    <div className="text-center py-8 text-ink-tertiary">
-                      No se encontraron unidades con ese IMEI o Serial
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
-                  <p className="text-sm text-ink-secondary">
-                    {selectedUnits.length} unidad{selectedUnits.length !== 1 ? 'es' : ''} seleccionada{selectedUnits.length !== 1 ? 's' : ''}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => {
-                      setUnitSelectionOpen(false)
-                      setProductSearch('')
-                    }} className="flex-1 sm:flex-none">
-                      Cancelar
-                    </Button>
-                    <Button onClick={addToCart} disabled={selectedUnits.length === 0} className="flex-1 sm:flex-none">
-                      <ShoppingCart size={16} className="mr-2" />
-                      Agregar ({selectedUnits.length})
-                    </Button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8 text-ink-tertiary">
-                No hay unidades disponibles para este producto
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Variant Selection Dialog */}
-      <Dialog open={variantSelectionOpen} onOpenChange={setVariantSelectionOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full">
-          <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Seleccionar Variante - {selectedProduct?.name}</DialogTitle>
-            <DialogDescription>
-              Selecciona la variante (color, modelo, etc.) y la cantidad que deseas agregar al carrito
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {selectedProduct?.variants && selectedProduct.variants.length > 0 ? (
-              <>
-                <div className="space-y-2 sm:space-y-3 max-h-[400px] overflow-y-auto">
-                  {selectedProduct.variants.filter(v => v.stock > 0).map(variant => (
-                    <div
-                      key={variant.id}
-                      className={`flex items-center justify-between p-3 sm:p-4 border rounded-lg cursor-pointer transition-colors ${
-                        selectedVariantId === variant.id 
-                          ? 'bg-[var(--accent-subtle)] border-[var(--accent-fill)]' 
-                          : 'hover:bg-sunken'
-                      }`}
-                      onClick={() => setSelectedVariantId(variant.id)}
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                            selectedVariantId === variant.id 
-                              ? 'border-[var(--accent-fill)] bg-primary' 
-                              : 'border-line'
-                          }`}>
-                            {selectedVariantId === variant.id && (
-                              <Check size={14} className="text-white" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm sm:text-base">{variant.name}</p>
-                            {variant.sku && (
-                              <p className="text-xs text-ink-tertiary">SKU: {variant.sku}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={variant.stock > 10 ? 'default' : variant.stock > 0 ? 'secondary' : 'destructive'}>
-                          {variant.stock} disp.
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                  {selectedProduct.variants.filter(v => v.stock === 0).length > 0 && (
-                    <>
-                      <div className="pt-2">
-                        <p className="text-xs text-ink-tertiary">Variantes sin stock:</p>
-                      </div>
-                      {selectedProduct.variants.filter(v => v.stock === 0).map(variant => (
-                        <div
-                          key={variant.id}
-                          className="flex items-center justify-between p-3 sm:p-4 border rounded-lg opacity-50 cursor-not-allowed"
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full border-2 border-line"></div>
-                              <div>
-                                <p className="font-medium text-sm sm:text-base">{variant.name}</p>
-                                {variant.sku && (
-                                  <p className="text-xs text-ink-tertiary">SKU: {variant.sku}</p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <Badge variant="destructive">Agotado</Badge>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-
-                {selectedVariantId && (
-                  <div className="pt-4 border-t space-y-2">
-                    <Label htmlFor="variantQuantity">Cantidad</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setVariantQuantity(Math.max(1, variantQuantity - 1))}
-                        disabled={variantQuantity <= 1}
-                      >
-                        -
-                      </Button>
-                      <Input
-                        id="variantQuantity"
-                        type="number"
-                        min="1"
-                        max={selectedProduct.variants.find(v => v.id === selectedVariantId)?.stock || 1}
-                        value={variantQuantity}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 1
-                          const maxStock = selectedProduct.variants?.find(v => v.id === selectedVariantId)?.stock || 1
-                          setVariantQuantity(Math.min(Math.max(1, value), maxStock))
-                        }}
-                        className="text-center"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          const maxStock = selectedProduct.variants?.find(v => v.id === selectedVariantId)?.stock || 1
-                          setVariantQuantity(Math.min(variantQuantity + 1, maxStock))
-                        }}
-                        disabled={variantQuantity >= (selectedProduct.variants?.find(v => v.id === selectedVariantId)?.stock || 1)}
-                      >
-                        +
-                      </Button>
-                    </div>
-                    <p className="text-xs text-ink-tertiary">
-                      Máximo disponible: {selectedProduct.variants.find(v => v.id === selectedVariantId)?.stock}
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
-                  <p className="text-sm text-ink-secondary">
-                    {selectedVariantId ? (
-                      <>
-                        <span className="font-medium">
-                          {selectedProduct.variants.find(v => v.id === selectedVariantId)?.name}
-                        </span>
-                        {' • '}Cantidad: {variantQuantity}
-                      </>
-                    ) : (
-                      'Selecciona una variante'
-                    )}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setVariantSelectionOpen(false)} className="flex-1 sm:flex-none">
-                      Cancelar
-                    </Button>
-                    <Button onClick={addToCart} disabled={!selectedVariantId} className="flex-1 sm:flex-none">
-                      <ShoppingCart size={16} className="mr-2" />
-                      Agregar ({variantQuantity})
-                    </Button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8 text-ink-tertiary">
-                No hay variantes disponibles para este producto
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <ListPage<Sale>
         rows={filteredSales}
