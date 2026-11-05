@@ -45,18 +45,18 @@ export type AuthVariant = 'login' | 'register' | 'support'
    el documento dice "mismo split del 01; solo cambia la columna derecha". */
 const PANELS: Record<AuthVariant, { title: string; body: 'table' | string; footer: string }> = {
   login: {
-    title: 'Ningún equipo se pierde',
+    title: 'Ninguna orden se pierde',
     body: 'table',
     footer: 'Seis estados. Cero preguntas.',
   },
   support: {
-    title: 'Ningún equipo se pierde',
+    title: 'Ninguna orden se pierde',
     body: 'table',
     footer: 'Seis estados. Cero preguntas.',
   },
   register: {
-    title: 'Denso a propósito',
-    body: 'Tu técnico no quiere tarjetas bonitas con aire. Quiere ver treinta órdenes sin bajar el scroll.',
+    title: 'Hecho para tu taller',
+    body: 'Celulares, motos, carros o bicicletas: eliges tu tipo de comercio y Oryon habla tu idioma desde el primer día.',
     footer: 'Un precio. Sin sorpresas.',
   },
 }

@@ -4,6 +4,7 @@ import { PageBody } from './layout/PageBody'
 import { Loading } from './oryon'
 import { usePageHeader } from './layout/PageHeaderContext'
 import { CompanyInfoSection } from './settings/CompanyInfoSection'
+import { BusinessTypeSection } from './settings/BusinessTypeSection'
 import { AppearanceSection } from './settings/AppearanceSection'
 import { NotificationsSection } from './settings/NotificationsSection'
 import { UsersSection } from './settings/UsersSection'
@@ -184,7 +185,10 @@ export function Settings({ accessToken, userProfile, licenseInfo }: SettingsProp
       <Tabs items={SETTINGS_TABS} value={tab} onChange={setTab} />
 
       {tab === 'general' && (
-        <GeneralSection accessToken={accessToken} companyName={company?.name || ''} />
+        <>
+          {userProfile?.role === 'admin' && <BusinessTypeSection accessToken={accessToken} />}
+          <GeneralSection accessToken={accessToken} companyName={company?.name || ''} />
+        </>
       )}
 
       {tab === 'users' && (

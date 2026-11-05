@@ -52,6 +52,30 @@ export interface Repair {
      printActions llevaba dos errores de compilación desde hacía tiempo. */
   customerEmail?: string
   assignedTo?: string
+  /** Datos propios del comercio: placa, kilometraje, talla… (ver config/businessTypes). */
+  assetDetails?: Record<string, string>
+  /** Identificador normalizado del bien; une las visitas en el historial. */
+  assetKey?: string
+}
+
+/** Una visita anterior del mismo bien, tal como la devuelve /repairs/asset-history. */
+export interface AssetHistoryEntry {
+  id: number
+  createdAt: string
+  status: string
+  customerId?: number
+  customerName: string
+  customerPhone?: string
+  customerEmail?: string
+  deviceType?: string
+  deviceBrand?: string
+  deviceModel?: string
+  imei?: string
+  serialNumber?: string
+  assetDetails: Record<string, string>
+  problem?: string
+  estimatedCost?: number
+  invoicedTotal?: number
 }
 
 export interface Customer {
@@ -82,6 +106,7 @@ export interface RepairFormData {
   devicePassword: string
   devicePattern: number[]
   branchId?: string
+  assetDetails: Record<string, string>
 }
 
 export interface InvoiceFormData {

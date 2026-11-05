@@ -75,6 +75,10 @@ export const createRepair = async (
           deviceModel: formData.deviceModel,
           imei: formData.imei || undefined,
           serialNumber: formData.serialNumber || undefined,
+          // Placa, kilometraje, talla…: lo propio del comercio. Solo lo que tiene valor.
+          assetDetails: Object.fromEntries(
+            Object.entries(formData.assetDetails ?? {}).filter(([, v]) => String(v ?? '').trim() !== '')
+          ),
           problem: formData.problem,
           notes: formData.notes,
           customerId,
@@ -91,7 +95,7 @@ export const createRepair = async (
 
     const data = await response.json()
     if (data.success) {
-      toast.success('✅ Orden de reparación creada exitosamente', {
+      toast.success('Orden creada', {
         id: toastId,
         description: `Orden #${data.repair?.id || 'nueva'} - ${formData.deviceBrand} ${formData.deviceModel}`,
         duration: 5000
@@ -269,8 +273,23 @@ export const createInvoiceForRepair = async (
           err.branchId = parsed.branchId
           throw err
         }
+        /* Los demás candados de caja: vienen con un mensaje ya pensado para el
+           usuario, así que se muestra tal cual en vez de "Server error 409". */
+        const CASH_GUARDS: Record<string, string> = {
+          CASH_SESSION_STALE: 'Cierra la caja del día anterior desde Caja y abre la de hoy.',
+          BRANCH_FORBIDDEN: 'Pide a un administrador que te asigne esta sucursal.',
+          ROLE_FORBIDDEN: 'Tu rol no puede registrar cobros.',
+          ALREADY_INVOICED: 'Recarga la lista: esta orden ya tiene factura.',
+        }
+        if (parsed?.code && CASH_GUARDS[parsed.code]) {
+          toast.error(parsed.error || 'No se pudo facturar', { id: toastId, description: CASH_GUARDS[parsed.code] })
+          const err: any = new Error(parsed.error)
+          err.code = parsed.code
+          err.handled = true
+          throw err
+        }
       } catch (parseError: any) {
-        if (parseError?.code === 'CASH_SESSION_REQUIRED') throw parseError
+        if (parseError?.code === 'CASH_SESSION_REQUIRED' || parseError?.handled) throw parseError
       }
       console.error('Server response error:', text)
       throw new Error(`Server error: ${response.status}`)
@@ -299,13 +318,16 @@ export const createInvoiceForRepair = async (
       })
       throw new Error(data.error)
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating invoice:', error)
-    toast.error('Error al crear la factura', {
-      id: toastId,
-      description: String(error),
-      duration: 5000
-    })
+    // Los candados de caja ya mostraron su propio aviso con este mismo id: no se pisa.
+    if (!error?.code) {
+      toast.error('Error al crear la factura', {
+        id: toastId,
+        description: String(error),
+        duration: 5000
+      })
+    }
     throw error
   }
 }

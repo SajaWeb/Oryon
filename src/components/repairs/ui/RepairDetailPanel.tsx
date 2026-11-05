@@ -2,7 +2,11 @@ import { Lock } from 'lucide-react'
 import { Alert, KeyValue, StatusBadge, normalizeState } from '../../oryon'
 import { PatternLock } from '../../PatternLock'
 import type { Repair } from '../types'
-import { statusLabels, deviceTypes } from '../constants'
+import { statusLabels } from '../constants'
+import { useBusiness } from '../../../utils/BusinessContext'
+import { assetTypeLabel, computeAssetKey, formatFieldValue, thisAsset } from '../../../config/businessTypes'
+import { useAssetHistory } from '../hooks/useAssetHistory'
+import { AssetHistoryHeading, AssetHistoryList } from './AssetHistory'
 
 /**
  * Contenido de la ficha de una OT. Vive dentro de `ResponsiveDetail`, así que sirve tanto al
@@ -11,24 +15,40 @@ import { statusLabels, deviceTypes } from '../constants'
  */
 export function RepairDetailPanel({
   repair,
+  accessToken,
   branches,
   columns,
   onImageClick,
 }: {
   repair: Repair
+  accessToken?: string | null
   branches?: Array<{ id: string; name: string }>
   columns: 1 | 2
   onImageClick: (image: string) => void
 }) {
   const branchName = branches?.find((b) => b.id === repair.branchId)?.name
-  const deviceLabel = deviceTypes.find((d) => d.value === repair.deviceType)?.label || repair.deviceType
+  const { profile } = useBusiness()
+  const deviceLabel = assetTypeLabel(profile, repair.deviceType)
+  const history = useAssetHistory(accessToken ?? null, repair.assetKey || computeAssetKey(repair, profile), repair.id)
+
+  /* Campos del comercio con valor. Si la orden es de antes de cambiar de
+     comercio y trae IMEI o serie, se muestran igual: no se oculta nada guardado. */
+  const fieldItems = profile.assetFields
+    .map((f) => ({ label: f.label, value: formatFieldValue(repair, f), mono: f.mono }))
+    .filter((i) => i.value)
+  if (repair.imei && !profile.assetFields.some((f) => f.source === 'imei')) {
+    fieldItems.push({ label: 'IMEI', value: repair.imei, mono: true })
+  }
+  if (repair.serialNumber && !profile.assetFields.some((f) => f.source === 'serialNumber')) {
+    fieldItems.push({ label: 'Número de serie', value: repair.serialNumber, mono: true })
+  }
 
   const money = (n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`
   const received = new Date(repair.receivedDate)
 
   return (
     <>
-      <Alert variant="info" title="Falla reportada">
+      <Alert variant="info" title={profile.vocab.problem}>
         {repair.problem}
       </Alert>
 
@@ -47,11 +67,10 @@ export function RepairDetailPanel({
         items={[
           { label: 'Cliente', value: repair.customerName },
           { label: 'Teléfono', value: repair.customerPhone || '—', mono: true },
-          { label: 'Tipo de equipo', value: deviceLabel },
+          { label: `Tipo de ${profile.vocab.asset}`, value: deviceLabel || '—' },
           { label: 'Marca', value: repair.deviceBrand || '—' },
           { label: 'Modelo', value: repair.deviceModel || '—' },
-          { label: 'IMEI', value: repair.imei || '—', mono: true },
-          { label: 'Número de serie', value: repair.serialNumber || '—', mono: true },
+          ...fieldItems,
           { label: 'Sucursal', value: branchName || '—' },
           {
             label: 'Recibido',
@@ -92,7 +111,7 @@ export function RepairDetailPanel({
                 color: 'var(--text-secondary)',
               }}
             >
-              Clave del equipo
+              Clave {profile.vocab.article === 'la' ? 'de la' : 'del'} {profile.vocab.asset}
             </span>
           </span>
 
@@ -114,6 +133,13 @@ export function RepairDetailPanel({
               <PatternLock value={repair.devicePattern} onPatternComplete={() => {}} readOnly />
             </div>
           )}
+        </div>
+      )}
+
+      {(history.loading || history.entries.length > 0 || history.key.length >= 3) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <AssetHistoryHeading>Historial de {thisAsset(profile)}</AssetHistoryHeading>
+          <AssetHistoryList entries={history.entries} profile={profile} loading={history.loading} />
         </div>
       )}
 
@@ -167,7 +193,7 @@ export function RepairDetailPanel({
               >
                 <img
                   src={img}
-                  alt={`Equipo ${idx + 1}`}
+                  alt={`Foto ${idx + 1}`}
                   style={{ display: 'block', width: '100%', height: 72, objectFit: 'cover' }}
                 />
               </button>

@@ -25,10 +25,12 @@ import {
   StatusBadge,
 } from './oryon'
 import { Loading } from './oryon'
+import { BUSINESS_PROFILE_LIST, type BusinessTypeId } from '../config/businessTypes'
 
 interface HomePageProps {
   onNavigateToLogin: () => void
-  onNavigateToRegister?: () => void
+  /** Con tipo, el registro llega con el comercio preseleccionado (?tipo=motos). */
+  onNavigateToRegister?: (businessType?: BusinessTypeId) => void
 }
 
 /* ===========================================================================
@@ -92,7 +94,7 @@ function SiteNav({
   onNavigateToRegister,
 }: {
   onNavigateToLogin: () => void
-  onNavigateToRegister?: () => void
+  onNavigateToRegister?: (businessType?: BusinessTypeId) => void
 }) {
   const [scrolled, setScrolled] = useState(false)
 
@@ -143,6 +145,7 @@ function SiteNav({
         <nav className="ml-4 hidden gap-6 lg:flex">
           {[
             ['Producto', 'producto'],
+            ['Comercios', 'comercios'],
             ['Flujo', 'flujo'],
             ['Seguimiento', 'qr'],
             ['Roles', 'roles'],
@@ -161,7 +164,7 @@ function SiteNav({
         </button>
         <CTAButton
           variant="primary"
-          onClick={onNavigateToRegister || onNavigateToLogin}
+          onClick={() => (onNavigateToRegister ? onNavigateToRegister() : onNavigateToLogin())}
           iconRight={<ArrowRight size={16} />}
         >
           Registrar Taller
@@ -282,7 +285,7 @@ function Hero({
   onNavigateToRegister,
 }: {
   onNavigateToLogin: () => void
-  onNavigateToRegister?: () => void
+  onNavigateToRegister?: (businessType?: BusinessTypeId) => void
 }) {
   return (
     <section style={{ position: 'relative', overflow: 'hidden' }}>
@@ -295,7 +298,7 @@ function Hero({
       >
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <div>
-            <Eyebrow>Software para talleres técnicos</Eyebrow>
+            <Eyebrow>Software para talleres y servicio técnico</Eyebrow>
 
             <h1
               style={{
@@ -326,16 +329,16 @@ function Hero({
                 textWrap: 'pretty',
               }}
             >
-              Crea órdenes en segundos con foto y patrón del equipo, dale a tu cliente un QR
-              para rastrear su reparación, controla inventario y varias sucursales desde un
-              solo lugar, y toma decisiones con reportes reales.
+              Celulares, motos, carros o bicicletas: crea órdenes en segundos con fotos y los
+              datos que tu taller necesita, dale a tu cliente un QR para seguir su servicio,
+              controla caja, inventario y varias sucursales desde un solo lugar.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-2.5">
               <CTAButton
                 variant="primary"
                 size="lg"
-                onClick={onNavigateToRegister || onNavigateToLogin}
+                onClick={() => (onNavigateToRegister ? onNavigateToRegister() : onNavigateToLogin())}
                 iconRight={<ArrowRight size={16} />}
               >
                 Comenzar prueba gratis
@@ -451,11 +454,11 @@ function Claims() {
 /* =========================================================================== */
 function Modulos() {
   const m = [
-    [Camera, 'Órdenes en segundos', 'Foto del equipo, patrón de desbloqueo, falla reportada y presupuesto. La OT queda cerrada antes de que el cliente salga del mostrador.'],
-    [QrCode, 'QR para el cliente', 'Cada orden genera un código. El cliente escanea y ve en qué va su reparación, sin llamar al taller.'],
+    [Camera, 'Órdenes en segundos', 'Fotos de recepción, placa o IMEI, kilometraje o patrón, motivo de ingreso y presupuesto. La OT queda cerrada antes de que el cliente salga del mostrador.'],
+    [QrCode, 'QR para el cliente', 'Cada orden genera un código. El cliente escanea y ve en qué va su servicio, sin llamar al taller.'],
     [Package, 'Inventario controlado', 'Stock por SKU, mínimos, costo y proveedor. Traslados entre sucursales, variantes y unidades con seguimiento individual.'],
     [Building2, 'Varias sucursales', 'Un solo lugar para todas las sedes: órdenes, stock y caja consolidados o por sucursal.'],
-    [ChartNoAxesColumn, 'Reportes reales', 'Tiempo promedio, carga por técnico, margen por reparación. Decides con datos, no con memoria.'],
+    [ChartNoAxesColumn, 'Caja y reportes', 'Apertura y cierre de caja diario por sucursal, margen por servicio y carga por técnico. Decides con datos, no con memoria.'],
     [ShieldUser, 'Roles y permisos', 'Admin, asesor y técnico ven exactamente lo que les toca. Ni un dato de más.'],
   ] as const
 
@@ -470,7 +473,7 @@ function Modulos() {
           en un solo tablero
         </>
       }
-      intro="Oryon no es un CRM adaptado. Está hecho para el flujo específico de un taller de reparación de electrónica."
+      intro="Oryon no es un CRM adaptado. Está hecho para el flujo de un taller —de celulares, motos, carros o bicicletas— y se ajusta al tuyo desde el registro."
     >
       <Grid className="sm:grid-cols-2 lg:grid-cols-3">
         {m.map(([Icon, t, d]) => (
@@ -505,10 +508,91 @@ function Modulos() {
   )
 }
 
+/* ===========================================================================
+   Comercios: Oryon se ajusta al tipo de taller desde el registro.
+   Las tarjetas salen de config/businessTypes.ts, la misma fuente que usa la app:
+   lo que se promete aquí es exactamente lo que se personaliza dentro.
+   =========================================================================== */
+function Comercios({
+  onNavigateToLogin,
+  onNavigateToRegister,
+}: {
+  onNavigateToLogin: () => void
+  onNavigateToRegister?: (businessType?: BusinessTypeId) => void
+}) {
+  return (
+    <Section
+      id="comercios"
+      eyebrow="Tu tipo de taller"
+      title={
+        <>
+          Hecho para tu taller,
+          <br />
+          no para uno genérico
+        </>
+      }
+      intro="Al registrarte eliges tu tipo de comercio y Oryon habla tu idioma: los campos de cada orden, las categorías del inventario, los documentos impresos y la página de seguimiento."
+    >
+      <Grid className="sm:grid-cols-2 lg:grid-cols-4">
+        {BUSINESS_PROFILE_LIST.map((profile) => {
+          const Icon = profile.icon
+          return (
+            <GridCell key={profile.id} style={{ padding: '28px 24px', minHeight: 260, display: 'flex', flexDirection: 'column' }}>
+              <Icon size={22} style={{ color: 'var(--accent-400)' }} />
+              <div
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 700,
+                  fontSize: 18,
+                  letterSpacing: '-0.02em',
+                  marginTop: 18,
+                }}
+              >
+                {profile.label}
+              </div>
+              <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: '21px', color: 'var(--text-secondary)' }}>
+                {profile.tagline}
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {profile.highlights.map((h) => (
+                  <li key={h} style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: '19px', color: 'var(--text-secondary)' }}>
+                    <Check size={14} style={{ color: 'var(--accent-400)', flex: '0 0 auto', marginTop: 2 }} />
+                    {h}
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => (onNavigateToRegister ? onNavigateToRegister(profile.id) : onNavigateToLogin())}
+                style={{
+                  marginTop: 'auto',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'none',
+                  border: 0,
+                  padding: '20px 0 0',
+                  color: 'var(--accent-400)',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                Empezar con {profile.label.toLowerCase()} <ArrowRight size={14} />
+              </button>
+            </GridCell>
+          )
+        })}
+      </Grid>
+    </Section>
+  )
+}
+
 /* =========================================================================== */
 function Flujo() {
   const pasos: [string, string, string, string][] = [
-    ['01', 'cola', 'En cola', 'El equipo entra con foto, patrón y checklist firmado.'],
+    ['01', 'cola', 'En cola', 'Entra con fotos, sus datos y checklist firmado.'],
     ['02', 'diagnostico', 'En diagnóstico', 'El técnico documenta la falla y arma el presupuesto.'],
     ['03', 'reparacion', 'En reparación', 'Se descuenta el repuesto del inventario automáticamente.'],
     ['04', 'esperando', 'Esperando repuesto', 'Si no hay stock, la orden se bloquea y el cliente se entera.'],
@@ -521,7 +605,7 @@ function Flujo() {
       id="flujo"
       eyebrow="El flujo"
       title="Seis estados. Cero preguntas."
-      intro="El mismo lenguaje para el mostrador, el técnico y el dueño. Nadie tiene que abrir un chat para saber en qué va un equipo."
+      intro="El mismo lenguaje para el mostrador, el técnico y el dueño. Nadie tiene que abrir un chat para saber en qué va una orden."
     >
       <Grid className="sm:grid-cols-2 lg:grid-cols-3">
         {pasos.map(([n, st, t, d]) => (
@@ -854,7 +938,7 @@ function Producto() {
 function Roles() {
   const r = [
     [ShieldUser, 'Admin', 'Ve el negocio completo: todas las sucursales, caja, márgenes, inventario y usuarios.', ['Reportes consolidados', 'Gestión de sucursales', 'Precios y usuarios']],
-    [UserRound, 'Asesor', 'Atiende el mostrador: recibe equipos, cobra y entrega.', ['Crear órdenes con foto y patrón', 'Cobros y abonos', 'Entrega con comprobante']],
+    [UserRound, 'Asesor', 'Atiende el mostrador: recibe, cobra y entrega.', ['Crear órdenes con fotos', 'Cobros y abonos', 'Entrega con comprobante']],
     [Wrench, 'Técnico', 'Solo lo que tiene en el banco.', ['Sus órdenes asignadas', 'Diagnóstico y repuestos', 'Cambios de estado']],
   ] as const
 
@@ -912,7 +996,7 @@ function Planes({
   onNavigateToRegister,
 }: {
   onNavigateToLogin: () => void
-  onNavigateToRegister?: () => void
+  onNavigateToRegister?: (businessType?: BusinessTypeId) => void
 }) {
   const planes = [
     {
@@ -1024,7 +1108,7 @@ function Planes({
               <div style={{ marginTop: 'auto', paddingTop: 6 }}>
                 <CTAButton
                   variant={p.destacado ? 'primary' : 'secondary'}
-                  onClick={onNavigateToRegister || onNavigateToLogin}
+                  onClick={() => (onNavigateToRegister ? onNavigateToRegister() : onNavigateToLogin())}
                   iconRight={<ArrowRight size={16} />}
                 >
                   Probar 7 días gratis
@@ -1044,7 +1128,7 @@ function CTA({
   onNavigateToRegister,
 }: {
   onNavigateToLogin: () => void
-  onNavigateToRegister?: () => void
+  onNavigateToRegister?: (businessType?: BusinessTypeId) => void
 }) {
   return (
     <section style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-sunken)' }}>
@@ -1078,7 +1162,7 @@ function CTA({
             <CTAButton
               variant="primary"
               size="lg"
-              onClick={onNavigateToRegister || onNavigateToLogin}
+              onClick={() => (onNavigateToRegister ? onNavigateToRegister() : onNavigateToLogin())}
               iconRight={<ArrowRight size={16} />}
             >
               Registrar mi taller
@@ -1195,6 +1279,7 @@ export function HomePage({ onNavigateToLogin, onNavigateToRegister }: HomePagePr
       <Hero onNavigateToLogin={onNavigateToLogin} onNavigateToRegister={onNavigateToRegister} />
       <Claims />
       <Modulos />
+      <Comercios onNavigateToLogin={onNavigateToLogin} onNavigateToRegister={onNavigateToRegister} />
       <Flujo />
       <QR />
       <Producto />

@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '../ui/select'
 import { Checkbox } from '../ui/checkbox'
+import { ROLE_LABELS } from '../layout/navItems'
 import { projectId } from '../../utils/supabase/info'
 import { toast } from 'sonner@2.0.3'
 
@@ -236,6 +237,8 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
         return 'bg-primary text-on-accent'
       case 'asesor':
         return 'bg-success text-on-success'
+      case 'cajero':
+        return 'bg-[var(--warning)] text-white'
       default:
         return 'bg-[var(--alu-500)] text-white'
     }
@@ -303,6 +306,7 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
                       <SelectContent>
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="asesor">Asesor</SelectItem>
+                        <SelectItem value="cajero">Cajero</SelectItem>
                         <SelectItem value="tecnico">Técnico</SelectItem>
                       </SelectContent>
                     </Select>
@@ -332,7 +336,7 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-medium">{user.name}</h3>
                       <Badge className={getRoleBadgeColor(user.role)}>
-                        {user.role}
+                        {ROLE_LABELS[user.role] ?? user.role}
                       </Badge>
                     </div>
                     <p className="text-sm text-ink-secondary">{user.email}</p>
@@ -473,7 +477,7 @@ export function UsersSection({ accessToken, userProfile, users, branches, onRefr
                 <div className="text-sm">
                   <p><strong>Nombre:</strong> {selectedUser?.name}</p>
                   <p><strong>Email:</strong> {selectedUser?.email}</p>
-                  <p><strong>Rol:</strong> {selectedUser?.role}</p>
+                  <p><strong>Rol:</strong> {ROLE_LABELS[selectedUser?.role ?? ''] ?? selectedUser?.role}</p>
                 </div>
                 <p className="text-sm mt-3">
                   • El usuario será eliminado permanentemente del sistema

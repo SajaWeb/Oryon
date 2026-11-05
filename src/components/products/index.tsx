@@ -25,7 +25,8 @@ import { UnitsTransfer } from './UnitsTransfer'
 import { ProductTransactionHistory } from './ProductTransactionHistory'
 import { AddStock } from './AddStock'
 import { exportProductsToCSV, canEditProduct, getAvailableBranches, getAvailableStock, isLowStock, formatPrice, getMarginPercentage } from './utils'
-import { PRODUCT_CATEGORIES } from './constants'
+import { productCategoryLabel, productCategoryOptions } from '../../config/businessTypes'
+import { useBusiness } from '../../utils/BusinessContext'
 import type { Product, ProductFormData, ProductFilters as FilterState, Branch, UnitFormData, VariantFormData, InventoryAdjustmentData, BranchTransferData, UnitsTransferData, UserProfile, ProductTransaction } from './types'
 
 interface ProductsProps {
@@ -35,6 +36,7 @@ interface ProductsProps {
 }
 
 export function Products({ accessToken, userRole, userProfile }: ProductsProps) {
+  const { profile } = useBusiness()
   // State
   const [products, setProducts] = useState<Product[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
@@ -176,6 +178,7 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
         product.storage?.toLowerCase().includes(searchLower) ||
         product.ram?.toLowerCase().includes(searchLower) ||
         product.color?.toLowerCase().includes(searchLower) ||
+        Object.values(product.specs ?? {}).some((v) => String(v).toLowerCase().includes(searchLower)) ||
         product.units?.some(unit =>
           unit.imei?.toLowerCase().includes(searchLower) ||
           unit.serialNumber?.toLowerCase().includes(searchLower)
@@ -235,6 +238,9 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
           storage: formData.storage || undefined,
           ram: formData.ram || undefined,
           color: formData.color || undefined,
+          specs: Object.fromEntries(
+            Object.entries(formData.specs ?? {}).filter(([, v]) => String(v ?? '').trim() !== '')
+          ),
           description: formData.description,
           trackByUnit: formData.trackByUnit,
           hasVariants: formData.hasVariants,
@@ -958,8 +964,7 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
   ).length
 
   const branchName = (id: string) => branches.find((b) => b.id === id)?.name || 'Sin sucursal'
-  const categoryLabel = (value: string) =>
-    PRODUCT_CATEGORIES.find((c) => c.value === value)?.label || value
+  const categoryLabel = (value: string) => productCategoryLabel(value)
 
   const columns: Column<Product>[] = [
     { key: 'name', label: 'Producto' },
@@ -1060,7 +1065,7 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
             label: 'Categoría',
             placeholder: 'Todas las categorías',
             value: filters.categoryFilter === 'all' ? '' : filters.categoryFilter,
-            options: PRODUCT_CATEGORIES.map((c) => ({ value: c.value, label: c.label })),
+            options: productCategoryOptions(profile, products.map((p) => p.category)),
             onChange: (v) => setFilters({ ...filters, categoryFilter: v || 'all' }),
           },
           {
@@ -1163,12 +1168,18 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
                 { label: 'Stock actual', value: getAvailableStock(detailProduct), mono: true },
                 { label: 'Stock mínimo', value: detailProduct.minStock ?? lowStockThreshold, mono: true },
                 { label: 'Sucursal', value: branchName(detailProduct.branchId) },
-                { label: 'Almacenamiento', value: detailProduct.storage || '—' },
-                { label: 'RAM', value: detailProduct.ram || '—' },
+                // Almacenamiento y RAM solo si el comercio los usa o el producto los trae.
+                ...(profile.id === 'electronica' || detailProduct.storage
+                  ? [{ label: 'Almacenamiento', value: detailProduct.storage || '—' }]
+                  : []),
+                ...(profile.id === 'electronica' || detailProduct.ram ? [{ label: 'RAM', value: detailProduct.ram || '—' }] : []),
                 { label: 'Color', value: detailProduct.color || '—' },
+                ...profile.productSpecFields
+                  .filter((f) => detailProduct.specs?.[f.key])
+                  .map((f) => ({ label: f.label, value: detailProduct.specs![f.key], mono: f.mono })),
                 {
                   label: 'Control por unidad',
-                  value: detailProduct.trackByUnit ? 'Sí · por IMEI/serie' : 'No · por cantidad',
+                  value: detailProduct.trackByUnit ? `Sí · por ${profile.unitTrackingLabel}` : 'No · por cantidad',
                 },
                 {
                   label: 'Variantes',

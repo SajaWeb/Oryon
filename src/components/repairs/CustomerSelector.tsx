@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, Search } from 'lucide-react'
 import { FormField, Input, Select, Tabs, type TabItem } from '../oryon'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
@@ -18,12 +18,20 @@ const MODES: TabItem[] = [
   { id: 'new', label: 'Cliente nuevo' },
 ]
 
+/** Pedido externo de seleccionar un cliente (p. ej. desde el historial de una placa). */
+export interface CustomerPreselect {
+  id?: number
+  /** Cambia en cada pedido, para poder repetir el mismo cliente. */
+  nonce: number
+}
+
 interface CustomerSelectorProps {
   customers: Customer[]
   identificationTypes: string[]
   formData: RepairFormData
   onFormDataChange: (data: Partial<RepairFormData>) => void
   onCustomerSelect: (customerId: number) => void
+  preselect?: CustomerPreselect | null
 }
 
 export function CustomerSelector({
@@ -32,10 +40,28 @@ export function CustomerSelector({
   formData,
   onFormDataChange,
   onCustomerSelect,
+  preselect,
 }: CustomerSelectorProps) {
   const [mode, setMode] = useState<'select' | 'new'>('select')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [search, setSearch] = useState('')
+
+  /* Si el cliente de la visita anterior existe, se selecciona. Si no (órdenes
+     viejas sin customerId), sus datos ya vienen en formData: se muestran como
+     cliente nuevo para poder revisarlos. */
+  useEffect(() => {
+    if (!preselect) return
+    const exists = preselect.id != null && customers.some((c) => c.id === preselect.id)
+    if (exists) {
+      setMode('select')
+      setSearch('')
+      selectCustomer(preselect.id as number)
+    } else {
+      setSelectedId(null)
+      setMode('new')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselect?.nonce])
 
   const { isMobile } = useBreakpoint()
   const size = isMobile ? 'lg' : 'md'
@@ -208,7 +234,7 @@ export function CustomerSelector({
             </FormField>
           </div>
 
-          <FormField label="Correo" hint="Opcional. Sirve para avisarle cuando el equipo esté listo.">
+          <FormField label="Correo" hint="Opcional. Sirve para avisarle cuando su orden esté lista.">
             <Input
               size={size}
               type="email"

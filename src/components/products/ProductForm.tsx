@@ -15,7 +15,9 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { FieldGroup, FormField, Input, RadioCard, Select, Textarea } from '../oryon'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
-import { PRODUCT_CATEGORIES, TRACKING_METHODS } from './constants'
+import { trackingMethods } from './constants'
+import { useBusiness } from '../../utils/BusinessContext'
+import { productCategoryOptions } from '../../config/businessTypes'
 import type { Product, ProductFormData, Branch } from './types'
 
 export const PRODUCT_FORM_ID = 'producto-form'
@@ -39,15 +41,19 @@ const money = (value: string) => {
 export function ProductForm({ product, branches, onSubmit, userRole, formId = PRODUCT_FORM_ID }: ProductFormProps) {
   const { isMobile, isDesktop } = useBreakpoint()
   const size = isMobile ? 'lg' : 'md'
+  const { profile } = useBusiness()
+  const isElectronics = profile.id === 'electronica'
+  const methods = trackingMethods(profile)
 
   const emptyForm = (): ProductFormData => ({
     name: '',
-    category: 'celulares',
+    category: profile.productCategories[0]?.value ?? 'otros',
     price: '',
     cost: '',
     storage: '',
     ram: '',
     color: '',
+    specs: {},
     description: '',
     trackByUnit: false,
     hasVariants: false,
@@ -68,6 +74,7 @@ export function ProductForm({ product, branches, onSubmit, userRole, formId = PR
         storage: product.storage || '',
         ram: product.ram || '',
         color: product.color || '',
+        specs: { ...(product.specs ?? {}) },
         description: product.description,
         trackByUnit: product.trackByUnit || false,
         hasVariants: product.hasVariants || false,
@@ -127,10 +134,13 @@ export function ProductForm({ product, branches, onSubmit, userRole, formId = PR
   }
 
   const trackingNote = formData.hasVariants
-    ? 'Las variantes (colores) se agregan después de crear el producto.'
+    ? 'Las variantes se agregan después de crear el producto.'
     : formData.trackByUnit
-      ? 'Las unidades con IMEI o serial se agregan después de crear el producto.'
+      ? `Las unidades con ${profile.unitTrackingLabel} se agregan después de crear el producto.`
       : null
+
+  // La categoría de un producto viejo se conserva aunque no sea del comercio actual.
+  const categoryOptions = productCategoryOptions(profile, [product?.category])
 
   return (
     <form
@@ -152,7 +162,7 @@ export function ProductForm({ product, branches, onSubmit, userRole, formId = PR
               size={size}
               value={formData.name}
               onChange={(e) => updateField('name', e.target.value)}
-              placeholder="iPhone 15 Pro"
+              placeholder={profile.productNamePlaceholder}
               autoFocus={!isMobile}
             />
           </FormField>
@@ -163,7 +173,7 @@ export function ProductForm({ product, branches, onSubmit, userRole, formId = PR
                 size={size}
                 value={formData.category}
                 onChange={(e) => updateField('category', e.target.value)}
-                options={PRODUCT_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+                options={categoryOptions}
               />
             </FormField>
 
@@ -193,14 +203,30 @@ export function ProductForm({ product, branches, onSubmit, userRole, formId = PR
               gap: 12,
             }}
           >
-            <FormField label="Almacenamiento">
-              <Input size={size} value={formData.storage} onChange={(e) => updateField('storage', e.target.value)} placeholder="256 GB" />
-            </FormField>
-            <FormField label="RAM">
-              <Input size={size} value={formData.ram} onChange={(e) => updateField('ram', e.target.value)} placeholder="8 GB" />
-            </FormField>
+            {/* Almacenamiento y RAM son de electrónica; si un producto viejo los trae, se dejan ver. */}
+            {(isElectronics || formData.storage) && (
+              <FormField label="Almacenamiento">
+                <Input size={size} value={formData.storage} onChange={(e) => updateField('storage', e.target.value)} placeholder="256 GB" />
+              </FormField>
+            )}
+            {(isElectronics || formData.ram) && (
+              <FormField label="RAM">
+                <Input size={size} value={formData.ram} onChange={(e) => updateField('ram', e.target.value)} placeholder="8 GB" />
+              </FormField>
+            )}
+            {profile.productSpecFields.map((field) => (
+              <FormField key={field.key} label={field.label} hint={field.hint}>
+                <Input
+                  size={size}
+                  mono={field.mono}
+                  value={formData.specs?.[field.key] ?? ''}
+                  onChange={(e) => updateField('specs', { ...(formData.specs ?? {}), [field.key]: e.target.value })}
+                  placeholder={field.placeholder}
+                />
+              </FormField>
+            ))}
             <FormField label="Color" style={{ gridColumn: isMobile ? undefined : '1 / -1' }}>
-              <Input size={size} value={formData.color} onChange={(e) => updateField('color', e.target.value)} placeholder="Titanio negro" />
+              <Input size={size} value={formData.color} onChange={(e) => updateField('color', e.target.value)} placeholder={isElectronics ? 'Titanio negro' : 'Negro mate'} />
             </FormField>
           </div>
 
@@ -209,7 +235,7 @@ export function ProductForm({ product, branches, onSubmit, userRole, formId = PR
               rows={3}
               value={formData.description}
               onChange={(e) => updateField('description', e.target.value)}
-              placeholder="Detalles que convenga recordar al venderlo o repararlo."
+              placeholder={isElectronics ? 'Detalles que convenga recordar al venderlo o repararlo.' : 'Detalles que convenga recordar al venderlo o instalarlo.'}
             />
           </FormField>
         </FieldGroup>
@@ -222,7 +248,7 @@ export function ProductForm({ product, branches, onSubmit, userRole, formId = PR
           hint={isEditing ? 'No se puede cambiar una vez creado el producto.' : 'Elige cómo se cuenta este producto. Después no se puede cambiar.'}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} role="radiogroup" aria-label="Método de seguimiento">
-            {TRACKING_METHODS.map((method) => (
+            {methods.map((method) => (
               <RadioCard
                 key={method.id}
                 name="trackMethod"

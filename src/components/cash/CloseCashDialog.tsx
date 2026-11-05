@@ -15,17 +15,23 @@ const money = (n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`
  * aparece la diferencia. Si enseñáramos el esperado antes, el conteo dejaría de
  * ser un conteo y pasaría a ser una confirmación — que es justo lo que un arqueo
  * existe para evitar.
+ *
+ * Con `blind` (todo el que no es administrador) la diferencia no aparece nunca:
+ * si se mostrara en vivo mientras se escribe, bastaría con tantear cifras hasta
+ * que cuadre. El cajero declara lo que contó y el administrador ve el resultado.
  */
 export function CloseCashDialog({
   open,
   onClose,
   totals,
+  blind = false,
   submitting,
   onSubmit,
 }: {
   open: boolean
   onClose: () => void
   totals: CashTotals
+  blind?: boolean
   submitting: boolean
   onSubmit: (countedAmount: number, notes: string) => Promise<void>
 }) {
@@ -44,11 +50,12 @@ export function CloseCashDialog({
   }, [open])
 
   const difference = useMemo(() => {
+    if (blind || typeof totals.expectedCash !== 'number') return null
     if (counted === '') return null
     const value = Number(counted)
     if (!Number.isFinite(value)) return null
     return value - totals.expectedCash
-  }, [counted, totals.expectedCash])
+  }, [blind, counted, totals.expectedCash])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -68,7 +75,11 @@ export function CloseCashDialog({
       onClose={onClose}
       size="md"
       title="Cerrar caja"
-      description="Cuenta el efectivo del cajón y escríbelo. Después verás si cuadra."
+      description={
+        blind
+          ? 'Cuenta el efectivo del cajón y escríbelo. El administrador revisará el arqueo.'
+          : 'Cuenta el efectivo del cajón y escríbelo. Después verás si cuadra.'
+      }
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
@@ -109,7 +120,7 @@ export function CloseCashDialog({
           <FieldGroup title="Resultado">
             <KeyValue
               items={[
-                { label: 'Debería haber', value: money(totals.expectedCash), mono: true },
+                { label: 'Debería haber', value: money(totals.expectedCash ?? 0), mono: true },
                 { label: 'Contaste', value: money(Number(counted)), mono: true },
               ]}
             />
@@ -131,9 +142,24 @@ export function CloseCashDialog({
           </FieldGroup>
         )}
 
-        <FormField label="Observaciones" hint={tone && tone !== 'ok' ? 'Explica la diferencia: es lo que se revisará después.' : 'Opcional.'}>
+        <FormField
+          label="Observaciones"
+          hint={
+            blind
+              ? 'Anota cualquier novedad del día: gastos sin soporte, vueltos, billetes dudosos.'
+              : tone && tone !== 'ok'
+                ? 'Explica la diferencia: es lo que se revisará después.'
+                : 'Opcional.'
+          }
+        >
           <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="" />
         </FormField>
+
+        {blind && (
+          <Alert variant="warning" title="El cierre es definitivo">
+            Lo que declares queda guardado a tu nombre y no se puede cambiar. Cuenta dos veces antes de cerrar.
+          </Alert>
+        )}
 
         <Alert variant="info" title="Después de cerrar">
           No se podrán registrar más cobros en esta sucursal hasta abrir una caja nueva.

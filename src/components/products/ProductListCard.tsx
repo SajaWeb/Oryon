@@ -1,7 +1,7 @@
 import { ChevronRight } from 'lucide-react'
 import type { Product, Branch } from './types'
 import { formatPrice, getAvailableStock, isLowStock } from './utils'
-import { PRODUCT_CATEGORIES } from './constants'
+import { productCategoryLabel } from '../../config/businessTypes'
 
 /**
  * Fila de producto en móvil. El artboard la resuelve como una línea densa: nombre y
@@ -22,8 +22,7 @@ export function ProductListCard({
   const stock = getAvailableStock(product)
   const low = isLowStock(product, threshold)
   const branch = branches.find((b) => b.id === product.branchId)?.name || 'Sin sucursal'
-  const category =
-    PRODUCT_CATEGORIES.find((c) => c.value === product.category)?.label || product.category
+  const category = productCategoryLabel(product.category)
 
   const tone = stock === 0 ? 'var(--danger)' : low ? 'var(--warning)' : 'var(--text-secondary)'
 

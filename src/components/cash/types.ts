@@ -16,6 +16,7 @@ export interface CashSession {
   expectedCash?: number
   difference?: number
   closingNotes?: string
+  closedByRole?: string
 }
 
 export interface CashMovement {
@@ -27,19 +28,36 @@ export interface CashMovement {
   notes?: string
   createdByName: string
   createdAt: string
+  saleId?: number | string
+  automatic?: boolean
 }
 
+/**
+ * El servidor solo manda el desglose completo al administrador. Al cajero le
+ * llegan base, cobros y movimientos: el arqueo es ciego también en la API.
+ */
 export interface CashTotals {
   baseAmount: number
-  cashSales: number
-  otherSales: number
-  creditSales: number
-  totalSales: number
+  salesCount: number
   movementsIn: number
   movementsOut: number
-  expectedCash: number
-  salesCount: number
-  byMethod: Record<string, number>
+  cashSales?: number
+  otherSales?: number
+  creditSales?: number
+  totalSales?: number
+  expectedCash?: number
+  byMethod?: Record<string, number>
+}
+
+export interface CashSale {
+  id: number
+  invoiceNumber?: string
+  createdAt: string
+  customerName?: string
+  paymentMethod?: string
+  total: number
+  createdByName?: string
+  type?: string
 }
 
 export interface Branch {

@@ -9,6 +9,13 @@ import { statusLabels } from './repairs/constants'
 import { StatusBadge, normalizeState } from './oryon'
 import { projectId, publicAnonKey } from '../utils/supabase/info'
 import { Loading } from './oryon'
+import {
+  assetTypeLabel,
+  cap,
+  formatFieldValue,
+  getBusinessProfile,
+  yourAsset,
+} from '../config/businessTypes'
 
 interface TrackingPageProps {
   companyId?: string | null
@@ -21,6 +28,8 @@ interface RepairTracking {
   deviceType: string
   deviceBrand: string
   deviceModel: string
+  serialNumber?: string
+  assetDetails?: Record<string, string>
   problem: string
   status: string
   estimatedCost: number
@@ -50,6 +59,9 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
   console.log('   Repair ID received:', repairId)
   
   const [repair, setRepair] = useState<RepairTracking | null>(null)
+  /* Página pública: no hay sesión ni contexto. El comercio llega en la respuesta. */
+  const [businessType, setBusinessType] = useState<string | undefined>()
+  const profile = getBusinessProfile(businessType)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchCode, setSearchCode] = useState('')
@@ -103,6 +115,7 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
       
       if (data.success) {
         setRepair(data.repair)
+        setBusinessType(data.businessType)
       } else {
         setError(data.error || 'Error al cargar la orden')
       }
@@ -143,6 +156,7 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
       
       if (data.success) {
         setRepair(data.repair)
+        setBusinessType(data.businessType)
         // Show a warning that this is an old QR code
         console.warn('⚠️ Using legacy QR code format. Please generate new QR codes with company ID.')
       } else {
@@ -252,7 +266,9 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl mb-2 text-ink">Seguimiento de Reparación</h1>
+          <h1 className="text-4xl mb-2 text-ink">
+            {profile.id === 'electronica' ? 'Seguimiento de Reparación' : 'Seguimiento de Servicio'}
+          </h1>
           <p className="text-ink-secondary">Orden #{repair.id}</p>
         </div>
 
@@ -262,7 +278,7 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-2xl">Estado Actual</CardTitle>
-                <CardDescription>Tu equipo está en proceso</CardDescription>
+                <CardDescription>{cap(yourAsset(profile))} está en proceso</CardDescription>
               </div>
               <StatusIcon size={48} className="text-primary" />
             </div>
@@ -276,10 +292,10 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
           </CardContent>
         </Card>
 
-        {/* Información del Equipo */}
+        {/* Información del bien */}
         <Card>
           <CardHeader>
-            <CardTitle>Información del Equipo</CardTitle>
+            <CardTitle>Información {profile.vocab.article === 'la' ? 'de la' : 'del'} {profile.vocab.asset}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
@@ -288,13 +304,24 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
                 <p className="text-lg">{repair.customerName}</p>
               </div>
               <div>
-                <Label className="text-ink-secondary">Dispositivo</Label>
-                <p className="text-lg capitalize">
-                  {repair.deviceType} {repair.deviceBrand} {repair.deviceModel}
+                <Label className="text-ink-secondary">{cap(profile.vocab.asset)}</Label>
+                <p className="text-lg">
+                  {[assetTypeLabel(profile, repair.deviceType), repair.deviceBrand, repair.deviceModel].filter(Boolean).join(' ')}
                 </p>
               </div>
+              {/* Placa o serial: lo que el dueño reconoce. El servidor ya filtró lo privado. */}
+              {profile.assetFields
+                .filter((f) => f.showOnTracking)
+                .map((f) => ({ f, value: formatFieldValue(repair, f) }))
+                .filter(({ value }) => value)
+                .map(({ f, value }) => (
+                  <div key={f.key}>
+                    <Label className="text-ink-secondary">{f.label}</Label>
+                    <p className={`text-lg ${f.mono ? 'font-mono' : ''}`}>{value}</p>
+                  </div>
+                ))}
               <div>
-                <Label className="text-ink-secondary">Problema Reportado</Label>
+                <Label className="text-ink-secondary">{profile.vocab.problem}</Label>
                 <p className="text-lg">{repair.problem}</p>
               </div>
               <div>
@@ -313,7 +340,7 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
         {repair.images && repair.images.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Imágenes del Equipo</CardTitle>
+              <CardTitle>Fotos de recepción</CardTitle>
               <CardDescription>Fotos tomadas al momento de la recepción</CardDescription>
             </CardHeader>
             <CardContent>
@@ -322,7 +349,7 @@ export function TrackingPage({ companyId, repairId }: TrackingPageProps) {
                   <img
                     key={idx}
                     src={img}
-                    alt={`Equipo ${idx + 1}`}
+                    alt={`Foto ${idx + 1}`}
                     className="w-full h-32 object-cover rounded-lg border-2 border-line hover:border-[var(--accent-fill)] transition-all cursor-pointer"
                     onClick={() => window.open(img, '_blank')}
                   />

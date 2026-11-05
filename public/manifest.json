@@ -1,7 +1,7 @@
 {
-  "name": "Oryon — Gestión para talleres técnicos",
+  "name": "Oryon — Gestión para talleres y servicio técnico",
   "short_name": "Oryon",
-  "description": "Controla órdenes de trabajo, inventario y sucursales de tu taller técnico desde un solo lugar.",
+  "description": "Órdenes de servicio, caja, inventario y sucursales para talleres de celulares, motos, carros y bicicletas.",
   "lang": "es",
   "start_url": "/",
   "display": "standalone",

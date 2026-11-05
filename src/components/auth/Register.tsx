@@ -14,6 +14,17 @@ import {
 import { AuthDivider, AuthFootnote, AuthHeading, AuthLayout, AuthLink } from './AuthLayout'
 import { ALREADY_REGISTERED, authMessage, isExistingUser, type AuthMessage } from './authErrors'
 import { useTurnstile } from './Turnstile'
+import { BusinessTypePicker } from './BusinessTypePicker'
+import { isBusinessType, type BusinessTypeId } from '../../config/businessTypes'
+
+/** La landing enlaza con ?tipo=motos para llegar con el comercio ya elegido. */
+function businessTypeFromUrl(): BusinessTypeId | null {
+  const raw = new URLSearchParams(window.location.search).get('tipo')
+  return isBusinessType(raw) ? raw : null
+}
+
+/** Clave para recordar el tipo si el usuario se va por Google (que no lo transporta). */
+export const PENDING_BUSINESS_TYPE_KEY = 'oryon-pending-business-type'
 
 interface RegisterProps {
   /** La cuenta quedó creada sin confirmar: toca verificar el correo. */
@@ -22,11 +33,12 @@ interface RegisterProps {
   onSwitchToForgotPassword: () => void
 }
 
-type Field = 'companyName' | 'name' | 'email' | 'password' | 'confirmPassword' | 'terms'
+type Field = 'businessType' | 'companyName' | 'name' | 'email' | 'password' | 'confirmPassword' | 'terms'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 export function Register({ onRegistered, onSwitchToLogin, onSwitchToForgotPassword }: RegisterProps) {
+  const [businessType, setBusinessType] = useState<BusinessTypeId | null>(businessTypeFromUrl)
   const [companyName, setCompanyName] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -51,7 +63,8 @@ export function Register({ onRegistered, onSwitchToLogin, onSwitchToForgotPasswo
   const validate = (): boolean => {
     const next: Partial<Record<Field, string>> = {}
 
-    if (!companyName.trim()) next.companyName = 'Escribe el nombre del taller.'
+    if (!businessType) next.businessType = 'Elige el tipo de comercio: así preparamos la app para ti.'
+    if (!companyName.trim()) next.companyName = 'Escribe el nombre del negocio.'
     if (!name.trim()) next.name = 'Escribe tu nombre completo.'
     if (!EMAIL_RE.test(cleanEmail)) next.email = 'Escribe un correo válido, con @ y dominio.'
     if (password.length < MIN_PASSWORD_LENGTH) {
@@ -79,7 +92,7 @@ export function Register({ onRegistered, onSwitchToLogin, onSwitchToForgotPasswo
         password,
         options: {
           // El aprovisionamiento de empresa y sucursal lee esto tras verificar.
-          data: { name: name.trim(), companyName: companyName.trim() },
+          data: { name: name.trim(), companyName: companyName.trim(), businessType },
           captchaToken: await captcha.getToken(),
         },
       })
@@ -108,6 +121,13 @@ export function Register({ onRegistered, onSwitchToLogin, onSwitchToForgotPasswo
   const handleGoogle = async () => {
     setGoogleLoading(true)
     setAlert(null)
+    /* Google no lleva metadatos propios: el tipo elegido se guarda aquí y la
+       pantalla "Falta un dato" lo trae preseleccionado al volver. */
+    try {
+      if (businessType) window.localStorage.setItem(PENDING_BUSINESS_TYPE_KEY, businessType)
+    } catch {
+      /* sin almacenamiento: se elegirá de nuevo al volver */
+    }
     try {
       setSessionPersistence(true)
       const { error } = await getSupabaseClient().auth.signInWithOAuth({
@@ -129,7 +149,7 @@ export function Register({ onRegistered, onSwitchToLogin, onSwitchToForgotPasswo
   return (
     <AuthLayout variant="register">
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <AuthHeading title="Crear cuenta">Un taller por cuenta. Los técnicos se invitan después.</AuthHeading>
+        <AuthHeading title="Crear cuenta">Un negocio por cuenta. Tu equipo se invita después.</AuthHeading>
 
         {alert && (
           <Alert role="alert" variant={alert.action === 'login' ? 'warning' : 'danger'} title={alert.title} onDismiss={() => setAlert(null)}>
@@ -143,14 +163,29 @@ export function Register({ onRegistered, onSwitchToLogin, onSwitchToForgotPasswo
           </Alert>
         )}
 
-        <FormField label="Nombre de la empresa" error={errors.companyName}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 'var(--text-small)', fontWeight: 'var(--fw-medium)', color: 'var(--text-primary)' }}>
+            ¿Qué tipo de negocio tienes?
+          </span>
+          <BusinessTypePicker
+            value={businessType}
+            onChange={(v) => {
+              setBusinessType(v)
+              clear('businessType')
+            }}
+            disabled={busy}
+            error={errors.businessType}
+          />
+        </div>
+
+        <FormField label="Nombre del negocio" error={errors.companyName}>
           <Input
             value={companyName}
             onChange={(e) => {
               setCompanyName(e.target.value)
               clear('companyName')
             }}
-            placeholder="Servitec Celulares"
+            placeholder={businessType === 'motos' ? 'MotoServicio La 30' : businessType === 'carros' ? 'Autotaller Central' : businessType === 'bicicletas' ? 'Biciestación' : 'Servitec Celulares'}
             autoComplete="organization"
             disabled={busy}
           />

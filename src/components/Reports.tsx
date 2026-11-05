@@ -34,6 +34,8 @@ import { useChartColors } from './dashboard/useChartColors'
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { ExportButton } from './ExportButton'
 import { formatCurrency, formatDate, formatDateTime } from '../utils/export'
+import { useBusiness } from '../utils/BusinessContext'
+import { cap } from '../config/businessTypes'
 
 interface ReportsProps {
   accessToken: string
@@ -62,6 +64,8 @@ const money = (n: number) => `$${Math.round(n || 0).toLocaleString('es-CO')}`
 
 export function Reports({ accessToken }: ReportsProps) {
   const { isMobile, compact } = useShell()
+  const { profile } = useBusiness()
+  const assets = profile.vocab.assetPlural
   // Recharts pinta en SVG: los atributos fill/stroke no resuelven var(), necesitan el
   // color ya calculado. Este hook lo relee cuando cambia el tema.
   const chart = useChartColors()
@@ -660,7 +664,7 @@ export function Reports({ accessToken }: ReportsProps) {
             <Alert className="bg-[var(--success-subtle)] border-[color-mix(in_srgb,var(--success)_30%,transparent)]">
               <PhoneCall className="h-4 w-4 text-success" />
               <AlertDescription className="text-sm">
-                <strong>Llamadas Pendientes:</strong> Hay {readyRepairs.length} equipos listos para entregar. 
+                <strong>Llamadas Pendientes:</strong> Hay {readyRepairs.length} {assets} {profile.vocab.article === 'la' ? 'listas' : 'listos'} para entregar. 
                 Contacta a los clientes para agilizar la entrega.
               </AlertDescription>
             </Alert>
@@ -758,7 +762,7 @@ export function Reports({ accessToken }: ReportsProps) {
                 <div className="flex items-center gap-2">
                   <PhoneCall className="text-success" size={20} />
                   <div>
-                    <CardTitle className="text-base sm:text-lg">Equipos Listos para Entregar</CardTitle>
+                    <CardTitle className="text-base sm:text-lg">{cap(assets)} {profile.vocab.article === 'la' ? 'listas' : 'listos'} para entregar</CardTitle>
                     <CardDescription className="text-xs sm:text-sm">Contacta estos clientes</CardDescription>
                   </div>
                 </div>
@@ -805,7 +809,7 @@ export function Reports({ accessToken }: ReportsProps) {
                 </div>
               ) : (
                 <p className="text-center text-ink-tertiary py-8 text-sm">
-                  No hay equipos listos pendientes de entrega
+                  No hay {assets} {profile.vocab.article === 'la' ? 'listas' : 'listos'} pendientes de entrega
                 </p>
               )}
             </CardContent>

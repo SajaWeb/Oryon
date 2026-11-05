@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getBusinessProfile } from '../config/businessTypes'
 import { projectId, publicAnonKey } from '../utils/supabase/info'
 import { getSupabaseClient } from '../utils/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
@@ -80,6 +81,7 @@ interface PaymentRecord {
 }
 
 interface CompanyRecord {
+  businessType?: string
   id: string | number
   name: string
   planId: string
@@ -762,7 +764,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                 const owner = users.find(u => u.companyId === comp.id && u.role === 'admin')
                 const activeBranches = branchMap[comp.id] || 1
                 const activeAdmins = users.filter(u => u.companyId === comp.id && u.role === 'admin').length
-                const activeAdvisors = users.filter(u => u.companyId === comp.id && u.role === 'asesor').length
+                const activeAdvisors = users.filter(u => u.companyId === comp.id && (u.role === 'asesor' || u.role === 'cajero')).length
                 const activeTechnicians = users.filter(u => u.companyId === comp.id && u.role === 'tecnico').length
 
                 const expiryDate = comp.licenseExpiry ? new Date(comp.licenseExpiry) : null
@@ -1500,7 +1502,7 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                 <table className="w-full text-xs text-left">
                   <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] border-b border-border">
                     <tr>
-                      <th className="p-3.5">Empresa / Taller</th>
+                      <th className="p-3.5">Empresa / Comercio</th>
                       <th className="p-3.5">Plan</th>
                       <th className="p-3.5">Estado Licencia</th>
                       <th className="p-3.5">Vencimiento</th>
@@ -1524,7 +1526,9 @@ export function SuperAdmin({ accessToken: propToken, userProfile: propProfile, o
                           <tr key={comp.id} className="hover:bg-muted/30 transition-colors">
                             <td className="p-3.5">
                               <p className="font-bold text-foreground">{comp.name}</p>
-                              <p className="text-[10px] text-muted-foreground">ID Empresa: #{comp.id}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                ID Empresa: #{comp.id} · {getBusinessProfile(comp.businessType).label}
+                              </p>
                             </td>
 
                             <td className="p-3.5">

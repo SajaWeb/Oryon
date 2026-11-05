@@ -10,6 +10,7 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
+import type { BusinessProfile } from '../../config/businessTypes'
 
 /**
  * Definición ÚNICA de navegación y permisos.
@@ -29,7 +30,7 @@ export type ViewId =
   | 'license'
   | 'settings'
 
-export type Role = 'admin' | 'asesor' | 'tecnico'
+export type Role = 'admin' | 'asesor' | 'tecnico' | 'cajero'
 
 export interface NavItem {
   id: ViewId
@@ -48,8 +49,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', shortLabel: 'Inicio', icon: LayoutDashboard, section: 'Operación', roles: ['admin'], primary: true },
   { id: 'products', label: 'Productos', shortLabel: 'Productos', icon: Package, section: 'Operación', roles: ['admin', 'asesor'], primary: true },
   { id: 'repairs', label: 'Reparaciones', shortLabel: 'OT', icon: Wrench, section: 'Operación', roles: ['admin', 'asesor', 'tecnico'], primary: true },
-  { id: 'sales', label: 'Ventas', shortLabel: 'Ventas', icon: ReceiptText, section: 'Operación', roles: ['admin', 'asesor'], primary: true },
-  { id: 'cash', label: 'Caja', shortLabel: 'Caja', icon: Wallet, section: 'Operación', roles: ['admin', 'asesor'], primary: true, hint: 'Apertura, movimientos y cierre' },
+  { id: 'sales', label: 'Ventas', shortLabel: 'Ventas', icon: ReceiptText, section: 'Operación', roles: ['admin', 'asesor', 'cajero'], primary: true },
+  { id: 'cash', label: 'Caja', shortLabel: 'Caja', icon: Wallet, section: 'Operación', roles: ['admin', 'asesor', 'cajero'], primary: true, hint: 'Apertura, movimientos y cierre' },
   /* Caja entra en la barra de móvil y Clientes sale: la caja se toca cada día, la
      ficha de un cliente se abre desde la OT o la venta. */
   { id: 'customers', label: 'Clientes', shortLabel: 'Clientes', icon: Users, section: 'Operación', roles: ['admin'], primary: false, hint: 'Directorio de clientes' },
@@ -59,12 +60,21 @@ export const NAV_ITEMS: NavItem[] = [
 ]
 
 export function normalizeRole(role?: string): Role {
-  return role === 'admin' || role === 'tecnico' ? role : 'asesor'
+  return role === 'admin' || role === 'tecnico' || role === 'cajero' ? role : 'asesor'
 }
 
-export function itemsForRole(role?: string): NavItem[] {
+/** El módulo de órdenes se llama distinto según el comercio: Reparaciones / Servicios. */
+function withBusinessLabels(items: NavItem[], profile?: BusinessProfile): NavItem[] {
+  if (!profile) return items
+  return items.map((i) => (i.id === 'repairs' ? { ...i, label: profile.vocab.orders } : i))
+}
+
+export function itemsForRole(role?: string, profile?: BusinessProfile): NavItem[] {
   const r = normalizeRole(role)
-  return NAV_ITEMS.filter((i) => i.roles.includes(r))
+  return withBusinessLabels(
+    NAV_ITEMS.filter((i) => i.roles.includes(r)),
+    profile
+  )
 }
 
 export function hasAccess(view: string, role?: string): boolean {
@@ -72,10 +82,11 @@ export function hasAccess(view: string, role?: string): boolean {
   return NAV_ITEMS.some((i) => i.id === view && i.roles.includes(r))
 }
 
-/** El técnico entra por OT y el asesor por ventas: es su primera pantalla del día. */
+/** El técnico entra por OT, el asesor por ventas y el cajero por la caja: lo primero del día es abrirla. */
 export function defaultViewForRole(role?: string): ViewId {
   const r = normalizeRole(role)
   if (r === 'tecnico') return 'repairs'
+  if (r === 'cajero') return 'cash'
   if (r === 'asesor') return 'sales'
   return 'dashboard'
 }
@@ -84,23 +95,24 @@ export function defaultViewForRole(role?: string): ViewId {
  * Barra inferior: cinco destinos como máximo, para que cada celda conserve sus 44px.
  * Si el rol no llega a cinco primarios, se completa con lo que sí puede ver.
  */
-export function bottomNavItems(role?: string): NavItem[] {
-  const allowed = itemsForRole(role)
+export function bottomNavItems(role?: string, profile?: BusinessProfile): NavItem[] {
+  const allowed = itemsForRole(role, profile)
   const primary = allowed.filter((i) => i.primary)
   if (primary.length >= 5) return primary.slice(0, 5)
   return [...primary, ...allowed.filter((i) => !i.primary)].slice(0, 5)
 }
 
 /** Lo que no cupo abajo se ofrece en la hoja "Más". */
-export function moreSheetItems(role?: string): NavItem[] {
-  const inBar = new Set(bottomNavItems(role).map((i) => i.id))
-  return itemsForRole(role).filter((i) => !inBar.has(i.id))
+export function moreSheetItems(role?: string, profile?: BusinessProfile): NavItem[] {
+  const inBar = new Set(bottomNavItems(role, profile).map((i) => i.id))
+  return itemsForRole(role, profile).filter((i) => !inBar.has(i.id))
 }
 
 export const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
   tecnico: 'Técnico',
   asesor: 'Asesor',
+  cajero: 'Cajero',
 }
 
 export function initialsOf(name?: string): string {

@@ -1,16 +1,24 @@
-import { useEffect, useState } from 'react'
-import { Lock, Upload, X } from 'lucide-react'
-import type { CSSProperties, ReactNode } from 'react'
-import { Button, FieldGroup, FormField, Input, Select, Tabs, Textarea, type TabItem } from '../oryon'
+import { useEffect, useMemo, useState } from 'react'
+import { History, Lock, Upload, X } from 'lucide-react'
+import { Alert, Button, FieldGroup, FormField, Input, Select, Tabs, Textarea, type TabItem } from '../oryon'
 import { FormDialog } from '../layout/FormDialog'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { PatternLock } from '../PatternLock'
-import { CustomerSelector } from './CustomerSelector'
+import { useBusiness } from '../../utils/BusinessContext'
+import { cap, computeAssetKey, thisAsset, type BusinessProfile } from '../../config/businessTypes'
+import { CustomerSelector, type CustomerPreselect } from './CustomerSelector'
 import { Customer, RepairFormData } from './types'
-import { deviceTypes } from './constants'
+import { useAssetHistory } from './hooks/useAssetHistory'
+import { AssetFields, readField } from './ui/AssetFields'
+import { entryMileage, historySummary } from './ui/AssetHistory'
 
 /**
- * Alta de orden de reparación.
+ * Alta de orden de reparación o de servicio.
+ *
+ * El formulario se arma desde el perfil del comercio (config/businessTypes):
+ * un taller de motos pide placa, cilindraje y kilometraje; uno de celulares,
+ * IMEI y clave de desbloqueo. Al escribir el identificador (placa, IMEI,
+ * serial de marco) aparecen las visitas anteriores y se pueden reusar sus datos.
  *
  * En escritorio va a dos columnas: a la izquierda quién trae el equipo y cuál es,
  * a la derecha qué le pasa y qué se acordó. Antes eran once bloques apilados en
@@ -39,17 +47,18 @@ interface NewRepairDialogProps {
   identificationTypes: string[]
   branches: Branch[]
   userRole?: string
+  accessToken: string | null
   onSubmit: (formData: RepairFormData, uploadedImages: string[], selectedCustomerId: number | null) => Promise<void>
 }
 
 
-const emptyForm = (branchId?: string): RepairFormData => ({
+const emptyForm = (profile: BusinessProfile, branchId?: string): RepairFormData => ({
   customerName: '',
   customerPhone: '',
   customerEmail: '',
   customerIdentificationType: '',
   customerIdentificationNumber: '',
-  deviceType: 'celular',
+  deviceType: profile.assetTypes[0]?.value ?? 'otro',
   deviceBrand: '',
   deviceModel: '',
   imei: '',
@@ -61,6 +70,7 @@ const emptyForm = (branchId?: string): RepairFormData => ({
   devicePassword: '',
   devicePattern: [],
   branchId,
+  assetDetails: {},
 })
 
 export function NewRepairDialog({
@@ -70,13 +80,57 @@ export function NewRepairDialog({
   identificationTypes,
   branches,
   userRole,
+  accessToken,
   onSubmit,
 }: NewRepairDialogProps) {
-  const [formData, setFormData] = useState<RepairFormData>(() => emptyForm(branches[0]?.id))
+  const { profile } = useBusiness()
+  const { vocab } = profile
+  const [formData, setFormData] = useState<RepairFormData>(() => emptyForm(profile, branches[0]?.id))
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
+  const [customerPreselect, setCustomerPreselect] = useState<CustomerPreselect | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [errors, setErrors] = useState<Partial<Record<'customerName' | 'customerPhone' | 'deviceBrand' | 'deviceModel' | 'problem' | 'estimatedCost', string>>>({})
+  const [errors, setErrors] = useState<Record<string, string | undefined>>({})
+
+  /* El identificador va arriba, solo: es lo primero que se escribe y lo que
+     dispara el historial. El resto de campos del comercio va tras marca y modelo. */
+  const identifier = profile.assetFields.find((f) => f.key === profile.identifierKey)
+  const otherFields = profile.assetFields.filter((f) => f.key !== profile.identifierKey)
+
+  const assetKey = computeAssetKey(formData, profile)
+  const history = useAssetHistory(accessToken, assetKey)
+  const lastVisit = history.entries[0]
+  const lastMileage = lastVisit ? entryMileage(lastVisit) : null
+  const currentMileage = Number(formData.assetDetails?.mileage)
+  const mileageWentBack = lastMileage != null && Number.isFinite(currentMileage) && currentMileage > 0 && currentMileage < lastMileage
+
+  /* Si el admin cambia el tipo de comercio con el formulario cerrado, el
+     siguiente alta arranca con los tipos de bien del comercio nuevo. */
+  useEffect(() => {
+    setFormData((prev) => ({ ...emptyForm(profile, prev.branchId) }))
+    setErrors({})
+  }, [profile.id])
+
+  /** Reusar la última visita: tipo, marca, modelo, datos fijos del bien y cliente. */
+  const applyLastVisit = () => {
+    if (!lastVisit) return
+    // El kilometraje y la falla son de hoy, no de la visita anterior.
+    const { mileage: _km, ...stableDetails } = lastVisit.assetDetails ?? {}
+    setFormData((prev) => ({
+      ...prev,
+      deviceType: lastVisit.deviceType || prev.deviceType,
+      deviceBrand: lastVisit.deviceBrand || prev.deviceBrand,
+      deviceModel: lastVisit.deviceModel || prev.deviceModel,
+      imei: prev.imei || lastVisit.imei || '',
+      serialNumber: prev.serialNumber || lastVisit.serialNumber || '',
+      assetDetails: { ...stableDetails, ...pickNonEmpty(prev.assetDetails) },
+      customerName: lastVisit.customerName || prev.customerName,
+      customerPhone: lastVisit.customerPhone || prev.customerPhone,
+      customerEmail: lastVisit.customerEmail || prev.customerEmail,
+    }))
+    setErrors({})
+    setCustomerPreselect({ id: lastVisit.customerId, nonce: Date.now() })
+  }
 
   const { isMobile, isDesktop } = useBreakpoint()
   const size = isMobile ? 'lg' : 'md'
@@ -117,7 +171,10 @@ export function NewRepairDialog({
     if (!formData.customerPhone.trim()) next.customerPhone = 'El teléfono es como se le avisa al cliente.'
     if (!formData.deviceBrand.trim()) next.deviceBrand = 'Escribe la marca.'
     if (!formData.deviceModel.trim()) next.deviceModel = 'Escribe el modelo.'
-    if (!formData.problem.trim()) next.problem = 'Describe la falla que reporta el cliente.'
+    for (const field of profile.assetFields) {
+      if (field.required && !readField(formData, field).trim()) next[field.key] = `Escribe ${field.label.toLowerCase()}.`
+    }
+    if (!formData.problem.trim()) next.problem = `Escribe ${vocab.problem.toLowerCase()}.`
     if (formData.estimatedCost === '' || Number(formData.estimatedCost) < 0) {
       next.estimatedCost = 'Escribe el costo estimado, aunque sea 0.'
     }
@@ -131,9 +188,10 @@ export function NewRepairDialog({
     setSubmitting(true)
     try {
       await onSubmit(formData, uploadedImages, selectedCustomerId)
-      setFormData(emptyForm(branches[0]?.id))
+      setFormData(emptyForm(profile, branches[0]?.id))
       setUploadedImages([])
       setSelectedCustomerId(null)
+      setCustomerPreselect(null)
       setErrors({})
     } finally {
       setSubmitting(false)
@@ -144,7 +202,7 @@ export function NewRepairDialog({
     <FormDialog
       open={open}
       onClose={() => onOpenChange(false)}
-      title="Nueva orden de reparación"
+      title={profile.id === 'electronica' ? 'Nueva orden de reparación' : `Nueva ${vocab.order}`}
       description="Los campos con * son los que necesita la orden para poder entregarse y cobrarse."
       footer={
         <>
@@ -168,7 +226,7 @@ export function NewRepairDialog({
           gap: isDesktop ? 28 : 22,
         }}
       >
-        {/* ── Quién trae el equipo y cuál es ──────────────────────────── */}
+        {/* ── Quién trae el bien y cuál es ──────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22, minWidth: 0 }}>
           <FieldGroup title="Cliente">
             <CustomerSelector
@@ -177,6 +235,7 @@ export function NewRepairDialog({
               formData={formData}
               onFormDataChange={change}
               onCustomerSelect={setSelectedCustomerId}
+              preselect={customerPreselect}
             />
             {(errors.customerName || errors.customerPhone) && (
               <p role="alert" style={{ margin: 0, fontSize: 'var(--text-caption)', color: 'var(--danger)' }}>
@@ -185,14 +244,30 @@ export function NewRepairDialog({
             )}
           </FieldGroup>
 
-          <FieldGroup title="Equipo">
+          <FieldGroup title={cap(vocab.asset)}>
+            {identifier && profile.id !== 'electronica' && (
+              <>
+                <AssetFields fields={[identifier]} formData={formData} onChange={change} size={size} columns={1} errors={errors} />
+                {lastVisit && (
+                  <Alert variant="info" title={`Ya conocemos ${thisAsset(profile)}`}>
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+                      <span>{historySummary(history.entries)}{lastVisit.customerName ? ` · ${lastVisit.customerName}` : ''}</span>
+                      <Button size="sm" variant="secondary" iconLeft={History} onClick={applyLastVisit}>
+                        Usar datos
+                      </Button>
+                    </span>
+                  </Alert>
+                )}
+              </>
+            )}
+
             <div style={twoUp}>
               <FormField label="Tipo">
                 <Select
                   size={size}
                   value={formData.deviceType}
                   onChange={(e) => change({ deviceType: e.target.value })}
-                  options={deviceTypes.map((t) => ({ value: t.value, label: t.label }))}
+                  options={profile.assetTypes}
                 />
               </FormField>
               <FormField label="Sucursal" required hint={branches.length === 1 ? `Se asignará a ${branches[0].name}` : undefined}>
@@ -209,24 +284,42 @@ export function NewRepairDialog({
 
             <div style={twoUp}>
               <FormField label="Marca" required error={errors.deviceBrand}>
-                <Input size={size} value={formData.deviceBrand} onChange={(e) => change({ deviceBrand: e.target.value })} placeholder="Apple" />
+                <Input size={size} value={formData.deviceBrand} onChange={(e) => change({ deviceBrand: e.target.value })} placeholder={profile.brandPlaceholder} />
               </FormField>
               <FormField label="Modelo" required error={errors.deviceModel}>
-                <Input size={size} value={formData.deviceModel} onChange={(e) => change({ deviceModel: e.target.value })} placeholder="iPhone 12" />
+                <Input size={size} value={formData.deviceModel} onChange={(e) => change({ deviceModel: e.target.value })} placeholder={profile.modelPlaceholder} />
               </FormField>
             </div>
 
-            <div style={twoUp}>
-              <FormField label="IMEI" hint="Opcional">
-                <Input size={size} mono inputMode="numeric" value={formData.imei} onChange={(e) => change({ imei: e.target.value })} placeholder="356938035643809" />
-              </FormField>
-              <FormField label="Número de serie" hint="Opcional">
-                <Input size={size} mono value={formData.serialNumber} onChange={(e) => change({ serialNumber: e.target.value })} placeholder="SN123456789" />
-              </FormField>
-            </div>
+            <AssetFields
+              fields={profile.id === 'electronica' ? profile.assetFields : otherFields}
+              formData={formData}
+              onChange={change}
+              size={size}
+              columns={isMobile ? 1 : 2}
+              errors={errors}
+            />
+
+            {/* En electrónica el IMEI va con los demás campos; el historial, debajo. */}
+            {profile.id === 'electronica' && lastVisit && (
+              <Alert variant="info" title={`Ya conocemos ${thisAsset(profile)}`}>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+                  <span>{historySummary(history.entries)}{lastVisit.customerName ? ` · ${lastVisit.customerName}` : ''}</span>
+                  <Button size="sm" variant="secondary" iconLeft={History} onClick={applyLastVisit}>
+                    Usar datos
+                  </Button>
+                </span>
+              </Alert>
+            )}
+
+            {mileageWentBack && (
+              <Alert variant="warning" title="El kilometraje es menor que en la última visita">
+                La última vez se registraron {lastMileage!.toLocaleString('es-CO')} km. Revisa que esté bien escrito.
+              </Alert>
+            )}
           </FieldGroup>
 
-          <FieldGroup title="Estado de recepción" hint="Las fotos son la prueba de cómo llegó el equipo. Evitan discusiones al entregar.">
+          <FieldGroup title="Estado de recepción" hint={`Las fotos son la prueba de cómo llegó ${profile.vocab.article} ${vocab.asset}. Evitan discusiones al entregar.`}>
             <label
               htmlFor="image-upload"
               style={{
@@ -304,16 +397,16 @@ export function NewRepairDialog({
         {/* ── Qué le pasa y qué se acordó ──────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22, minWidth: 0 }}>
           <FieldGroup title="Servicio">
-            <FormField label="Falla reportada" required error={errors.problem}>
+            <FormField label={vocab.problem} required error={errors.problem}>
               <Textarea
                 rows={3}
                 value={formData.problem}
                 onChange={(e) => change({ problem: e.target.value })}
-                placeholder="Lo que dice el cliente, con sus palabras."
+                placeholder={vocab.problemPlaceholder}
               />
             </FormField>
 
-            <FormField label="Costo estimado" required error={errors.estimatedCost} hint="Lo que se le dice al cliente al recibir el equipo.">
+            <FormField label="Costo estimado" required error={errors.estimatedCost} hint={`Lo que se le dice al cliente al recibir ${profile.vocab.article} ${vocab.asset}.`}>
               <Input
                 size={size}
                 type="number"
@@ -328,10 +421,11 @@ export function NewRepairDialog({
             </FormField>
 
             <FormField label="Notas internas" hint="No las ve el cliente.">
-              <Textarea rows={2} value={formData.notes} onChange={(e) => change({ notes: e.target.value })} placeholder="Detalles para el técnico." />
+              <Textarea rows={2} value={formData.notes} onChange={(e) => change({ notes: e.target.value })} placeholder={`Detalles para el ${vocab.technician.toLowerCase()}.`} />
             </FormField>
           </FieldGroup>
 
+          {profile.devicePassword && (
           <FieldGroup title="Desbloqueo" hint="Opcional, pero sin esto el técnico no puede probar el equipo.">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)' }}>
               <Lock size={14} strokeWidth={1.8} />
@@ -365,9 +459,17 @@ export function NewRepairDialog({
               </div>
             )}
           </FieldGroup>
+          )}
 
         </div>
       </form>
     </FormDialog>
   )
+}
+
+/** Solo los valores ya escritos: lo que el usuario tecleó gana a lo reusado. */
+function pickNonEmpty(details?: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(details ?? {})) if (v) out[k] = v
+  return out
 }

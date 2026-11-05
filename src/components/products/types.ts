@@ -12,6 +12,8 @@ export interface Product {
   storage?: string
   ram?: string
   color?: string
+  /** Ficha según el comercio: referencia, aplicación / compatibilidad… */
+  specs?: Record<string, string>
   description: string
   quantity?: number
   trackByUnit?: boolean
@@ -58,6 +60,7 @@ export interface ProductFormData {
   storage: string
   ram: string
   color: string
+  specs: Record<string, string>
   description: string
   trackByUnit: boolean
   hasVariants: boolean
@@ -105,7 +108,7 @@ export interface UserProfile {
   id: string
   name: string
   email: string
-  role: 'admin' | 'asesor' | 'tecnico'
+  role: 'admin' | 'asesor' | 'tecnico' | 'cajero'
   branchId?: string // Deprecated: use assignedBranches instead
   assignedBranches?: string[] // Array of branch IDs the user can access
 }

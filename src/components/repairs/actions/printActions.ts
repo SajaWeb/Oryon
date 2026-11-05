@@ -11,6 +11,14 @@ import {
 } from '../../../utils/printing'
 import { Repair } from '../types'
 import { statusLabels } from '../constants'
+import {
+  assetIdentifier,
+  assetTypeLabel,
+  cap,
+  formatFieldValue,
+  getBusinessProfile,
+  identifierField,
+} from '../../../config/businessTypes'
 
 export const handlePrintServiceOrder = async (
   repair: Repair,
@@ -41,16 +49,27 @@ export const handlePrintServiceOrder = async (
     // BrowserRouter format: clean URLs without hash
     const trackingUrl = `${window.location.origin}/tracking/${repair.companyId}/${repair.id}`
     
+    // El vocabulario sale del comercio de la empresa (lo manda el servidor en printConfig).
+    const profile = getBusinessProfile(printConfig.businessType)
+    const assetRows = profile.assetFields
+      .filter((f) => f.showOnPrint)
+      .map((f) => ({ label: f.label, value: formatFieldValue(repair, f), mono: f.mono }))
+      .filter((r) => r.value)
+
     const serviceOrderData: ServiceOrderData = {
       orderNumber: `#${repair.id}`,
       date: new Date(repair.receivedDate).toLocaleString('es-CO'),
       customerName: repair.customerName,
       customerPhone: repair.customerPhone,
       customerEmail: repair.customerEmail,
-      device: repair.deviceType,
+      device: assetTypeLabel(profile, repair.deviceType),
       brand: repair.deviceBrand,
       model: repair.deviceModel,
       serialNumber: repair.serialNumber || repair.imei,
+      assetLabel: cap(profile.vocab.asset),
+      assetRows,
+      problemLabel: profile.vocab.problem,
+      technicianLabel: profile.vocab.technician,
       problem: repair.problem,
       observations: repair.notes,
       estimatedCost: repair.estimatedCost,
@@ -90,6 +109,7 @@ export const handlePrintDeviceLabel = async (
     }
 
     const printConfig: PrintConfig = configData.printConfig
+    const profile = getBusinessProfile(printConfig.businessType)
     
     const deviceLabelData: DeviceLabelData = {
       orderNumber: `#${repair.id}`,
@@ -97,7 +117,15 @@ export const handlePrintDeviceLabel = async (
       customerPhone: repair.customerPhone,
       problem: repair.problem,
       devicePassword: repair.devicePassword,
-      devicePasswordType: repair.devicePasswordType
+      devicePasswordType: repair.devicePasswordType,
+      title: profile.labelTitle,
+      identifier: (() => {
+        const field = identifierField(profile)
+        const value = assetIdentifier(repair, profile)
+        return field && value ? { label: field.label, value } : undefined
+      })(),
+      showPassword: profile.devicePassword,
+      problemLabel: profile.vocab.problem,
     }
     
     /* La etiqueta no toma formato: siempre va en rollo de 55 mm, porque es un
@@ -105,7 +133,7 @@ export const handlePrintDeviceLabel = async (
     printDeviceLabel(deviceLabelData)
   } catch (error) {
     console.error('Error printing device label:', error)
-    toast.error('Error al imprimir la etiqueta del equipo')
+    toast.error('Error al imprimir la etiqueta')
   }
 }
 
@@ -152,8 +180,21 @@ export const handlePrintInvoiceFromRepair = async (
         notes: additionalNotes,
         // Additional repair information
         repairOrderNumber: `#${repair.id}`,
-        deviceInfo: `${repair.deviceType} ${repair.deviceBrand} ${repair.deviceModel}`.trim(),
-        technicianName: repair.assignedTo || userName
+        deviceInfo: [
+          assetTypeLabel(getBusinessProfile(printConfig.businessType), repair.deviceType),
+          repair.deviceBrand,
+          repair.deviceModel,
+          // La placa o el serial sí van en la factura de un taller; el IMEI nunca fue.
+          printConfig.businessType && printConfig.businessType !== 'electronica'
+            ? assetIdentifier(repair, getBusinessProfile(printConfig.businessType))
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim(),
+        deviceLabel: cap(getBusinessProfile(printConfig.businessType).vocab.asset),
+        technicianName: repair.assignedTo || userName,
+        technicianLabel: getBusinessProfile(printConfig.businessType).vocab.technician
       }
       
       /* La factura se descarga como PDF, igual que en el punto de venta: sin
