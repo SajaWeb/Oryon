@@ -10,6 +10,7 @@ import { BottomNav } from './BottomNav'
 import { MoreSheet } from './MoreSheet'
 import { PageHeaderProvider } from './PageHeaderContext'
 import { ROLE_LABELS, initialsOf, itemsForRole, moreSheetItems, type ViewId } from './navItems'
+import { useBusiness } from '../../utils/BusinessContext'
 
 const SIDEBAR_KEY = 'oryon-sidebar-collapsed'
 
@@ -55,6 +56,7 @@ export function AppShell({
   children: ReactNode
 }) {
   const { isMobile, compact } = useBreakpoint()
+  const { profile } = useBusiness()
   const [moreOpen, setMoreOpen] = useState(false)
   const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null)
   const [userCollapsed, setUserCollapsed] = useState(
@@ -82,7 +84,7 @@ export function AppShell({
   const navEntries = useMemo<NavEntry[]>(() => {
     const entries: NavEntry[] = []
     let section: string | null = null
-    for (const item of itemsForRole(role)) {
+    for (const item of itemsForRole(role, profile)) {
       if (item.section !== section) {
         entries.push({ section: item.section })
         section = item.section
@@ -90,7 +92,7 @@ export function AppShell({
       entries.push({ id: item.id, label: item.label, icon: item.icon })
     }
     return entries
-  }, [role])
+  }, [role, profile])
 
   const handleSupport = () => {
     const message =
@@ -136,7 +138,7 @@ export function AppShell({
               onOpenMore={() => setMoreOpen(true)}
               moreOpen={moreOpen}
               role={role}
-              moreViewIds={moreSheetItems(role).map((i) => i.id)}
+              moreViewIds={moreSheetItems(role, profile).map((i) => i.id)}
             />
             <MoreSheet
               open={moreOpen}

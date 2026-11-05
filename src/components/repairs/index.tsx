@@ -36,6 +36,8 @@ import { InvoiceDialog } from './InvoiceDialog'
 import { RepairFormData, InvoiceFormData, Repair } from './types'
 import { filterRepairs } from './utils'
 import { statusLabels } from './constants'
+import { useBusiness } from '../../utils/BusinessContext'
+import { assetSummary, cap } from '../../config/businessTypes'
 
 interface UserProfile {
   id: string
@@ -72,8 +74,10 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
   // ListPage, así que aquí solo queda el filtrado.
   const filteredRepairs = filterRepairs(repairs, searchTerm, filterStatus)
 
+  const { profile } = useBusiness()
+
   usePageHeader({
-    title: 'Reparaciones',
+    title: profile.vocab.orders,
     subtitle: loading
       ? 'Cargando órdenes…'
       : `${filteredRepairs.length} de ${repairs.length} ${repairs.length === 1 ? 'orden' : 'órdenes'}`,
@@ -232,9 +236,9 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
       label: 'Estado',
       render: (r) => <StatusBadge status={normalizeState(r.status)} label={statusLabels[r.status]} size="sm" />,
     },
-    { key: 'device', label: 'Equipo', render: (r) => `${r.deviceBrand} ${r.deviceModel}` },
+    { key: 'device', label: cap(profile.vocab.asset), render: (r) => assetSummary(r, profile) },
     { key: 'customerName', label: 'Cliente' },
-    { key: 'problem', label: 'Falla reportada', muted: true, hideOnCompact: true },
+    { key: 'problem', label: profile.vocab.problem, muted: true, hideOnCompact: true },
     {
       key: 'branch',
       label: 'Sucursal',
@@ -307,7 +311,7 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
-          placeholder: 'Cliente, teléfono, marca, IMEI, #OT…',
+          placeholder: profile.id === 'electronica' ? 'Cliente, teléfono, marca, IMEI, #OT…' : `Cliente, teléfono, marca, ${profile.assetFields.find((f) => f.key === profile.identifierKey)?.label.toLowerCase() ?? 'serial'}, #OT…`,
         }}
         filters={[
           {
@@ -330,7 +334,7 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
           title: repairs.length === 0 ? 'Sin órdenes' : 'Sin resultados',
           description:
             repairs.length === 0
-              ? 'Aún no hay órdenes de trabajo. Crea la primera al recibir un equipo.'
+              ? `Aún no hay órdenes de trabajo. Crea la primera al recibir ${profile.vocab.article === 'la' ? 'una' : 'un'} ${profile.vocab.asset}.`
               : 'Ninguna orden coincide con el estado o la búsqueda.',
         }}
         chips={isMobile ? statusChips : undefined}
@@ -344,7 +348,7 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
         onClose={() => dialogs.setDetailDialogOpen(false)}
         kind="Orden de trabajo"
         title={selected ? `Orden #${selected.id}` : ''}
-        meta={selected ? `${selected.deviceBrand} ${selected.deviceModel} · ${selected.customerName}` : undefined}
+        meta={selected ? `${assetSummary(selected, profile)} · ${selected.customerName}` : undefined}
         actions={
           selected && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -394,6 +398,7 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
         {selected && (
           <RepairDetailPanel
             repair={selected}
+            accessToken={accessToken}
             branches={branches}
             columns={compact ? 1 : 2}
             onImageClick={dialogs.openImagePreview}
@@ -409,6 +414,7 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
         identificationTypes={identificationTypes}
         branches={getAvailableBranches(userRole, userProfile)}
         userRole={userRole}
+        accessToken={accessToken}
         onSubmit={handleSubmitNewRepair}
       />
 

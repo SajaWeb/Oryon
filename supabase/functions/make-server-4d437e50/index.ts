@@ -8,13 +8,31 @@ import * as kv from './kv_store.ts'
 import { verifyWompiEvent } from './wompi_signature.ts'
 import {
   businessDate,
+  canAccessBranch,
+  canHandleCash,
   computeTotals,
+  isAdmin,
+  isCashMethod,
+  isStale,
   movementPrefix,
+  normalizePaymentMethod,
   openSessionKey,
+  saleSummary,
+  sanitizeSession,
+  sanitizeTotals,
   sessionKey,
+  STAFF_ROLES,
   type CashMovement,
   type CashSession,
 } from './cash.ts'
+import {
+  BUSINESS_TYPES,
+  computeAssetKey,
+  isBusinessType,
+  normalizeAssetKey,
+  resolveBusinessType,
+  sanitizeDetails,
+} from './business.ts'
 
 const app = new Hono()
 
@@ -1441,6 +1459,7 @@ async function loadSessionActivity(session: CashSession) {
   const sales = allSales
     .map((s: any) => (typeof s === 'string' ? JSON.parse(s) : s))
     .filter((s: any) => s && s.cashSessionId === session.id && s.status !== 'cancelled')
+    .sort((a: any, b: any) => String(a.createdAt).localeCompare(String(b.createdAt)))
 
   const rawMovements = await kv.getByPrefix(movementPrefix(session.id))
   const movements = rawMovements
@@ -1451,27 +1470,99 @@ async function loadSessionActivity(session: CashSession) {
   return { sales, movements }
 }
 
+/** Respuesta HTTP ya armada, para devolverla tal cual desde el handler. */
+interface CashGuardError {
+  status: 403 | 409
+  body: Record<string, unknown>
+}
+
+/**
+ * El candado único de todo cobro. Una venta solo existe si:
+ *  1. quien cobra puede manejar caja,
+ *  2. la sucursal es suya,
+ *  3. esa sucursal tiene la caja abierta,
+ *  4. y esa caja es la de hoy.
+ * Ventas, facturas de reparación y devoluciones pasan todas por aquí.
+ */
+async function requireCashSession(
+  userProfile: any,
+  branchId: string | undefined
+): Promise<{ session: CashSession; error?: undefined } | { session?: undefined; error: CashGuardError }> {
+  if (!canHandleCash(userProfile)) {
+    return { error: { status: 403, body: { success: false, error: 'Tu rol no puede registrar cobros', code: 'ROLE_FORBIDDEN' } } }
+  }
+  if (!branchId || !canAccessBranch(userProfile, branchId)) {
+    return {
+      error: { status: 403, body: { success: false, error: 'No tienes acceso a esta sucursal', code: 'BRANCH_FORBIDDEN', branchId } },
+    }
+  }
+  const session = await findOpenSession(userProfile.companyId, branchId)
+  if (!session) {
+    return {
+      error: { status: 409, body: { success: false, error: 'No hay caja abierta en esta sucursal', code: 'CASH_SESSION_REQUIRED', branchId } },
+    }
+  }
+  if (isStale(session)) {
+    return {
+      error: {
+        status: 409,
+        body: {
+          success: false,
+          error: `La caja del ${session.date} sigue abierta: ciérrala antes de cobrar`,
+          code: 'CASH_SESSION_STALE',
+          branchId,
+          sessionDate: session.date,
+        },
+      },
+    }
+  }
+  return { session }
+}
+
+/** Autenticación + perfil, común a todos los endpoints de caja. */
+type CashAuthResult =
+  | { response: Response; user?: undefined; userProfile?: undefined }
+  | { response?: undefined; user: { id: string }; userProfile: any }
+
+async function cashAuth(c: any): Promise<CashAuthResult> {
+  const { error, user } = await verifyAuth(c.req.header('Authorization'))
+  if (error || !user) return { response: c.json({ success: false, error: 'Unauthorized' }, 401) }
+  const userProfile = await getUserProfile(user.id)
+  if (!userProfile) return { response: c.json({ success: false, error: 'User profile not found' }, 404) }
+  if (!canHandleCash(userProfile)) {
+    return { response: c.json({ success: false, error: 'Tu rol no tiene acceso a la caja', code: 'ROLE_FORBIDDEN' }, 403) }
+  }
+  return { user, userProfile }
+}
+
 /** Estado de la caja de una sucursal: abierta con sus totales, o nada. */
 const handleCashSession = async (c: any) => {
   try {
-    const { error, user } = await verifyAuth(c.req.header('Authorization'))
-    if (error || !user) return c.json({ success: false, error: 'Unauthorized' }, 401)
-    const userProfile = await getUserProfile(user.id)
-    if (!userProfile) return c.json({ success: false, error: 'User profile not found' }, 404)
+    const auth = await cashAuth(c)
+    if (auth.response) return auth.response
+    const { user, userProfile } = auth
 
     const branchId = c.req.query('branchId')
     if (!branchId) return c.json({ success: false, error: 'branchId es requerido' }, 400)
+    if (!canAccessBranch(userProfile, branchId)) {
+      return c.json({ success: false, error: 'No tienes acceso a esta sucursal', code: 'BRANCH_FORBIDDEN' }, 403)
+    }
 
+    const admin = isAdmin(userProfile)
     const session = await findOpenSession(userProfile.companyId, branchId)
-    if (!session) return c.json({ success: true, session: null })
+    if (!session) return c.json({ success: true, session: null, isAdmin: admin })
 
     const { sales, movements } = await loadSessionActivity(session)
     return c.json({
       success: true,
-      session,
-      totals: computeTotals(session, sales, movements),
+      session: sanitizeSession(session, admin),
+      totals: sanitizeTotals(computeTotals(session, sales, movements), admin),
       movements,
-      canClose: session.openedByUserId === user.id || userProfile.role === 'admin',
+      sales: sales.map(saleSummary),
+      stale: isStale(session),
+      today: businessDate(),
+      isAdmin: admin,
+      canClose: session.openedByUserId === user.id || admin,
     })
   } catch (err: any) {
     console.log('Error en /cash/session:', err)
@@ -1484,22 +1575,37 @@ app.get('/make-server-4d437e50/cash/session', handleCashSession)
 
 const handleCashOpen = async (c: any) => {
   try {
-    const { error, user } = await verifyAuth(c.req.header('Authorization'))
-    if (error || !user) return c.json({ success: false, error: 'Unauthorized' }, 401)
-    const userProfile = await getUserProfile(user.id)
-    if (!userProfile) return c.json({ success: false, error: 'User profile not found' }, 404)
+    const auth = await cashAuth(c)
+    if (auth.response) return auth.response
+    const { user, userProfile } = auth
 
     const { branchId, baseAmount } = await c.req.json()
     if (!branchId) return c.json({ success: false, error: 'Elige la sucursal' }, 400)
+    if (!canAccessBranch(userProfile, branchId)) {
+      return c.json({ success: false, error: 'No tienes acceso a esta sucursal', code: 'BRANCH_FORBIDDEN' }, 403)
+    }
 
     const base = Number(baseAmount)
     if (!Number.isFinite(base) || base < 0) {
       return c.json({ success: false, error: 'La base tiene que ser un monto válido' }, 400)
     }
 
+    /* Si hay una abierta —incluida una vencida de ayer— no se abre otra: la de
+       ayer tiene que cerrarse con su arqueo para que cada día quede en su cierre. */
     const existing = await findOpenSession(userProfile.companyId, branchId)
     if (existing) {
-      return c.json({ success: false, error: 'Esta sucursal ya tiene la caja abierta', session: existing }, 409)
+      const stale = isStale(existing)
+      return c.json(
+        {
+          success: false,
+          error: stale
+            ? `La caja del ${existing.date} sigue abierta: ciérrala antes de abrir la de hoy`
+            : 'Esta sucursal ya tiene la caja abierta',
+          code: stale ? 'CASH_SESSION_STALE' : 'CASH_SESSION_OPEN',
+          session: sanitizeSession(existing, isAdmin(userProfile)),
+        },
+        409
+      )
     }
 
     const branchRaw = await kv.get(`branch:${branchId}`)
@@ -1537,15 +1643,18 @@ app.post('/make-server-4d437e50/cash/session/open', handleCashOpen)
 
 const handleCashClose = async (c: any) => {
   try {
-    const { error, user } = await verifyAuth(c.req.header('Authorization'))
-    if (error || !user) return c.json({ success: false, error: 'Unauthorized' }, 401)
-    const userProfile = await getUserProfile(user.id)
-    if (!userProfile) return c.json({ success: false, error: 'User profile not found' }, 404)
+    const auth = await cashAuth(c)
+    if (auth.response) return auth.response
+    const { user, userProfile } = auth
+    const admin = isAdmin(userProfile)
 
     const { sessionId, countedAmount, notes } = await c.req.json()
     const session = await loadSession(String(sessionId ?? ''))
     if (!session || session.companyId !== userProfile.companyId) {
       return c.json({ success: false, error: 'La caja no existe' }, 404)
+    }
+    if (!canAccessBranch(userProfile, session.branchId)) {
+      return c.json({ success: false, error: 'No tienes acceso a esta sucursal', code: 'BRANCH_FORBIDDEN' }, 403)
     }
     if (session.status === 'closed') {
       return c.json({ success: false, error: 'Esta caja ya está cerrada' }, 409)
@@ -1553,7 +1662,7 @@ const handleCashClose = async (c: any) => {
 
     /* Cierra quien la abrió; el administrador puede cerrar cualquiera —si no, una
        caja abierta por alguien que ya se fue quedaría bloqueada para siempre. */
-    if (session.openedByUserId !== user.id && userProfile.role !== 'admin') {
+    if (session.openedByUserId !== user.id && !admin) {
       return c.json({ success: false, error: 'Solo puede cerrarla quien la abrió, o un administrador' }, 403)
     }
 
@@ -1570,18 +1679,25 @@ const handleCashClose = async (c: any) => {
       status: 'closed',
       closedByUserId: user.id,
       closedByName: userProfile.name,
+      closedByRole: userProfile.role,
       closedAt: new Date().toISOString(),
       countedAmount: counted,
       expectedCash: totals.expectedCash,
       difference: counted - totals.expectedCash,
-      closingNotes: notes || '',
+      closingNotes: String(notes ?? '').trim(),
+      totalsSnapshot: totals,
     }
 
     await kv.set(sessionKey(session.id), JSON.stringify(closed))
     await kv.del(openSessionKey(session.companyId, session.branchId))
 
     console.log(`Caja cerrada en ${session.branchName}: diferencia ${closed.difference}`)
-    return c.json({ success: true, session: closed, totals })
+    return c.json({
+      success: true,
+      session: sanitizeSession(closed, admin),
+      totals: sanitizeTotals(totals, admin),
+      isAdmin: admin,
+    })
   } catch (err: any) {
     console.log('Error en /cash/session/close:', err)
     return c.json({ success: false, error: String(err) }, 500)
@@ -1593,10 +1709,10 @@ app.post('/make-server-4d437e50/cash/session/close', handleCashClose)
 
 const handleCashMovement = async (c: any) => {
   try {
-    const { error, user } = await verifyAuth(c.req.header('Authorization'))
-    if (error || !user) return c.json({ success: false, error: 'Unauthorized' }, 401)
-    const userProfile = await getUserProfile(user.id)
-    if (!userProfile) return c.json({ success: false, error: 'User profile not found' }, 404)
+    const auth = await cashAuth(c)
+    if (auth.response) return auth.response
+    const { user, userProfile } = auth
+    const admin = isAdmin(userProfile)
 
     const { sessionId, type, amount, concept, notes } = await c.req.json()
 
@@ -1604,8 +1720,22 @@ const handleCashMovement = async (c: any) => {
     if (!session || session.companyId !== userProfile.companyId) {
       return c.json({ success: false, error: 'La caja no existe' }, 404)
     }
+    if (!canAccessBranch(userProfile, session.branchId)) {
+      return c.json({ success: false, error: 'No tienes acceso a esta sucursal', code: 'BRANCH_FORBIDDEN' }, 403)
+    }
     if (session.status !== 'open') {
       return c.json({ success: false, error: 'La caja está cerrada: no admite movimientos' }, 409)
+    }
+    if (isStale(session)) {
+      return c.json(
+        {
+          success: false,
+          error: `La caja del ${session.date} está vencida: solo se puede cerrar`,
+          code: 'CASH_SESSION_STALE',
+          sessionDate: session.date,
+        },
+        409
+      )
     }
     if (type !== 'in' && type !== 'out') {
       return c.json({ success: false, error: 'El movimiento tiene que ser entrada o salida' }, 400)
@@ -1636,7 +1766,12 @@ const handleCashMovement = async (c: any) => {
     await kv.set(`${movementPrefix(session.id)}${movement.id}`, JSON.stringify(movement))
 
     const { sales, movements } = await loadSessionActivity(session)
-    return c.json({ success: true, movement, totals: computeTotals(session, sales, movements), movements })
+    return c.json({
+      success: true,
+      movement,
+      totals: sanitizeTotals(computeTotals(session, sales, movements), admin),
+      movements,
+    })
   } catch (err: any) {
     console.log('Error en /cash/movement:', err)
     return c.json({ success: false, error: String(err) }, 500)
@@ -1649,22 +1784,22 @@ app.post('/make-server-4d437e50/cash/movement', handleCashMovement)
 /** Histórico de cierres. El administrador ve todas las sucursales; el resto, las suyas. */
 const handleCashHistory = async (c: any) => {
   try {
-    const { error, user } = await verifyAuth(c.req.header('Authorization'))
-    if (error || !user) return c.json({ success: false, error: 'Unauthorized' }, 401)
-    const userProfile = await getUserProfile(user.id)
-    if (!userProfile) return c.json({ success: false, error: 'User profile not found' }, 404)
+    const auth = await cashAuth(c)
+    if (auth.response) return auth.response
+    const { user, userProfile } = auth
+    const admin = isAdmin(userProfile)
 
     const raw = await kv.getByPrefix('cash_session:')
     let sessions: CashSession[] = raw
       .map((s: any) => (typeof s === 'string' ? JSON.parse(s) : s))
       .filter((s: any) => s && s.companyId === userProfile.companyId)
 
-    if (userProfile.role !== 'admin') {
-      sessions = sessions.filter((s) => s.openedByUserId === user.id)
+    if (!admin) {
+      sessions = sessions.filter((s) => s.openedByUserId === user.id && canAccessBranch(userProfile, s.branchId))
     }
 
     sessions.sort((a, b) => String(b.openedAt).localeCompare(String(a.openedAt)))
-    return c.json({ success: true, sessions: sessions.slice(0, 90) })
+    return c.json({ success: true, sessions: sessions.slice(0, 90).map((s) => sanitizeSession(s, admin)), isAdmin: admin })
   } catch (err: any) {
     console.log('Error en /cash/sessions:', err)
     return c.json({ success: false, error: String(err) }, 500)
@@ -1673,6 +1808,47 @@ const handleCashHistory = async (c: any) => {
 
 app.get('/cash/sessions', handleCashHistory)
 app.get('/make-server-4d437e50/cash/sessions', handleCashHistory)
+
+/** Detalle de una sesión: lo que alimenta el reporte de cierre imprimible. */
+const handleCashSessionDetail = async (c: any) => {
+  try {
+    const auth = await cashAuth(c)
+    if (auth.response) return auth.response
+    const { userProfile } = auth
+    const admin = isAdmin(userProfile)
+
+    const session = await loadSession(String(c.req.param('id') ?? ''))
+    if (!session || session.companyId !== userProfile.companyId) {
+      return c.json({ success: false, error: 'La caja no existe' }, 404)
+    }
+    if (!canAccessBranch(userProfile, session.branchId)) {
+      return c.json({ success: false, error: 'No tienes acceso a esta sucursal', code: 'BRANCH_FORBIDDEN' }, 403)
+    }
+
+    const { sales, movements } = await loadSessionActivity(session)
+    /* Una caja cerrada se reporta con lo que se congeló al cerrar; si después se
+       anuló una venta, eso aparece como devolución en la caja de ese día. */
+    const totals = session.status === 'closed' && session.totalsSnapshot
+      ? session.totalsSnapshot
+      : computeTotals(session, sales, movements)
+
+    return c.json({
+      success: true,
+      session: sanitizeSession(session, admin),
+      totals: sanitizeTotals(totals, admin),
+      movements,
+      sales: sales.map(saleSummary),
+      stale: isStale(session),
+      isAdmin: admin,
+    })
+  } catch (err: any) {
+    console.log('Error en /cash/sessions/:id:', err)
+    return c.json({ success: false, error: String(err) }, 500)
+  }
+}
+
+app.get('/cash/sessions/:id', handleCashSessionDetail)
+app.get('/make-server-4d437e50/cash/sessions/:id', handleCashSessionDetail)
 
 // Health check endpoint
 app.get('/make-server-4d437e50/health', (c) => {
@@ -1819,9 +1995,14 @@ const handleProvision = async (c: any) => {
     const trialEndsAt = new Date()
     trialEndsAt.setDate(trialEndsAt.getDate() + 7)
 
+    /* El tipo de comercio decide vocabulario, campos y categorías en el cliente.
+       Lo desconocido cae en electrónica, que es como se ven las empresas de antes. */
+    const businessType = resolveBusinessType(body.businessType ?? metadata.businessType)
+
     const company = {
       id: companyId,
       name: companyName,
+      businessType,
       planId: 'basico',
       trialEndsAt: trialEndsAt.toISOString(),
       licenseExpiry: trialEndsAt.toISOString(),
@@ -1854,7 +2035,7 @@ const handleProvision = async (c: any) => {
     }
     await kv.set(`user:${user.id}`, JSON.stringify(userProfile))
 
-    console.log('Taller aprovisionado:', { companyId, userId: user.id, branchId })
+    console.log('Taller aprovisionado:', { companyId, userId: user.id, branchId, businessType })
 
     return c.json({ success: true, company, branch, user: userProfile })
   } catch (error) {
@@ -2136,8 +2317,12 @@ app.post('/make-server-4d437e50/company/users', async (c) => {
       )
     
     const employeeRole = role || 'asesor'
+    if (!(STAFF_ROLES as readonly string[]).includes(employeeRole)) {
+      return c.json({ success: false, error: 'Rol no válido' }, 400)
+    }
     const adminCount = companyUsers.filter((u: any) => u.role === 'admin').length
-    const advisorCount = companyUsers.filter((u: any) => u.role === 'asesor').length
+    // Asesores y cajeros comparten el cupo de "asesores" del plan.
+    const advisorCount = companyUsers.filter((u: any) => u.role === 'asesor' || u.role === 'cajero').length
     const technicianCount = companyUsers.filter((u: any) => u.role === 'tecnico').length
     
     // Validate role limits
@@ -2148,10 +2333,10 @@ app.post('/make-server-4d437e50/company/users', async (c) => {
       }, 403)
     }
     
-    if (employeeRole === 'asesor' && advisorCount >= limits.advisors) {
+    if ((employeeRole === 'asesor' || employeeRole === 'cajero') && advisorCount >= limits.advisors) {
       return c.json({ 
         success: false, 
-        error: `Tu plan ${planId} permite máximo ${limits.advisors} asesor${limits.advisors > 1 ? 'es' : ''}. Actualiza tu plan para agregar más.` 
+        error: `Tu plan ${planId} permite máximo ${limits.advisors} asesor${limits.advisors > 1 ? 'es' : ''} o cajero${limits.advisors > 1 ? 's' : ''}. Actualiza tu plan para agregar más.` 
       }, 403)
     }
     
@@ -2467,6 +2652,45 @@ app.delete('/make-server-4d437e50/company/users/:userId', async (c) => {
 })
 
 // Get company info
+/** Tipo de comercio de una empresa; las de antes no lo tienen y son electrónica. */
+async function getCompanyBusinessType(companyId: number): Promise<string> {
+  const raw = await kv.get(`company:${companyId}`)
+  if (!raw) return resolveBusinessType(undefined)
+  const company = typeof raw === 'string' ? JSON.parse(raw) : raw
+  return resolveBusinessType(company?.businessType)
+}
+
+/* Cambiar el tipo de comercio. Endpoint propio porque PUT /company/settings está
+   registrado dos veces y hace spread del body: no conviene colgar esto de ahí.
+   Las órdenes y productos existentes no se tocan; solo cambia cómo se ven. */
+app.put('/make-server-4d437e50/company/business-type', async (c) => {
+  try {
+    const { error, user } = await verifyAuth(c.req.header('Authorization'))
+    if (error || !user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+    const userProfile = await getUserProfile(user.id)
+    if (!userProfile || userProfile.role !== 'admin') {
+      return c.json({ success: false, error: 'Solo un administrador puede cambiar el tipo de comercio' }, 403)
+    }
+
+    const { businessType } = await c.req.json().catch(() => ({}))
+    if (!isBusinessType(businessType)) {
+      return c.json({ success: false, error: `Tipo de comercio no válido. Opciones: ${BUSINESS_TYPES.join(', ')}` }, 400)
+    }
+
+    const raw = await kv.get(`company:${userProfile.companyId}`)
+    if (!raw) return c.json({ success: false, error: 'Company not found' }, 404)
+    const company = typeof raw === 'string' ? JSON.parse(raw) : raw
+    company.businessType = businessType
+    company.updatedAt = new Date().toISOString()
+    await kv.set(`company:${userProfile.companyId}`, JSON.stringify(company))
+
+    return c.json({ success: true, company })
+  } catch (error) {
+    console.log('Error updating business type:', error)
+    return c.json({ success: false, error: String(error) }, 500)
+  }
+})
+
 app.get('/make-server-4d437e50/company/info', async (c) => {
   try {
     const { error, user } = await verifyAuth(c.req.header('Authorization'))
@@ -2859,6 +3083,8 @@ app.post('/make-server-4d437e50/products', async (c) => {
       trackByUnit: body.trackByUnit || false,
       hasVariants: body.hasVariants || false,
       quantity: body.quantity ? parseInt(body.quantity) : 0,
+      // Ficha según el comercio: referencia, aplicación / compatibilidad…
+      specs: sanitizeDetails(body.specs),
       companyId: userProfile.companyId,
       branchId: body.branchId,
       createdAt: new Date().toISOString()
@@ -2908,6 +3134,7 @@ app.put('/make-server-4d437e50/products/:id', async (c) => {
       return c.json({ success: false, error: 'User profile not found' }, 404)
     }
     
+    if (body.specs !== undefined) body.specs = sanitizeDetails(body.specs) ?? {}
     const product = {
       ...JSON.parse(existing),
       ...body,
@@ -4262,6 +4489,70 @@ app.get('/make-server-4d437e50/repairs', async (c) => {
   }
 })
 
+/* Historial de un bien —por placa, IMEI o serial de marco—: las visitas
+   anteriores del mismo vehículo, equipo o bicicleta en esta empresa. Alimenta
+   el autocompletado al crear una orden y la sección de historial del detalle. */
+app.get('/make-server-4d437e50/repairs/asset-history', async (c) => {
+  try {
+    const { error, user } = await verifyAuth(c.req.header('Authorization'))
+    if (error || !user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+    const userProfile = await getUserProfile(user.id)
+    if (!userProfile) return c.json({ success: false, error: 'User profile not found' }, 404)
+
+    const key = normalizeAssetKey(c.req.query('key'))
+    if (key.length < 3) return c.json({ success: true, key, repairs: [] })
+    const excludeId = c.req.query('exclude')
+
+    const businessType = await getCompanyBusinessType(userProfile.companyId)
+    const all = await kv.getByPrefix(`repair:${userProfile.companyId}:`)
+    const matches = all
+      .map((r: any) => (typeof r === 'string' ? JSON.parse(r) : r))
+      .filter((r: any) => r && r.companyId === userProfile.companyId)
+      // Las órdenes de antes no tienen assetKey: se calcula al vuelo.
+      .filter((r: any) => (r.assetKey || computeAssetKey(businessType, r)) === key)
+      .filter((r: any) => !excludeId || String(r.id) !== String(excludeId))
+      .sort((a: any, b: any) => String(b.createdAt || b.receivedDate).localeCompare(String(a.createdAt || a.receivedDate)))
+      .slice(0, 20)
+
+    // El total facturado sale de la venta enlazada, si existe.
+    const repairs = await Promise.all(
+      matches.map(async (r: any) => {
+        let invoicedTotal: number | undefined
+        if (r.invoiceId) {
+          const saleRaw = await kv.get(`sale:${r.invoiceId}`)
+          if (saleRaw) {
+            const sale = typeof saleRaw === 'string' ? JSON.parse(saleRaw) : saleRaw
+            if (sale?.status !== 'cancelled') invoicedTotal = Number(sale?.total) || undefined
+          }
+        }
+        return {
+          id: r.id,
+          createdAt: r.createdAt || r.receivedDate,
+          status: r.status,
+          customerId: r.customerId,
+          customerName: r.customerName,
+          customerPhone: r.customerPhone,
+          customerEmail: r.customerEmail,
+          deviceType: r.deviceType,
+          deviceBrand: r.deviceBrand,
+          deviceModel: r.deviceModel,
+          imei: r.imei,
+          serialNumber: r.serialNumber,
+          assetDetails: r.assetDetails || {},
+          problem: r.problem,
+          estimatedCost: r.estimatedCost,
+          invoicedTotal,
+        }
+      })
+    )
+
+    return c.json({ success: true, key, repairs })
+  } catch (error) {
+    console.log('Error fetching asset history:', error)
+    return c.json({ success: false, error: String(error) }, 500)
+  }
+})
+
 app.post('/make-server-4d437e50/repairs', async (c) => {
   try {
     const { error, user } = await verifyAuth(c.req.header('Authorization'))
@@ -4275,6 +4566,15 @@ app.post('/make-server-4d437e50/repairs', async (c) => {
     }
     
     const body = await c.req.json()
+
+    /* Los datos propios del comercio (placa, kilometraje, talla…) y la clave del
+       historial. La clave la calcula el servidor: es la que une las visitas. */
+    const businessType = await getCompanyBusinessType(userProfile.companyId)
+    const assetDetails = sanitizeDetails(body.assetDetails)
+    if (assetDetails?.plate) assetDetails.plate = normalizeAssetKey(assetDetails.plate)
+    body.assetDetails = assetDetails
+    body.assetKey = computeAssetKey(businessType, { ...body, assetDetails }) || undefined
+
     // Each company has its own repair counter (consecutivo por empresa)
     const consecutivo = await getNextId(`repair:company:${userProfile.companyId}`)
     
@@ -4418,19 +4718,26 @@ app.post('/make-server-4d437e50/repairs/:id/invoice', async (c) => {
       return c.json({ success: false, error: 'Unauthorized' }, 403)
     }
     
+    /* Una orden se factura una sola vez: antes una segunda llamada generaba otra
+       factura y cobraba dos veces la misma reparación. */
+    if (repair.invoiced || repair.invoiceId) {
+      return c.json({ success: false, error: 'Esta orden ya fue facturada', code: 'ALREADY_INVOICED' }, 409)
+    }
+
     /* Igual que en la venta de mostrador: la factura de una reparación es dinero
-       que entra, así que necesita una caja abierta donde caer. */
-    const repairCashSession = await findOpenSession(userProfile.companyId, repair.branchId)
-    if (!repairCashSession) {
-      return c.json(
-        {
-          success: false,
-          error: 'No hay caja abierta en la sucursal de esta orden',
-          code: 'CASH_SESSION_REQUIRED',
-          branchId: repair.branchId,
-        },
-        409
-      )
+       que entra, así que necesita la caja de hoy abierta en la sucursal de la orden. */
+    const repairGuard = await requireCashSession(userProfile, repair.branchId)
+    if (repairGuard.error) return c.json(repairGuard.error.body, repairGuard.error.status)
+    const repairCashSession = repairGuard.session
+
+    const repairPaymentMethod = normalizePaymentMethod(paymentMethod || 'Efectivo')
+    if (!repairPaymentMethod) {
+      return c.json({ success: false, error: 'Método de pago no válido' }, 400)
+    }
+
+    const invoiceTotal = Number(totalAmount)
+    if (!Number.isFinite(invoiceTotal) || invoiceTotal < 0) {
+      return c.json({ success: false, error: 'El total de la factura no es válido' }, 400)
     }
 
     // Create sale/invoice
@@ -4457,15 +4764,18 @@ app.post('/make-server-4d437e50/repairs/:id/invoice', async (c) => {
       customerId: repair.customerId,
       customerName: repair.customerName,
       items: items,
-      total: totalAmount,
+      total: invoiceTotal,
       /* Antes iba fijo a 'efectivo' sin preguntar: una reparación pagada por Nequi
          quedaba registrada como efectivo y descuadraba el cierre de caja. */
-      paymentMethod: paymentMethod || 'Efectivo',
+      paymentMethod: repairPaymentMethod,
       branchId: repair.branchId,
       cashSessionId: repairCashSession.id,
+      status: 'active',
       notes: notes || `Reparación de ${repair.deviceType} ${repair.deviceBrand} ${repair.deviceModel} - ${repair.problem}`,
       date: new Date().toISOString(),
-      createdBy: userName || userProfile.name,
+      createdBy: userProfile.name,
+      createdByName: userProfile.name,
+      createdByUserId: user.id,
       createdAt: new Date().toISOString(),
       repairId: parseInt(id),
       type: 'repair'
@@ -4483,7 +4793,7 @@ app.post('/make-server-4d437e50/repairs/:id/invoice', async (c) => {
     const logEntry = {
       timestamp: new Date().toISOString(),
       userId: user.id,
-      userName: userName || userProfile.name,
+      userName: userProfile.name,
       previousStatus: repair.status === 'delivered' ? 'completed' : repair.status,
       newStatus: 'delivered',
       notes: `Facturado - ${invoiceNumber}`,
@@ -4535,6 +4845,17 @@ app.put('/make-server-4d437e50/repairs/:id', async (c) => {
     
     const id = c.req.param('id')
     const body = await c.req.json()
+
+    /* La facturación solo ocurre en /repairs/:id/invoice, que pasa por la caja.
+       Estos campos no se pueden escribir a mano desde una edición. */
+    for (const field of ['invoiced', 'invoiceId', 'companyId', 'id', 'statusLogs', 'createdAt', 'assetKey']) {
+      delete body[field]
+    }
+    if (body.assetDetails !== undefined) {
+      const details = sanitizeDetails(body.assetDetails) ?? {}
+      if (details.plate) details.plate = normalizeAssetKey(details.plate)
+      body.assetDetails = details
+    }
     
     // Try new format first, then fallback to old format
     let existing = await kv.get(`repair:${userProfile.companyId}:${id}`)
@@ -4597,6 +4918,9 @@ app.put('/make-server-4d437e50/repairs/:id', async (c) => {
       ...body,
       updatedAt: new Date().toISOString()
     }
+    // Si cambió la placa o el serial, la clave del historial lo sigue.
+    repair.assetKey =
+      computeAssetKey(await getCompanyBusinessType(userProfile.companyId), repair) || undefined
     
     // Clean up temporary status fields
     delete repair.statusNotes
@@ -4859,59 +5183,118 @@ app.post('/make-server-4d437e50/sales', async (c) => {
     }
     
     const body = await c.req.json()
+
+    /* Primero el candado de caja, y solo después se gasta un consecutivo: antes
+       cada 409 dejaba un número de factura saltado. */
+    const guard = await requireCashSession(userProfile, body.branchId)
+    if (guard.error) return c.json(guard.error.body, guard.error.status)
+    const cashSession = guard.session
+
+    const paymentMethod = normalizePaymentMethod(body.paymentMethod)
+    if (!paymentMethod) {
+      return c.json({ success: false, error: 'Método de pago no válido' }, 400)
+    }
+
+    const rawItems = Array.isArray(body.items) ? body.items : []
+    if (rawItems.length === 0) {
+      return c.json({ success: false, error: 'La venta no tiene productos' }, 400)
+    }
+
+    /* El total lo calcula el servidor. El cliente lo manda para detectar un
+       desfase, pero nunca es la cifra que se guarda. */
+    let computedTotal = 0
+    const items: any[] = []
+    for (const item of rawItems) {
+      const quantity = Number(item?.quantity)
+      const price = Number(item?.price)
+      if (!item?.productId || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(price) || price < 0) {
+        return c.json({ success: false, error: 'Hay un producto con cantidad o precio inválido' }, 400)
+      }
+      const productData = await kv.get(`product:${item.productId}`)
+      const product = productData ? JSON.parse(productData) : null
+      if (!product || product.companyId !== userProfile.companyId) {
+        return c.json({ success: false, error: `El producto ${item.productName || item.productId} no existe` }, 400)
+      }
+      computedTotal += price * quantity
+      items.push({ ...item, quantity, price })
+    }
+
+    if (body.total !== undefined && Math.abs(Number(body.total) - computedTotal) > 0.5) {
+      return c.json(
+        { success: false, error: 'El total no coincide con los productos de la venta', code: 'TOTAL_MISMATCH', expected: computedTotal },
+        400
+      )
+    }
+
+    const isCreditSale = paymentMethod === 'Crédito'
+    const creditDays = Number(body.creditDays)
+    if (isCreditSale && (!Number.isFinite(creditDays) || creditDays <= 0)) {
+      return c.json({ success: false, error: 'Ingresa los días de crédito' }, 400)
+    }
+
     const id = await getNextId('sale')
-    
+
     // Generate invoice number based on company configuration
     const invoiceConfigData = await kv.get(`company:${userProfile.companyId}:invoiceConfig`)
     let invoiceNumber: string
-    
+
     if (invoiceConfigData) {
       const invoiceConfig = JSON.parse(invoiceConfigData)
       const prefix = invoiceConfig.prefix || 'FACT'
       const startNumber = invoiceConfig.startNumber || 1
-      
+
       // Get current invoice counter for this company
       const counterKey = `company:${userProfile.companyId}:invoiceCounter`
       const currentCounterData = await kv.get(counterKey)
       const currentCounter = currentCounterData ? parseInt(currentCounterData) : startNumber
-      
+
       // Generate invoice number with padding (4 digits)
       invoiceNumber = `${prefix}-${String(currentCounter).padStart(4, '0')}`
-      
+
       // Increment counter for next invoice
       await kv.set(counterKey, (currentCounter + 1).toString())
     } else {
       // Fallback to default format if no config exists
       invoiceNumber = `FACT-${String(id).padStart(4, '0')}`
     }
-    
-    /* Sin caja abierta no se cobra: si la venta no cae en ninguna sesión, el
-       arqueo del cierre no puede cuadrar. El cliente ofrece abrirla ahí mismo. */
-    const cashSession = await findOpenSession(userProfile.companyId, body.branchId)
-    if (!cashSession) {
-      return c.json(
-        {
-          success: false,
-          error: 'No hay caja abierta en esta sucursal',
-          code: 'CASH_SESSION_REQUIRED',
-          branchId: body.branchId,
-        },
-        409
-      )
-    }
 
-    const sale = {
+    /* Lista blanca: nada de `...body`. Estado, autor, sesión y total no los
+       decide el cliente. */
+    const now = new Date().toISOString()
+    const sale: Record<string, unknown> = {
       id,
-      ...body,
       invoiceNumber,
       companyId: userProfile.companyId,
+      branchId: cashSession.branchId,
       cashSessionId: cashSession.id,
-      createdAt: new Date().toISOString()
+      type: 'product',
+      status: 'active',
+      items,
+      total: computedTotal,
+      totalCost: Number.isFinite(Number(body.totalCost)) ? Number(body.totalCost) : undefined,
+      customerId: body.customerId,
+      customerName: String(body.customerName ?? '').trim(),
+      customerPhone: body.customerPhone ? String(body.customerPhone) : undefined,
+      customerEmail: body.customerEmail ? String(body.customerEmail) : undefined,
+      paymentMethod,
+      notes: body.notes ? String(body.notes) : undefined,
+      date: now,
+      createdBy: userProfile.name,
+      createdByName: userProfile.name,
+      createdByUserId: user.id,
+      createdAt: now,
+    }
+    if (isCreditSale) {
+      const dueDate = new Date()
+      dueDate.setDate(dueDate.getDate() + creditDays)
+      sale.creditDays = creditDays
+      sale.creditDueDate = dueDate.toISOString()
+      sale.amountPaid = 0
     }
     await kv.set(`sale:${id}`, JSON.stringify(sale))
     
     // Update product inventory
-    for (const item of body.items) {
+    for (const item of items) {
       const productData = await kv.get(`product:${item.productId}`)
       if (productData) {
         const product = JSON.parse(productData)
@@ -4982,14 +5365,56 @@ app.put('/make-server-4d437e50/sales/:id/cancel', async (c) => {
     if (sale.status === 'cancelled') {
       return c.json({ success: false, error: 'Sale is already cancelled' }, 400)
     }
+
+    /* Anular no puede reescribir un cierre ya hecho. Si la venta cayó en una caja
+       que ya se cerró y se cobró en efectivo, el dinero que se devuelve sale hoy
+       del cajón: queda como una salida automática en la caja vigente de esa
+       sucursal. Si la caja de la venta sigue abierta, basta con sacarla de los
+       totales, como siempre. */
+    let refundMovement: CashMovement | null = null
+    const saleSession = sale.cashSessionId ? await loadSession(String(sale.cashSessionId)) : null
+    const needsRefund = Boolean(saleSession && saleSession.status === 'closed' && isCashMethod(sale.paymentMethod))
+
+    if (needsRefund) {
+      const refundGuard = await requireCashSession(userProfile, sale.branchId)
+      if (refundGuard.error) {
+        const code = refundGuard.error.body.code
+        const message =
+          code === 'CASH_SESSION_REQUIRED'
+            ? 'La caja de esa venta ya se cerró. Abre la caja de hoy en esa sucursal para registrar la devolución del efectivo.'
+            : refundGuard.error.body.error
+        return c.json({ ...refundGuard.error.body, error: message }, refundGuard.error.status)
+      }
+      const current = refundGuard.session
+      refundMovement = {
+        id: crypto.randomUUID(),
+        sessionId: current.id,
+        companyId: current.companyId,
+        branchId: current.branchId,
+        type: 'out',
+        amount: Math.abs(Number(sale.total) || 0),
+        concept: `Devolución factura ${sale.invoiceNumber || sale.id}`,
+        notes: body.cancelReason ? String(body.cancelReason) : '',
+        createdByUserId: user.id,
+        createdByName: userProfile.name,
+        createdAt: new Date().toISOString(),
+        saleId: sale.id,
+        automatic: true,
+      }
+    }
     
     // Update sale status
     sale.status = 'cancelled'
     sale.cancelReason = body.cancelReason
-    sale.cancelledBy = body.cancelledBy
+    sale.cancelledBy = userProfile.name
+    sale.cancelledByUserId = user.id
     sale.cancelledAt = new Date().toISOString()
+    if (refundMovement) sale.refundCashSessionId = refundMovement.sessionId
     
     await kv.set(`sale:${id}`, JSON.stringify(sale))
+    if (refundMovement) {
+      await kv.set(`${movementPrefix(refundMovement.sessionId)}${refundMovement.id}`, JSON.stringify(refundMovement))
+    }
     
     // If it's a product sale, return inventory
     if (sale.type === 'product' && sale.items) {
@@ -5541,6 +5966,8 @@ app.get('/make-server-4d437e50/company/print-config', async (c) => {
     
     const configData = await kv.get(`company:${userProfile.companyId}:printConfig`)
     const invoiceConfigData = await kv.get(`company:${userProfile.companyId}:invoiceConfig`)
+    // Los documentos impresos usan el vocabulario del comercio (Equipo / Vehículo / Placa…).
+    const printBusinessType = await getCompanyBusinessType(userProfile.companyId)
     
     if (!configData) {
       // Return default config if none exists
@@ -5562,7 +5989,8 @@ app.get('/make-server-4d437e50/company/print-config', async (c) => {
           socialMedia: '',
           warrantyNotes: '',
           welcomeMessage: '',
-          farewellMessage: ''
+          farewellMessage: '',
+          businessType: printBusinessType
         },
         invoiceConfig: invoiceConfigData ? JSON.parse(invoiceConfigData) : {
           prefix: 'FACT',
@@ -5573,7 +6001,7 @@ app.get('/make-server-4d437e50/company/print-config', async (c) => {
     
     return c.json({ 
       success: true, 
-      printConfig: JSON.parse(configData),
+      printConfig: { ...JSON.parse(configData), businessType: printBusinessType },
       invoiceConfig: invoiceConfigData ? JSON.parse(invoiceConfigData) : {
         prefix: 'FACT',
         startNumber: 1
@@ -6010,6 +6438,13 @@ app.get('/make-server-4d437e50/tracking-legacy/:repairId', async (c) => {
       deviceType: repair.deviceType,
       deviceBrand: repair.deviceBrand,
       deviceModel: repair.deviceModel,
+      // Solo lo que identifica al bien ante su dueño. Nunca PIN ni patrón.
+      assetDetails: repair.assetDetails
+        ? Object.fromEntries(
+            Object.entries(repair.assetDetails).filter(([k]) => ['plate', 'year', 'color'].includes(k))
+          )
+        : undefined,
+      serialNumber: repair.serialNumber,
       problem: repair.problem,
       status: repair.status,
       estimatedCost: repair.estimatedCost,
@@ -6023,7 +6458,21 @@ app.get('/make-server-4d437e50/tracking-legacy/:repairId', async (c) => {
       }))
     }
     
-    return c.json({ success: true, repair: publicRepair })
+    const trackingCompanyRaw = await kv.get(`company:${repair.companyId}`)
+    const trackingCompany = trackingCompanyRaw
+      ? typeof trackingCompanyRaw === 'string' ? JSON.parse(trackingCompanyRaw) : trackingCompanyRaw
+      : null
+
+    const trackingBusinessType = resolveBusinessType(trackingCompany?.businessType)
+    /* El serial solo se muestra donde es el identificador que el dueño reconoce
+       (serial de marco de una bicicleta). En un celular o un carro no hace falta. */
+    if (trackingBusinessType !== 'bicicletas') delete (publicRepair as any).serialNumber
+
+    return c.json({
+      success: true,
+      repair: publicRepair,
+      businessType: trackingBusinessType,
+    })
   } catch (error) {
     console.log('Error fetching legacy repair tracking:', error)
     return c.json({ success: false, error: String(error) }, 500)
@@ -6071,6 +6520,13 @@ app.get('/make-server-4d437e50/tracking/:companyId/:repairId', async (c) => {
       deviceType: repair.deviceType,
       deviceBrand: repair.deviceBrand,
       deviceModel: repair.deviceModel,
+      // Solo lo que identifica al bien ante su dueño. Nunca PIN ni patrón.
+      assetDetails: repair.assetDetails
+        ? Object.fromEntries(
+            Object.entries(repair.assetDetails).filter(([k]) => ['plate', 'year', 'color'].includes(k))
+          )
+        : undefined,
+      serialNumber: repair.serialNumber,
       problem: repair.problem,
       status: repair.status,
       estimatedCost: repair.estimatedCost,
@@ -6084,7 +6540,21 @@ app.get('/make-server-4d437e50/tracking/:companyId/:repairId', async (c) => {
       }))
     }
     
-    return c.json({ success: true, repair: publicRepair })
+    const trackingCompanyRaw = await kv.get(`company:${repair.companyId}`)
+    const trackingCompany = trackingCompanyRaw
+      ? typeof trackingCompanyRaw === 'string' ? JSON.parse(trackingCompanyRaw) : trackingCompanyRaw
+      : null
+
+    const trackingBusinessType = resolveBusinessType(trackingCompany?.businessType)
+    /* El serial solo se muestra donde es el identificador que el dueño reconoce
+       (serial de marco de una bicicleta). En un celular o un carro no hace falta. */
+    if (trackingBusinessType !== 'bicicletas') delete (publicRepair as any).serialNumber
+
+    return c.json({
+      success: true,
+      repair: publicRepair,
+      businessType: trackingBusinessType,
+    })
   } catch (error) {
     console.log('Error fetching repair tracking:', error)
     return c.json({ success: false, error: String(error) }, 500)
@@ -6296,7 +6766,7 @@ app.get('/make-server-4d437e50/plans/current', async (c) => {
     const usage = {
       branches: branchCount,
       admins: companyUsers.filter((u: any) => u.role === 'admin').length,
-      advisors: companyUsers.filter((u: any) => u.role === 'asesor').length,
+      advisors: companyUsers.filter((u: any) => u.role === 'asesor' || u.role === 'cajero').length,
       technicians: companyUsers.filter((u: any) => u.role === 'tecnico').length
     }
     
@@ -6355,7 +6825,7 @@ app.post('/make-server-4d437e50/plans/validate-change', async (c) => {
     const currentUsage = {
       branches: branchCount,
       admins: companyUsers.filter((u: any) => u.role === 'admin').length,
-      advisors: companyUsers.filter((u: any) => u.role === 'asesor').length,
+      advisors: companyUsers.filter((u: any) => u.role === 'asesor' || u.role === 'cajero').length,
       technicians: companyUsers.filter((u: any) => u.role === 'tecnico').length
     }
     
@@ -6455,7 +6925,7 @@ app.post('/make-server-4d437e50/plans/change', async (c) => {
     const currentUsage = {
       branches: branchCount,
       admins: companyUsers.filter((u: any) => u.role === 'admin').length,
-      advisors: companyUsers.filter((u: any) => u.role === 'asesor').length,
+      advisors: companyUsers.filter((u: any) => u.role === 'asesor' || u.role === 'cajero').length,
       technicians: companyUsers.filter((u: any) => u.role === 'tecnico').length
     }
     

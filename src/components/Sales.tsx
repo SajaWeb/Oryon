@@ -24,7 +24,7 @@ import {
 } from './oryon'
 import { FormDialog } from './layout/FormDialog'
 import { OpenCashDialog } from './cash/OpenCashDialog'
-import { CASH_SESSION_REQUIRED, openSession } from './cash/api'
+import { BRANCH_FORBIDDEN, CASH_SESSION_REQUIRED, CASH_SESSION_STALE, openSession } from './cash/api'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 
 /** Los métodos que acepta el taller. Antes estaban escritos a mano en el JSX. */
@@ -238,7 +238,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
         let availableBranches = data.branches || []
         
         // For advisors, filter to show only their assigned branches
-        if (userRole === 'asesor' && userProfile) {
+        if (userRole !== 'admin' && userProfile) {
           const assignedBranches = userProfile.assignedBranches || []
           const legacyBranchId = userProfile.branchId
           
@@ -288,7 +288,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
         })
 
         // For advisors, only show products from their assigned branches
-        if (userRole === 'asesor' && userProfile) {
+        if (userRole !== 'admin' && userProfile) {
           const assignedBranches = userProfile.assignedBranches || []
           const legacyBranchId = userProfile.branchId
           
@@ -862,6 +862,14 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
         fetchProducts()
         fetchSales()
         toast.success('Venta completada exitosamente')
+      } else if (data.code === CASH_SESSION_STALE) {
+        /* La caja de un día anterior quedó abierta: no se ofrece abrir otra,
+           hay que cerrar esa con su arqueo. */
+        toast.error(data.error || 'La caja del día anterior sigue abierta', {
+          description: 'Ciérrala en Caja antes de vender.',
+        })
+      } else if (data.code === BRANCH_FORBIDDEN || data.code === 'ROLE_FORBIDDEN') {
+        toast.error(data.error || 'No tienes permiso para vender en esta sucursal')
       } else if (data.code === CASH_SESSION_REQUIRED) {
         /* Sin caja abierta no se cobra. En vez de mandar al usuario a otra
            pantalla con un cliente delante, se ofrece abrirla aquí mismo y la

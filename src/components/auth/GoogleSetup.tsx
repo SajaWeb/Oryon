@@ -4,6 +4,18 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { AuthHeading, AuthLayout } from './AuthLayout'
 import { authMessage, type AuthMessage } from './authErrors'
 import { provisionAccount } from './provision'
+import { BusinessTypePicker } from './BusinessTypePicker'
+import { PENDING_BUSINESS_TYPE_KEY } from './Register'
+import { isBusinessType, type BusinessTypeId } from '../../config/businessTypes'
+
+function pendingBusinessType(): BusinessTypeId | null {
+  try {
+    const raw = window.localStorage.getItem(PENDING_BUSINESS_TYPE_KEY)
+    return isBusinessType(raw) ? raw : null
+  } catch {
+    return null
+  }
+}
 
 interface GoogleSetupProps {
   accessToken: string
@@ -21,9 +33,11 @@ interface GoogleSetupProps {
  * `companyId: 1`, es decir, dentro de la empresa de otro.
  */
 export function GoogleSetup({ accessToken, userEmail, userName, onSetupComplete }: GoogleSetupProps) {
+  const [businessType, setBusinessType] = useState<BusinessTypeId | null>(pendingBusinessType)
   const [companyName, setCompanyName] = useState('')
   const [name, setName] = useState(userName || '')
   const [fieldError, setFieldError] = useState<string | undefined>()
+  const [typeError, setTypeError] = useState<string | undefined>()
   const [alert, setAlert] = useState<AuthMessage | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -32,10 +46,11 @@ export function GoogleSetup({ accessToken, userEmail, userName, onSetupComplete 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!companyName.trim()) {
-      setFieldError('Escribe el nombre del taller.')
-      return
-    }
+    const missingType = !businessType
+    const missingName = !companyName.trim()
+    setTypeError(missingType ? 'Elige el tipo de comercio.' : undefined)
+    setFieldError(missingName ? 'Escribe el nombre del negocio.' : undefined)
+    if (missingType || missingName) return
 
     setFieldError(undefined)
     setAlert(null)
@@ -44,13 +59,19 @@ export function GoogleSetup({ accessToken, userEmail, userName, onSetupComplete 
       const result = await provisionAccount(accessToken, {
         companyName: companyName.trim(),
         name: name.trim() || userEmail.split('@')[0],
+        businessType: businessType ?? undefined,
       })
       if (!result.success) {
         setAlert({
-          title: 'No se pudo crear el taller',
+          title: 'No se pudo crear el negocio',
           message: result.error ?? 'Vuelve a intentarlo en un momento.',
         })
         return
+      }
+      try {
+        window.localStorage.removeItem(PENDING_BUSINESS_TYPE_KEY)
+      } catch {
+        /* nada que limpiar */
       }
       onSetupComplete(accessToken)
     } catch (err) {
@@ -63,7 +84,7 @@ export function GoogleSetup({ accessToken, userEmail, userName, onSetupComplete 
   return (
     <AuthLayout variant="register">
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <AuthHeading title="Falta un dato">Entraste con Google. Nos falta saber cómo se llama el taller.</AuthHeading>
+        <AuthHeading title="Faltan dos datos">Entraste con Google. Cuéntanos qué tipo de negocio tienes y cómo se llama.</AuthHeading>
 
         {alert && (
           <Alert role="alert" variant="danger" title={alert.title} onDismiss={() => setAlert(null)}>
@@ -86,7 +107,17 @@ export function GoogleSetup({ accessToken, userEmail, userName, onSetupComplete 
           />
         </FormField>
 
-        <FormField label="Nombre de la empresa" error={fieldError}>
+        <BusinessTypePicker
+          value={businessType}
+          onChange={(v) => {
+            setBusinessType(v)
+            setTypeError(undefined)
+          }}
+          disabled={loading}
+          error={typeError}
+        />
+
+        <FormField label="Nombre del negocio" error={fieldError}>
           <Input
             size={size}
             value={companyName}
@@ -96,13 +127,12 @@ export function GoogleSetup({ accessToken, userEmail, userName, onSetupComplete 
             }}
             placeholder="Servitec Celulares"
             autoComplete="organization"
-            autoFocus
             disabled={loading}
           />
         </FormField>
 
         <Button type="submit" variant="primary" size={size} fullWidth loading={loading} disabled={loading}>
-          {loading ? 'Creando taller' : 'Crear taller'}
+          {loading ? 'Creando cuenta' : 'Empezar'}
         </Button>
       </form>
     </AuthLayout>

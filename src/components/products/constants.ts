@@ -3,30 +3,37 @@
  * Defines all constant values used in the products module
  */
 
-export const PRODUCT_CATEGORIES = [
-  { value: 'celulares', label: 'Celulares' },
-  { value: 'accesorios', label: 'Accesorios' },
-  { value: 'computadores', label: 'Computadores' },
-  { value: 'perifericos', label: 'Periféricos' },
-] as const
+import type { BusinessProfile } from '../../config/businessTypes'
 
-export const TRACKING_METHODS = [
-  {
-    id: 'simple',
-    title: 'Por Cantidad Simple',
-    description: 'Para productos únicos sin variantes (cables, cargadores, etc.)',
-  },
-  {
-    id: 'variants',
-    title: 'Por Variantes (Colores)',
-    description: 'Para productos con diferentes colores o modelos (estuches, accesorios, etc.)',
-  },
-  {
-    id: 'units',
-    title: 'Por Unidades Individuales (IMEI/Serial)',
-    description: 'Para productos con IMEI/Serial único (celulares, computadores, etc.)',
-  },
-] as const
+/* Las categorías de producto dependen del comercio: viven en
+   config/businessTypes.ts (productCategories, productCategoryLabel,
+   productCategoryOptions). */
+
+/** Métodos de seguimiento de inventario, con ejemplos del comercio. */
+export function trackingMethods(profile: BusinessProfile) {
+  const isElectronics = profile.id === 'electronica'
+  return [
+    {
+      id: 'simple',
+      title: 'Por Cantidad Simple',
+      description: isElectronics
+        ? 'Para productos únicos sin variantes (cables, cargadores, etc.)'
+        : 'Para productos que se cuentan por cantidad (filtros, aceites, repuestos…)',
+    },
+    {
+      id: 'variants',
+      title: 'Por Variantes (Colores)',
+      description: isElectronics
+        ? 'Para productos con diferentes colores o modelos (estuches, accesorios, etc.)'
+        : 'Para productos con tallas, colores o medidas (cascos, llantas, ropa…)',
+    },
+    {
+      id: 'units',
+      title: `Por Unidades Individuales (${profile.unitTrackingLabel})`,
+      description: `Para productos con ${profile.unitTrackingLabel} único (${profile.unitTrackingExamples})`,
+    },
+  ] as const
+}
 
 export const UNIT_STATUS = {
   available: 'Disponible',

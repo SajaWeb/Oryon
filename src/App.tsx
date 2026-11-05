@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getSupabaseClient } from "./utils/supabase/client";
 import { projectId } from "./utils/supabase/info";
 import { registerServiceWorker } from "./utils/registerServiceWorker";
 import { ThemeProvider } from "./utils/ThemeContext";
+import { BusinessProvider } from "./utils/BusinessContext";
+import type { BusinessTypeId } from "./config/businessTypes";
 import {
   ConfirmEmail,
   ForgotPassword,
@@ -74,6 +76,10 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [licenseInfo, setLicenseInfo] = useState<any>(null);
   const [companyData, setCompanyData] = useState<any>(null);
+  /* Configuración cambia el tipo de comercio y la app se re-etiqueta al momento. */
+  const handleBusinessTypeChange = useCallback((businessType: BusinessTypeId) => {
+    setCompanyData((current: any) => (current ? { ...current, businessType } : current));
+  }, []);
   const [currentView, setCurrentView] = useState("dashboard");
   const [currentRoute, setCurrentRoute] = useState(initialPath);
   const [needsGoogleSetup, setNeedsGoogleSetup] = useState(false);
@@ -689,7 +695,9 @@ export default function App() {
         <Toaster position="top-right" />
         <HomePage
           onNavigateToLogin={() => navigate("/login")}
-          onNavigateToRegister={() => navigate("/register")}
+          onNavigateToRegister={(businessType) =>
+            navigate(businessType ? `/register?tipo=${businessType}` : "/register")
+          }
         />
       </ThemeProvider>
     );
@@ -700,7 +708,11 @@ export default function App() {
     return (
       <ThemeProvider>
         <Toaster position="top-right" />
-        <Welcome companyName={companyData?.name} onEnter={() => navigate("/")} />
+        <Welcome
+          companyName={companyData?.name}
+          businessType={companyData?.businessType}
+          onEnter={() => navigate("/")}
+        />
       </ThemeProvider>
     );
   }
@@ -728,16 +740,18 @@ export default function App() {
     <ThemeProvider>
       <OfflineIndicator />
       <Toaster position="top-right" />
-      <AppShell
-        currentView={currentView}
-        onViewChange={(view: ViewId) => setCurrentView(view)}
-        onLogout={handleLogout}
-        userProfile={userProfile}
-        companyName={companyData?.name}
-        licenseInfo={licenseInfo}
-      >
-        {renderView()}
-      </AppShell>
+      <BusinessProvider businessType={companyData?.businessType} onChange={handleBusinessTypeChange}>
+        <AppShell
+          currentView={currentView}
+          onViewChange={(view: ViewId) => setCurrentView(view)}
+          onLogout={handleLogout}
+          userProfile={userProfile}
+          companyName={companyData?.name}
+          licenseInfo={licenseInfo}
+        >
+          {renderView()}
+        </AppShell>
+      </BusinessProvider>
       <PWAInstallPrompt />
       <PWAUpdatePrompt />
     </ThemeProvider>

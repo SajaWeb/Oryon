@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { Ellipsis } from 'lucide-react'
 import { bottomNavItems, type ViewId } from './navItems'
+import { useBusiness } from '../../utils/BusinessContext'
 
 /**
  * Barra de navegación inferior: la pieza que faltaba del layout móvil. Antes la navegación
@@ -23,7 +24,8 @@ export function BottomNav({
   /** Vistas que viven en "Más": mantienen el botón marcado mientras estás en ellas. */
   moreViewIds: string[]
 }) {
-  const items = bottomNavItems(role)
+  const { profile } = useBusiness()
+  const items = bottomNavItems(role, profile)
   const moreActive = moreOpen || moreViewIds.includes(currentView)
 
   const cell = (active: boolean): CSSProperties => ({

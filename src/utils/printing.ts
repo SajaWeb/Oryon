@@ -134,6 +134,8 @@ export interface PrintConfig {
   warrantyNotes?: string
   welcomeMessage?: string
   farewellMessage?: string
+  /** Tipo de comercio: decide el vocabulario (Equipo / Vehículo / Placa…). Lo añade el servidor. */
+  businessType?: string
 }
 
 export interface InvoiceData {
@@ -151,7 +153,10 @@ export interface InvoiceData {
   notes?: string
   repairOrderNumber?: string
   deviceInfo?: string
+  /** "Equipo", "Vehículo", "Moto"… */
+  deviceLabel?: string
   technicianName?: string
+  technicianLabel?: string
 }
 
 export interface ServiceOrderData {
@@ -172,6 +177,12 @@ export interface ServiceOrderData {
   technician?: string
   accessories?: string
   trackingUrl?: string
+  /** Título del bloque del bien: "Equipo", "Moto", "Vehículo", "Bicicleta". */
+  assetLabel?: string
+  /** Campos del comercio ya formateados (placa, kilometraje, IMEI…). Sustituyen a la fila IMEI / Serie. */
+  assetRows?: Array<{ label: string; value: string; mono?: boolean }>
+  problemLabel?: string
+  technicianLabel?: string
 }
 
 export interface DeviceLabelData {
@@ -181,6 +192,37 @@ export interface DeviceLabelData {
   problem: string
   devicePassword?: string
   devicePasswordType?: 'text' | 'pattern'
+  /** "Etiqueta de llavero", "Etiqueta del equipo"… */
+  title?: string
+  /** Placa, serial de marco o IMEI: lo que identifica al bien de un vistazo. */
+  identifier?: { label: string; value: string }
+  /** Solo electrónica lleva clave de desbloqueo. */
+  showPassword?: boolean
+  problemLabel?: string
+}
+
+export interface CashClosingData {
+  branchName: string
+  /** Día de la caja (YYYY-MM-DD). */
+  date: string
+  openedByName: string
+  openedAt: string
+  closedByName?: string
+  closedAt?: string
+  status: 'open' | 'closed'
+  baseAmount: number
+  salesCount: number
+  /** Solo en la copia del administrador: el cajero imprime a ciegas. */
+  byMethod?: Record<string, number>
+  totalSales?: number
+  creditSales?: number
+  movements: Array<{ type: 'in' | 'out'; concept: string; amount: number; createdAt: string; createdByName?: string }>
+  countedAmount?: number
+  expectedCash?: number
+  difference?: number
+  notes?: string
+  /** Muestra esperado y diferencia. */
+  adminCopy: boolean
 }
 
 /* ───────────────────────── utilidades ───────────────────────── */
@@ -412,8 +454,8 @@ export function invoiceHtml(data: InvoiceData, config: PrintConfig): string {
 
   const referencias = [
     data.repairOrderNumber ? `<dt>Orden</dt><dd class="num">${esc(data.repairOrderNumber)}</dd>` : '',
-    data.deviceInfo ? `<dt>Equipo</dt><dd>${esc(data.deviceInfo)}</dd>` : '',
-    data.technicianName ? `<dt>Técnico</dt><dd>${esc(data.technicianName)}</dd>` : '',
+    data.deviceInfo ? `<dt>${esc(data.deviceLabel || 'Equipo')}</dt><dd>${esc(data.deviceInfo)}</dd>` : '',
+    data.technicianName ? `<dt>${esc(data.technicianLabel || 'Técnico')}</dt><dd>${esc(data.technicianName)}</dd>` : '',
   ].join('')
 
   return shell(
@@ -447,12 +489,20 @@ export function serviceOrderHtml(data: ServiceOrderData, config: PrintConfig, qr
 
   const equipo = `
     <div class="block">
-      <h2>Equipo</h2>
+      <h2>${esc(data.assetLabel || 'Equipo')}</h2>
       <dl class="kv">
         <dt>Tipo</dt><dd>${esc(data.device)}</dd>
         ${data.brand ? `<dt>Marca</dt><dd>${esc(data.brand)}</dd>` : ''}
         ${data.model ? `<dt>Modelo</dt><dd>${esc(data.model)}</dd>` : ''}
-        ${data.serialNumber ? `<dt>IMEI / Serie</dt><dd class="num">${esc(data.serialNumber)}</dd>` : ''}
+        ${
+          data.assetRows
+            ? data.assetRows
+                .map((r) => `<dt>${esc(r.label)}</dt><dd${r.mono ? ' class="num"' : ''}>${esc(r.value)}</dd>`)
+                .join('')
+            : data.serialNumber
+              ? `<dt>IMEI / Serie</dt><dd class="num">${esc(data.serialNumber)}</dd>`
+              : ''
+        }
         ${data.accessories ? `<dt>Accesorios</dt><dd>${esc(data.accessories)}</dd>` : ''}
       </dl>
     </div>`
@@ -462,11 +512,11 @@ export function serviceOrderHtml(data: ServiceOrderData, config: PrintConfig, qr
       <h2>Servicio</h2>
       <dl class="kv">
         <dt>Estado</dt><dd>${esc(data.status)}</dd>
-        ${data.technician ? `<dt>Técnico</dt><dd>${esc(data.technician)}</dd>` : ''}
+        ${data.technician ? `<dt>${esc(data.technicianLabel || 'Técnico')}</dt><dd>${esc(data.technician)}</dd>` : ''}
         ${data.estimatedDate ? `<dt>Entrega est.</dt><dd class="num">${esc(data.estimatedDate)}</dd>` : ''}
       </dl>
       <div class="box">
-        <div class="label">Falla reportada</div>
+        <div class="label">${esc(data.problemLabel || 'Falla reportada')}</div>
         <div>${esc(data.problem)}</div>
       </div>
       ${data.observations ? `<div class="muted">${esc(data.observations)}</div>` : ''}
@@ -504,6 +554,96 @@ export function serviceOrderHtml(data: ServiceOrderData, config: PrintConfig, qr
 }
 
 /**
+ * Reporte de cierre de caja.
+ *
+ * Hay dos copias del mismo papel. La del cajero dice lo que declaró —base,
+ * cobros, movimientos, contado— y nada más: si llevara el "debería haber", el
+ * arqueo dejaría de ser ciego. La del administrador añade esperado, diferencia y
+ * el desglose por método.
+ */
+export function cashClosingHtml(data: CashClosingData, config: PrintConfig): string {
+  const f = FORMATS[normalizeFormat(config.format)]
+  const hora = (iso?: string) =>
+    iso ? new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
+
+  const metodos = data.adminCopy && data.byMethod
+    ? Object.entries(data.byMethod)
+        .sort((a, b) => b[1] - a[1])
+        .map(([m, v]) => `<div class="row"><span class="muted">${esc(m)}</span><span class="num">${money(v)}</span></div>`)
+        .join('')
+    : ''
+
+  const movimientos = data.movements.length
+    ? `
+      <table>
+        <thead><tr><th>Movimiento</th><th class="right">Monto</th></tr></thead>
+        <tbody>
+          ${data.movements
+            .map(
+              (m) => `
+          <tr>
+            <td>${esc(m.concept)}<div class="muted num">${hora(m.createdAt)}${m.createdByName ? ` · ${esc(m.createdByName)}` : ''}</div></td>
+            <td class="right num">${m.type === 'in' ? '+' : '−'}${money(m.amount)}</td>
+          </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>`
+    : '<div class="muted">Sin movimientos.</div>'
+
+  const entradas = data.movements.filter((m) => m.type === 'in').reduce((a, m) => a + Number(m.amount || 0), 0)
+  const salidas = data.movements.filter((m) => m.type === 'out').reduce((a, m) => a + Number(m.amount || 0), 0)
+  const diff = data.difference ?? 0
+  const resultado = diff === 0 ? 'Cuadra' : diff > 0 ? `Sobrante ${money(diff)}` : `Faltante ${money(Math.abs(diff))}`
+
+  const arqueo = data.status === 'closed'
+    ? `
+      <div class="totals">
+        <div class="grand"><span class="label">Efectivo contado</span><span class="num">${money(data.countedAmount)}</span></div>
+        ${
+          data.adminCopy
+            ? `<div class="row"><span class="muted">Debería haber</span><span class="num">${money(data.expectedCash)}</span></div>
+               <div class="row"><span class="muted">Diferencia</span><span class="num">${esc(resultado)}</span></div>`
+            : ''
+        }
+      </div>`
+    : '<div class="muted">Caja aún abierta: este reporte es parcial.</div>'
+
+  return shell(
+    `Cierre de caja ${data.branchName} ${data.date}`,
+    f,
+    `
+    ${header(config, f)}
+    ${docBand(data.adminCopy ? 'Cierre de caja · administración' : 'Cierre de caja', data.date, data.branchName)}
+    <div class="block">
+      <dl class="kv">
+        <dt>Abrió</dt><dd>${esc(data.openedByName)} · <span class="num">${hora(data.openedAt)}</span></dd>
+        ${data.closedByName ? `<dt>Cerró</dt><dd>${esc(data.closedByName)} · <span class="num">${hora(data.closedAt)}</span></dd>` : ''}
+      </dl>
+    </div>
+    <div class="totals">
+      <div class="row"><span class="muted">Base inicial</span><span class="num">${money(data.baseAmount)}</span></div>
+      <div class="row"><span class="muted">Cobros registrados</span><span class="num">${data.salesCount}</span></div>
+      ${data.adminCopy && data.totalSales != null ? `<div class="row"><span class="muted">Total facturado</span><span class="num">${money(data.totalSales)}</span></div>` : ''}
+      ${metodos}
+      ${data.adminCopy && data.creditSales ? `<div class="row"><span class="muted">De ello a crédito</span><span class="num">${money(data.creditSales)}</span></div>` : ''}
+      <div class="row"><span class="muted">Entradas</span><span class="num">+${money(entradas)}</span></div>
+      <div class="row"><span class="muted">Salidas</span><span class="num">−${money(salidas)}</span></div>
+    </div>
+    <hr class="rule-soft">
+    ${movimientos}
+    <hr class="rule-soft">
+    ${arqueo}
+    ${data.notes ? `<hr class="rule-soft"><div class="muted">${esc(data.notes)}</div>` : ''}
+    <div class="cols">
+      <div class="sign"><div class="sign-line">Cajero · ${esc(data.closedByName || data.openedByName)}</div></div>
+      <div class="sign"><div class="sign-line">Revisó</div></div>
+    </div>
+  `
+  )
+}
+
+/**
  * La etiqueta va siempre en rollo de 55 mm: es un adhesivo que se pega al equipo,
  * no depende de la impresora elegida para los demás documentos.
  */
@@ -515,6 +655,7 @@ export function deviceLabelHtml(data: DeviceLabelData): string {
       : data.devicePassword
         ? esc(data.devicePassword)
         : '—'
+  const showPassword = data.showPassword ?? true
 
   return shell(
     `Etiqueta ${data.orderNumber}`,
@@ -523,15 +664,20 @@ export function deviceLabelHtml(data: DeviceLabelData): string {
     <div class="center block">
       <div class="kind" style="font-size:${f.small}px;font-weight:700;text-transform:uppercase;letter-spacing:.1em">Orden</div>
       <div class="num" style="font-size:${f.title + 10}px;font-weight:700;line-height:1.05">${esc(data.orderNumber)}</div>
+      ${
+        data.identifier?.value
+          ? `<div class="num" style="margin-top:2px;font-size:${f.title + 2}px;font-weight:700;letter-spacing:.08em">${esc(data.identifier.value)}</div>`
+          : ''
+      }
     </div>
     <hr class="rule">
     <dl class="kv">
       <dt>Cliente</dt><dd>${esc(data.customerName)}</dd>
       <dt>Teléfono</dt><dd class="num">${esc(data.customerPhone)}</dd>
-      <dt>Clave</dt><dd class="num">${clave}</dd>
+      ${showPassword ? `<dt>Clave</dt><dd class="num">${clave}</dd>` : ''}
     </dl>
     <div class="box">
-      <div class="label">Falla</div>
+      <div class="label">${esc(data.problemLabel || 'Falla')}</div>
       <div>${esc(data.problem)}</div>
     </div>
   `
@@ -596,3 +742,5 @@ export async function printServiceOrder(data: ServiceOrderData, config: PrintCon
 }
 
 export const printDeviceLabel = (data: DeviceLabelData) => printHtml(deviceLabelHtml(data))
+
+export const printCashClosing = (data: CashClosingData, config: PrintConfig) => printHtml(cashClosingHtml(data, config))

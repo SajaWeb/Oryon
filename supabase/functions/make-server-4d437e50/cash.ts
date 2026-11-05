@@ -43,6 +43,9 @@ export interface CashSession {
   /** contado − esperado. Negativo es faltante. */
   difference?: number
   closingNotes?: string
+  closedByRole?: string
+  /** Totales congelados al cerrar: anular después una venta no reescribe el cierre. */
+  totalsSnapshot?: CashTotals
 }
 
 export interface CashMovement {
@@ -58,6 +61,9 @@ export interface CashMovement {
   createdByUserId: string
   createdByName: string
   createdAt: string
+  /** Si el movimiento lo generó el sistema (p. ej. devolución de una venta anulada). */
+  saleId?: number | string
+  automatic?: boolean
 }
 
 export interface CashTotals {
@@ -147,5 +153,91 @@ export function computeTotals(
     expectedCash: baseAmount + cashSales + movementsIn - movementsOut,
     salesCount: sales.length,
     byMethod,
+  }
+}
+
+/* ==================== PERMISOS Y CANDADOS ==================== */
+
+export interface ProfileLike {
+  role?: string
+  branchId?: string
+  assignedBranches?: string[]
+}
+
+export const STAFF_ROLES = ['admin', 'asesor', 'tecnico', 'cajero'] as const
+
+export function isAdmin(profile?: ProfileLike | null): boolean {
+  return profile?.role === 'admin'
+}
+
+/** Quién puede abrir, mover y cerrar caja, y cobrar. El técnico no. */
+export function canHandleCash(profile?: ProfileLike | null): boolean {
+  return profile?.role === 'admin' || profile?.role === 'asesor' || profile?.role === 'cajero'
+}
+
+/**
+ * El administrador ve todas las sucursales. El resto, solo las asignadas
+ * (o la heredada `branchId` de los perfiles antiguos). Sin ninguna asignada,
+ * no tiene acceso a ninguna: antes este filtro vivía solo en el cliente.
+ */
+export function canAccessBranch(profile: ProfileLike | null | undefined, branchId?: string): boolean {
+  if (!profile || !branchId) return false
+  if (isAdmin(profile)) return true
+  const assigned = Array.isArray(profile.assignedBranches) ? profile.assignedBranches : []
+  if (assigned.includes(branchId)) return true
+  return Boolean(profile.branchId) && profile.branchId === branchId
+}
+
+/** Una caja abierta de un día anterior: no admite más cobros, solo cerrarse. */
+export function isStale(session: Pick<CashSession, 'date' | 'status'>, today: string = businessDate()): boolean {
+  return session.status === 'open' && String(session.date) < today
+}
+
+export const PAYMENT_METHODS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Nequi', 'Daviplata', 'Crédito'] as const
+
+/** Devuelve el método canónico, o null si no es uno de los admitidos. */
+export function normalizePaymentMethod(method?: unknown): string | null {
+  const raw = String(method ?? '').trim()
+  if (!raw) return null
+  const plain = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  for (const m of PAYMENT_METHODS) {
+    if (m.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() === plain) return m
+  }
+  return null
+}
+
+/**
+ * Arqueo ciego también en la API: quien no es administrador no recibe lo que
+ * "debería haber" ni la diferencia, ni los agregados con los que calcularlo.
+ */
+export function sanitizeTotals(totals: CashTotals | null | undefined, admin: boolean): Partial<CashTotals> | null {
+  if (!totals) return null
+  if (admin) return totals
+  return {
+    baseAmount: totals.baseAmount,
+    salesCount: totals.salesCount,
+    movementsIn: totals.movementsIn,
+    movementsOut: totals.movementsOut,
+  }
+}
+
+export function sanitizeSession(session: CashSession, admin: boolean): Partial<CashSession> {
+  if (admin) return session
+  const { expectedCash: _e, difference: _d, totalsSnapshot: _t, ...rest } = session
+  return rest
+}
+
+/** Versión ligera de una venta para listarla dentro de la caja. */
+export function saleSummary(sale: any) {
+  return {
+    id: sale.id,
+    invoiceNumber: sale.invoiceNumber,
+    createdAt: sale.createdAt,
+    customerName: sale.customerName,
+    paymentMethod: sale.paymentMethod,
+    total: num(sale.total),
+    createdByName: sale.createdByName || sale.createdBy || '',
+    type: sale.type,
+    status: sale.status,
   }
 }

@@ -10,13 +10,8 @@ export const statusLabels: Record<string, string> = {
 
 // El color de cada estado vive en el design system (StatusBadge / OT_STATES):
 // tener aquí un mapa paralelo de clases era justo lo que el sistema prohíbe.
-export const deviceTypes = [
-  { value: 'celular', label: 'Celular' },
-  { value: 'tablet', label: 'Tablet' },
-  { value: 'laptop', label: 'Laptop' },
-  { value: 'computador', label: 'Computador' },
-  { value: 'otro', label: 'Otro' }
-]
+// Los tipos de bien (celular, moto, automóvil…) dependen del comercio: viven en
+// config/businessTypes.ts (`assetTypes`).
 
 export const defaultIdentificationTypes = [
   'Cédula de Ciudadanía',

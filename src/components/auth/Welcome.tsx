@@ -1,22 +1,27 @@
 import { Button } from '../oryon'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { AuthHeading, AuthLayout } from './AuthLayout'
+import { getBusinessProfile } from '../../config/businessTypes'
 
 interface WelcomeProps {
   companyName?: string
+  businessType?: string
   onEnter: () => void
 }
 
-/* Los tres primeros movimientos, en el orden en que tienen sentido: sin OT no hay
-   nada que ver en el panel, y sin repuestos no se puede facturar una reparación. */
-const STEPS = [
-  'Registrar la primera OT',
-  'Cargar inventario de repuestos',
-  'Invitar a tus técnicos',
-]
-
-export function Welcome({ companyName, onEnter }: WelcomeProps) {
+export function Welcome({ companyName, businessType, onEnter }: WelcomeProps) {
   const { isMobile } = useBreakpoint()
+  const profile = getBusinessProfile(businessType)
+
+  /* Los tres primeros movimientos, en el orden en que tienen sentido: sin OT no
+     hay nada que ver en el panel, y sin repuestos no se puede facturar. */
+  const STEPS = [
+    profile.id === 'electronica'
+      ? 'Registrar la primera OT'
+      : `Recibir ${profile.vocab.article === 'la' ? 'la primera' : 'el primer'} ${profile.vocab.asset}`,
+    `Cargar inventario de ${profile.productCategories[0]?.label.toLowerCase() ?? 'repuestos'}`,
+    `Invitar a tus ${profile.vocab.technician.toLowerCase()}s`,
+  ]
 
   return (
     <AuthLayout variant="register">

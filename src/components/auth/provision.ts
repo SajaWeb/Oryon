@@ -16,7 +16,7 @@ export interface ProvisionResult {
   success: boolean
   /** Cuenta de Google sin nombre de empresa: hay que preguntarlo antes de seguir. */
   needsCompanyName?: boolean
-  company?: { id: number; name: string; planId: string; trialEndsAt: string }
+  company?: { id: number; name: string; planId: string; trialEndsAt: string; businessType?: string }
   branch?: { id: string; name: string }
   user?: { userId: string; email: string; name: string; companyId: number; role: string }
   error?: string
@@ -24,7 +24,7 @@ export interface ProvisionResult {
 
 export function provisionAccount(
   accessToken: string,
-  payload: { name?: string; companyName?: string } = {}
+  payload: { name?: string; companyName?: string; businessType?: string } = {}
 ): Promise<ProvisionResult> {
   return makeAuthenticatedRequest<ProvisionResult>('/auth/provision', accessToken, {
     method: 'POST',

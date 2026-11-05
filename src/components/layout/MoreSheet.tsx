@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { ChevronRight, LogOut, MessageCircle } from 'lucide-react'
 import { BottomSheet } from './BottomSheet'
 import { moreSheetItems, type ViewId } from './navItems'
+import { useBusiness } from '../../utils/BusinessContext'
 
 /**
  * Hoja "Más": los módulos que no caben en la barra inferior, más soporte y cierre de sesión.
@@ -27,7 +28,8 @@ export function MoreSheet({
   /** Aviso bajo "Licencia" cuando está por vencer o vencida. */
   licenseHint?: { text: string; tone: 'warning' | 'danger' } | null
 }) {
-  const items = moreSheetItems(role)
+  const { profile } = useBusiness()
+  const items = moreSheetItems(role, profile)
 
   const row: CSSProperties = {
     display: 'flex',
