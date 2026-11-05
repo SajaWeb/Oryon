@@ -37,6 +37,7 @@ import { RepairFormData, InvoiceFormData, Repair } from './types'
 import { filterRepairs } from './utils'
 import { statusLabels } from './constants'
 import { useBusiness } from '../../utils/BusinessContext'
+import { resolveCustomer, type CustomerDraft } from '../customers/customerDraft'
 import { assetSummary, cap } from '../../config/businessTypes'
 
 interface UserProfile {
@@ -66,7 +67,7 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
   // Custom hooks
   const { repairs, loading, error, fetchRepairs, deleteRepair, setLoading, setError } = useRepairs(accessToken, userRole, userProfile)
   const { branches, fetchBranches, getAvailableBranches } = useBranches(accessToken)
-  const { customers, fetchCustomers, findOrCreateCustomer } = useCustomers(accessToken)
+  const { customers, fetchCustomers } = useCustomers(accessToken)
   const { identificationTypes, fetchCompanySettings } = useCompanySettings(accessToken)
   const dialogs = useRepairDialogs()
 
@@ -117,20 +118,36 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
 
   // Handlers
   const handleSubmitNewRepair = async (
-    formData: RepairFormData, 
+    formData: RepairFormData,
     uploadedImages: string[],
-    selectedCustomerId: number | null
+    customerDraft: CustomerDraft
   ) => {
     try {
-      const customerId = await findOrCreateCustomer(formData, selectedCustomerId)
-      await createRepair(accessToken, formData, uploadedImages, customerId)
+      // El cliente elegido es ese; uno nuevo se crea (o se reusa si ya existía).
+      const { customer, created } = await resolveCustomer(accessToken, customerDraft, customers)
+      const withCustomer: RepairFormData = {
+        ...formData,
+        customerName: customer.name,
+        customerPhone: customer.phone || customerDraft.phone,
+        customerEmail: customer.email || customerDraft.email,
+        customerIdentificationType: customer.identificationType || customerDraft.identificationType,
+        customerIdentificationNumber: customer.identificationNumber || customerDraft.identificationNumber,
+      }
+      // createRepair ya muestra el aviso de éxito.
+      await createRepair(accessToken, withCustomer, uploadedImages, customer.id)
+      if (created) void fetchCustomers()
       await fetchRepairs()
       dialogs.setDialogOpen(false)
-      toast.success('✅ Orden de reparación creada exitosamente')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in handleSubmitNewRepair:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Error al crear la orden de reparación'
-      toast.error(errorMessage)
+      // createRepair ya mostró su aviso; aquí solo faltan los errores del cliente.
+      if (!error?.handled) {
+        toast.error('No se pudo guardar el cliente', {
+          description: error instanceof Error ? error.message : 'Vuelve a intentarlo.',
+        })
+      }
+      // Se relanza para que el formulario no se borre.
+      throw error
     }
   }
 
@@ -178,7 +195,11 @@ export function Repairs({ accessToken, userName, userRole, userProfile }: Repair
       dialogs.setSelectedRepair(null)
     } catch (error) {
       console.error('Error updating status:', error)
-      toast.error('Error al actualizar el estado: ' + String(error))
+      toast.error('No se pudo cambiar el estado', {
+        description: error instanceof Error ? error.message : 'Vuelve a intentarlo.',
+      })
+      // Se relanza: el diálogo conserva la nota y no abre WhatsApp.
+      throw error
     }
   }
 

@@ -8,6 +8,13 @@ export interface ChartColors {
   series4: string
   grid: string
   axis: string
+  /** Par validado (scripts de dataviz, CVD y contraste) para "ingresos vs ganancia". */
+  revenue: string
+  profit: string
+  /** Lo que no es el foco en una barra de parte-todo (p. ej. el costo frente a la ganancia). */
+  neutral: string
+  /** Superficie de la tarjeta: separa segmentos contiguos con un hueco de 2px. */
+  surface: string
   /** Paleta categórica para series sin significado semántico (porciones de un donut). */
   categorical: string[]
 }
@@ -18,16 +25,22 @@ function read(name: string, fallback: string): string {
   return v || fallback
 }
 
-function resolve(): ChartColors {
+function resolve(theme: 'light' | 'dark' = 'dark'): ChartColors {
+  const light = theme === 'light'
   return {
-    series1: read('--accent-400', '#35E0FF'),
+    /* En claro el cian 400 queda a 1,6:1 sobre blanco (ilegible); el 600 da más de 3:1. */
+    series1: light ? read('--accent-600', '#1195AE') : read('--accent-400', '#35E0FF'),
     series2: read('--state-ready', '#3FD98A'),
     series3: read('--state-repair', '#FFB020'),
     series4: read('--state-diagnosis', '#6C7BFF'),
     grid: read('--border-subtle', '#202527'),
     axis: read('--text-tertiary', '#6E787C'),
+    revenue: light ? read('--accent-600', '#1195AE') : read('--accent-500', '#17BCDB'),
+    profit: read('--state-diagnosis', light ? '#4453D6' : '#6C7BFF'),
+    neutral: read('--alu-400', '#6E787C'),
+    surface: read('--surface-card', light ? '#FFFFFF' : '#131617'),
     categorical: [
-      read('--accent-400', '#35E0FF'),
+      light ? read('--accent-600', '#1195AE') : read('--accent-400', '#35E0FF'),
       read('--state-diagnosis', '#6C7BFF'),
       read('--state-repair', '#FFB020'),
       read('--state-ready', '#3FD98A'),
@@ -46,10 +59,13 @@ function resolve(): ChartColors {
  */
 export function useChartColors(): ChartColors {
   const { effectiveTheme } = useTheme()
-  const [colors, setColors] = useState<ChartColors>(resolve)
+  const [colors, setColors] = useState<ChartColors>(() => resolve(effectiveTheme))
 
   useEffect(() => {
-    setColors(resolve())
+    /* Un frame de espera: ThemeContext escribe data-theme en su propio efecto y
+       los tokens de estado dependen de él. Leer antes devolvería el tema viejo. */
+    const id = requestAnimationFrame(() => setColors(resolve(effectiveTheme)))
+    return () => cancelAnimationFrame(id)
   }, [effectiveTheme])
 
   return colors

@@ -16,6 +16,8 @@ import {
 interface BusinessContextValue {
   businessType: BusinessTypeId
   profile: BusinessProfile
+  /** Nombre de la empresa: firma los mensajes al cliente (WhatsApp). */
+  companyName?: string
   /** Aplica un cambio ya guardado en el servidor, sin recargar la app. */
   setBusinessType: (type: BusinessTypeId) => void
 }
@@ -28,17 +30,19 @@ const BusinessContext = createContext<BusinessContextValue>({
 
 export function BusinessProvider({
   businessType,
+  companyName,
   onChange,
   children,
 }: {
   businessType?: string | null
+  companyName?: string
   onChange: (type: BusinessTypeId) => void
   children: ReactNode
 }) {
   const value = useMemo<BusinessContextValue>(() => {
     const profile = getBusinessProfile(businessType)
-    return { businessType: profile.id, profile, setBusinessType: onChange }
-  }, [businessType, onChange])
+    return { businessType: profile.id, profile, companyName, setBusinessType: onChange }
+  }, [businessType, companyName, onChange])
 
   return <BusinessContext.Provider value={value}>{children}</BusinessContext.Provider>
 }

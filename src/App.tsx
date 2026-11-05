@@ -740,7 +740,7 @@ export default function App() {
     <ThemeProvider>
       <OfflineIndicator />
       <Toaster position="top-right" />
-      <BusinessProvider businessType={companyData?.businessType} onChange={handleBusinessTypeChange}>
+      <BusinessProvider businessType={companyData?.businessType} companyName={companyData?.name} onChange={handleBusinessTypeChange}>
         <AppShell
           currentView={currentView}
           onViewChange={(view: ViewId) => setCurrentView(view)}

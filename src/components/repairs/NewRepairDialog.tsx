@@ -6,7 +6,14 @@ import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { PatternLock } from '../PatternLock'
 import { useBusiness } from '../../utils/BusinessContext'
 import { cap, computeAssetKey, thisAsset, type BusinessProfile } from '../../config/businessTypes'
-import { CustomerSelector, type CustomerPreselect } from './CustomerSelector'
+import { CustomerPicker } from '../customers/CustomerPicker'
+import {
+  draftFromCustomer,
+  emptyCustomerDraft,
+  validateCustomerDraft,
+  type CustomerDraft,
+  type CustomerErrors,
+} from '../customers/customerDraft'
 import { Customer, RepairFormData } from './types'
 import { useAssetHistory } from './hooks/useAssetHistory'
 import { AssetFields, readField } from './ui/AssetFields'
@@ -48,7 +55,8 @@ interface NewRepairDialogProps {
   branches: Branch[]
   userRole?: string
   accessToken: string | null
-  onSubmit: (formData: RepairFormData, uploadedImages: string[], selectedCustomerId: number | null) => Promise<void>
+  /** Debe lanzar si falla: así el formulario conserva lo escrito. */
+  onSubmit: (formData: RepairFormData, uploadedImages: string[], customer: CustomerDraft) => Promise<void>
 }
 
 
@@ -87,8 +95,8 @@ export function NewRepairDialog({
   const { vocab } = profile
   const [formData, setFormData] = useState<RepairFormData>(() => emptyForm(profile, branches[0]?.id))
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
-  const [customerPreselect, setCustomerPreselect] = useState<CustomerPreselect | null>(null)
+  const [customer, setCustomer] = useState<CustomerDraft>(emptyCustomerDraft)
+  const [customerErrors, setCustomerErrors] = useState<CustomerErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string | undefined>>({})
 
@@ -124,12 +132,28 @@ export function NewRepairDialog({
       imei: prev.imei || lastVisit.imei || '',
       serialNumber: prev.serialNumber || lastVisit.serialNumber || '',
       assetDetails: { ...stableDetails, ...pickNonEmpty(prev.assetDetails) },
-      customerName: lastVisit.customerName || prev.customerName,
-      customerPhone: lastVisit.customerPhone || prev.customerPhone,
-      customerEmail: lastVisit.customerEmail || prev.customerEmail,
     }))
     setErrors({})
-    setCustomerPreselect({ id: lastVisit.customerId, nonce: Date.now() })
+    /* El dueño de la visita anterior: si está en la lista se selecciona; si no
+       (órdenes viejas sin cliente enlazado), se proponen sus datos como nuevo. */
+    const known = lastVisit.customerId != null ? customers.find((c) => c.id === lastVisit.customerId) : undefined
+    setCustomer(
+      known
+        ? draftFromCustomer(known)
+        : {
+            ...emptyCustomerDraft(),
+            mode: 'new',
+            name: lastVisit.customerName || '',
+            phone: lastVisit.customerPhone || '',
+            email: lastVisit.customerEmail || '',
+          }
+    )
+    setCustomerErrors({})
+  }
+
+  const changeCustomer = (next: CustomerDraft) => {
+    setCustomer(next)
+    setCustomerErrors({})
   }
 
   const { isMobile, isDesktop } = useBreakpoint()
@@ -167,8 +191,8 @@ export function NewRepairDialog({
     e.preventDefault()
 
     const next: typeof errors = {}
-    if (!formData.customerName.trim()) next.customerName = 'Elige un cliente o escribe su nombre.'
-    if (!formData.customerPhone.trim()) next.customerPhone = 'El teléfono es como se le avisa al cliente.'
+    const custErrors = validateCustomerDraft(customer)
+    setCustomerErrors(custErrors)
     if (!formData.deviceBrand.trim()) next.deviceBrand = 'Escribe la marca.'
     if (!formData.deviceModel.trim()) next.deviceModel = 'Escribe el modelo.'
     for (const field of profile.assetFields) {
@@ -180,19 +204,22 @@ export function NewRepairDialog({
     }
 
     setErrors(next)
-    if (Object.keys(next).length > 0) {
+    if (Object.keys(next).length > 0 || Object.keys(custErrors).length > 0) {
       document.querySelector<HTMLElement>(`#${REPAIR_FORM_ID} [aria-invalid="true"]`)?.focus()
       return
     }
 
     setSubmitting(true)
     try {
-      await onSubmit(formData, uploadedImages, selectedCustomerId)
+      await onSubmit(formData, uploadedImages, customer)
+      // Solo si se creó: ante un error se conserva todo lo escrito.
       setFormData(emptyForm(profile, branches[0]?.id))
       setUploadedImages([])
-      setSelectedCustomerId(null)
-      setCustomerPreselect(null)
+      setCustomer(emptyCustomerDraft())
+      setCustomerErrors({})
       setErrors({})
+    } catch {
+      /* El aviso lo muestra quien llama. */
     } finally {
       setSubmitting(false)
     }
@@ -229,19 +256,14 @@ export function NewRepairDialog({
         {/* ── Quién trae el bien y cuál es ──────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22, minWidth: 0 }}>
           <FieldGroup title="Cliente">
-            <CustomerSelector
+            <CustomerPicker
               customers={customers}
               identificationTypes={identificationTypes}
-              formData={formData}
-              onFormDataChange={change}
-              onCustomerSelect={setSelectedCustomerId}
-              preselect={customerPreselect}
+              value={customer}
+              onChange={changeCustomer}
+              errors={customerErrors}
+              disabled={submitting}
             />
-            {(errors.customerName || errors.customerPhone) && (
-              <p role="alert" style={{ margin: 0, fontSize: 'var(--text-caption)', color: 'var(--danger)' }}>
-                {errors.customerName ?? errors.customerPhone}
-              </p>
-            )}
           </FieldGroup>
 
           <FieldGroup title={cap(vocab.asset)}>

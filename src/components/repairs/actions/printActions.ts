@@ -10,6 +10,7 @@ import {
   type ServiceOrderData,
 } from '../../../utils/printing'
 import { Repair } from '../types'
+import { trackingUrl as buildTrackingUrl } from '../../../utils/whatsapp'
 import { statusLabels } from '../constants'
 import {
   assetIdentifier,
@@ -47,7 +48,7 @@ export const handlePrintServiceOrder = async (
     const printConfig: PrintConfig = configData.printConfig
     // Generate tracking URL with company ID to avoid conflicts between companies
     // BrowserRouter format: clean URLs without hash
-    const trackingUrl = `${window.location.origin}/tracking/${repair.companyId}/${repair.id}`
+    const trackingUrl = buildTrackingUrl(repair.companyId, repair.id)
     
     // El vocabulario sale del comercio de la empresa (lo manda el servidor en printConfig).
     const profile = getBusinessProfile(printConfig.businessType)

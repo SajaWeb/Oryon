@@ -12,9 +12,7 @@ export const createRepair = async (
     throw new Error('No access token available')
   }
 
-  const toastId = toast.loading('🔧 Creando orden de reparación...', {
-    description: 'Por favor espera, estamos procesando tu solicitud'
-  })
+  const toastId = toast.loading('Creando orden…')
 
   try {
     // Upload images to Cloudinary if there are any
@@ -103,20 +101,26 @@ export const createRepair = async (
       return data.repair
     } else {
       console.error('Error saving repair:', data.error)
-      toast.error('❌ Error al crear la orden de reparación', {
+      toast.error('No se pudo crear la orden', {
         id: toastId,
-        description: data.error || 'Por favor intenta nuevamente',
+        description: data.error || 'Vuelve a intentarlo.',
         duration: 5000
       })
-      throw new Error(data.error)
+      const err: any = new Error(data.error || 'No se pudo crear la orden')
+      err.handled = true
+      throw err
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving repair:', error)
-    toast.error('❌ Error al crear la orden de reparación', {
-      id: toastId,
-      description: 'Verifica tu conexión a internet',
-      duration: 5000
-    })
+    // El error del servidor ya se mostró arriba; aquí solo llegan fallos de red.
+    if (!error?.handled) {
+      toast.error('No se pudo crear la orden', {
+        id: toastId,
+        description: 'Revisa tu conexión a internet e inténtalo de nuevo.',
+        duration: 5000
+      })
+      error = Object.assign(error instanceof Error ? error : new Error(String(error)), { handled: true })
+    }
     throw error
   }
 }
