@@ -1,123 +1,73 @@
 import { useEffect, useState } from 'react'
-import { Bell, BellOff } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { Label } from '../ui/label'
-import { Button } from '../ui/button'
+import { Bell } from 'lucide-react'
+import { Alert, Button, Card } from '../oryon'
 import {
   isNotificationSupported,
   getNotificationPermission,
   requestNotificationPermission,
-  showNotification
+  showNotification,
 } from '../../utils/notifications'
 
+/** Notificaciones del navegador en este dispositivo. */
 export function NotificationsSection() {
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
-  const [testingNotification, setTestingNotification] = useState(false)
+  const [permission, setPermission] = useState<NotificationPermission>('default')
+  const [testing, setTesting] = useState(false)
 
   useEffect(() => {
-    if (isNotificationSupported()) {
-      setNotificationPermission(getNotificationPermission())
-    }
+    if (isNotificationSupported()) setPermission(getNotificationPermission())
   }, [])
 
-  const handleEnableNotifications = async () => {
-    const permission = await requestNotificationPermission()
-    setNotificationPermission(permission)
-    
-    if (permission === 'granted') {
+  const enable = async () => {
+    const next = await requestNotificationPermission()
+    setPermission(next)
+    if (next === 'granted') {
       await showNotification({
-        title: '🎉 Notificaciones Activadas',
-        body: 'Recibirás notificaciones sobre el estado de las reparaciones y actualizaciones importantes',
-        tag: 'welcome-notification'
+        title: 'Notificaciones activadas',
+        body: 'Te avisaremos de cambios en las órdenes, stock bajo y novedades importantes.',
+        tag: 'welcome-notification',
       })
     }
   }
 
-  const handleTestNotification = async () => {
-    setTestingNotification(true)
+  const test = async () => {
+    setTesting(true)
     await showNotification({
-      title: '🔔 Notificación de Prueba',
-      body: 'Esta es una notificación de prueba de Oryon App. ¡Todo funciona correctamente!',
-      tag: 'test-notification'
+      title: 'Notificación de prueba',
+      body: 'Si ves esto, las notificaciones de Oryon funcionan en este dispositivo.',
+      tag: 'test-notification',
     })
-    setTimeout(() => setTestingNotification(false), 2000)
+    window.setTimeout(() => setTesting(false), 2000)
   }
 
-  if (!isNotificationSupported()) {
-    return null
-  }
+  if (!isNotificationSupported()) return null
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <Bell className="text-primary" size={24} />
-          <CardTitle>Notificaciones Push</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div>
-            <Label>Estado de Notificaciones</Label>
-            <p className="text-sm text-ink-tertiary mb-3">
-              Recibe actualizaciones en tiempo real sobre reparaciones, stock bajo y más
-            </p>
-          </div>
-
-          {notificationPermission === 'default' && (
-            <div className="bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Bell className="text-primary flex-shrink-0 mt-0.5" size={20} />
-                <div className="flex-1">
-                  <p className="text-sm text-primary mb-3">
-                    Activa las notificaciones para recibir actualizaciones en tiempo real sobre tu negocio
-                  </p>
-                  <Button onClick={handleEnableNotifications} size="sm">
-                    Activar Notificaciones
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {notificationPermission === 'granted' && (
-            <div className="bg-[var(--success-subtle)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Bell className="text-success flex-shrink-0 mt-0.5" size={20} />
-                <div className="flex-1">
-                  <p className="text-sm text-success mb-3">
-                    ✓ Las notificaciones están activadas
-                  </p>
-                  <Button 
-                    onClick={handleTestNotification} 
-                    size="sm" 
-                    variant="outline"
-                    disabled={testingNotification}
-                  >
-                    {testingNotification ? 'Enviando...' : 'Enviar Notificación de Prueba'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {notificationPermission === 'denied' && (
-            <div className="bg-[var(--danger-subtle)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <BellOff className="text-danger flex-shrink-0 mt-0.5" size={20} />
-                <div className="flex-1">
-                  <p className="text-sm text-danger mb-2">
-                    Las notificaciones están bloqueadas
-                  </p>
-                  <p className="text-xs text-danger">
-                    Para activarlas, ve a la configuración de tu navegador y permite las notificaciones para este sitio
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </CardContent>
+    <Card title="Notificaciones" subtitle="Avisos del navegador sobre órdenes, stock bajo y más">
+      {permission === 'default' && (
+        <Alert variant="info" title="Las notificaciones están apagadas">
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+            Actívalas para enterarte a tiempo aunque no tengas Oryon abierto.
+            <Button size="sm" variant="primary" iconLeft={Bell} onClick={enable}>
+              Activar notificaciones
+            </Button>
+          </span>
+        </Alert>
+      )}
+      {permission === 'granted' && (
+        <Alert variant="success" title="Notificaciones activadas">
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+            Recibirás los avisos en este dispositivo.
+            <Button size="sm" variant="secondary" onClick={test} loading={testing} disabled={testing}>
+              {testing ? 'Enviando' : 'Enviar una de prueba'}
+            </Button>
+          </span>
+        </Alert>
+      )}
+      {permission === 'denied' && (
+        <Alert variant="danger" title="Las notificaciones están bloqueadas">
+          Para activarlas, permite las notificaciones para este sitio en la configuración del navegador.
+        </Alert>
+      )}
     </Card>
   )
 }

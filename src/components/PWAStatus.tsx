@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Smartphone, Wifi, WifiOff, Download } from 'lucide-react'
 import { Badge } from './ui/badge'
+import { Alert, Badge as OryonBadge, Card, KeyValue } from './oryon'
 
 export function PWAStatus() {
   const [isInstalled, setIsInstalled] = useState(false)
@@ -118,53 +119,22 @@ export function PWAInfo() {
   }, [])
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="font-semibold mb-2">Estado de la PWA</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center justify-between p-2 bg-sunken rounded">
-            <span className="text-ink-secondary">App Instalada</span>
-            <Badge variant={isInstalled ? 'default' : 'secondary'}>
-              {isInstalled ? 'Sí' : 'No'}
-            </Badge>
-          </div>
-
-          <div className="flex items-center justify-between p-2 bg-sunken rounded">
-            <span className="text-ink-secondary">Service Worker</span>
-            <Badge variant={swRegistered ? 'default' : 'secondary'}>
-              {swRegistered ? 'Activo' : 'Inactivo'}
-            </Badge>
-          </div>
-
-          <div className="flex items-center justify-between p-2 bg-sunken rounded">
-            <span className="text-ink-secondary">Caché Utilizada</span>
-            <span className="text-ink">{cacheSize}</span>
-          </div>
-
-          <div className="flex items-center justify-between p-2 bg-sunken rounded">
-            <span className="text-ink-secondary">Conexión</span>
-            <Badge variant={navigator.onLine ? 'default' : 'destructive'}>
-              {navigator.onLine ? 'Online' : 'Offline'}
-            </Badge>
-          </div>
-        </div>
+    <Card title="Aplicación" subtitle="Estado de Oryon en este dispositivo">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <KeyValue
+          items={[
+            { label: 'Instalada', value: <OryonBadge tone={isInstalled ? 'success' : 'neutral'}>{isInstalled ? 'Sí' : 'No'}</OryonBadge> },
+            { label: 'Trabajo sin conexión', value: <OryonBadge tone={swRegistered ? 'success' : 'neutral'}>{swRegistered ? 'Activo' : 'Inactivo'}</OryonBadge> },
+            { label: 'Espacio usado', value: cacheSize, mono: true },
+            { label: 'Conexión', value: <OryonBadge tone={navigator.onLine ? 'success' : 'danger'} dot>{navigator.onLine ? 'En línea' : 'Sin conexión'}</OryonBadge> },
+          ]}
+        />
+        {!isInstalled && (
+          <Alert variant="info" title="Instala Oryon en este dispositivo">
+            Abre más rápido y funciona aunque se caiga el internet. Busca «Instalar» en el menú del navegador.
+          </Alert>
+        )}
       </div>
-
-      {!isInstalled && (
-        <div className="p-3 bg-[var(--accent-subtle)] border border-[var(--accent-subtle-border)] rounded-lg">
-          <div className="flex items-start gap-2">
-            <Download className="text-primary mt-0.5" size={16} />
-            <div className="text-sm">
-              <p className="text-primary font-medium mb-1">
-                Instala la aplicación
-              </p>
-              <p className="text-primary text-xs">
-                Para mejor experiencia, instala Oryon App en tu dispositivo. Busca el botón de instalación en tu navegador.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </Card>
   )
 }

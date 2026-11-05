@@ -6442,7 +6442,9 @@ app.get('/make-server-4d437e50/tracking-legacy/:repairId', async (c) => {
     // Return only public-safe information
     const publicRepair = {
       id: repair.id,
-      customerName: repair.customerName,
+      // Página pública: basta con el nombre de pila para que el cliente se reconozca.
+      customerName: String(repair.customerName || '').trim().split(/\s+/)[0],
+      updatedAt: repair.updatedAt,
       deviceType: repair.deviceType,
       deviceBrand: repair.deviceBrand,
       deviceModel: repair.deviceModel,
@@ -6476,10 +6478,24 @@ app.get('/make-server-4d437e50/tracking-legacy/:repairId', async (c) => {
        (serial de marco de una bicicleta). En un celular o un carro no hace falta. */
     if (trackingBusinessType !== 'bicicletas') delete (publicRepair as any).serialNumber
 
+    /* Datos de contacto del taller para que el cliente pueda llamar o escribir:
+       primero los de la sucursal de la orden, si no, los de la empresa. */
+    const parseJson = (raw: any) => (raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null)
+    const trackingPrint = parseJson(await kv.get(`company:${repair.companyId}:printConfig`)) || {}
+    const trackingBranch = repair.branchId ? parseJson(await kv.get(`branch:${repair.branchId}`)) : null
+    const business = {
+      name: trackingPrint.companyName || trackingCompany?.name || '',
+      logo: trackingPrint.companyLogo || '',
+      branchName: trackingBranch?.name || '',
+      phone: trackingBranch?.phone || trackingPrint.companyPhone || '',
+      address: trackingBranch?.address || trackingPrint.companyAddress || '',
+    }
+
     return c.json({
       success: true,
       repair: publicRepair,
       businessType: trackingBusinessType,
+      business,
     })
   } catch (error) {
     console.log('Error fetching legacy repair tracking:', error)
@@ -6524,7 +6540,9 @@ app.get('/make-server-4d437e50/tracking/:companyId/:repairId', async (c) => {
     // Return only public-safe information (no passwords, no internal notes)
     const publicRepair = {
       id: repair.id,
-      customerName: repair.customerName,
+      // Página pública: basta con el nombre de pila para que el cliente se reconozca.
+      customerName: String(repair.customerName || '').trim().split(/\s+/)[0],
+      updatedAt: repair.updatedAt,
       deviceType: repair.deviceType,
       deviceBrand: repair.deviceBrand,
       deviceModel: repair.deviceModel,
@@ -6558,10 +6576,24 @@ app.get('/make-server-4d437e50/tracking/:companyId/:repairId', async (c) => {
        (serial de marco de una bicicleta). En un celular o un carro no hace falta. */
     if (trackingBusinessType !== 'bicicletas') delete (publicRepair as any).serialNumber
 
+    /* Datos de contacto del taller para que el cliente pueda llamar o escribir:
+       primero los de la sucursal de la orden, si no, los de la empresa. */
+    const parseJson = (raw: any) => (raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null)
+    const trackingPrint = parseJson(await kv.get(`company:${repair.companyId}:printConfig`)) || {}
+    const trackingBranch = repair.branchId ? parseJson(await kv.get(`branch:${repair.branchId}`)) : null
+    const business = {
+      name: trackingPrint.companyName || trackingCompany?.name || '',
+      logo: trackingPrint.companyLogo || '',
+      branchName: trackingBranch?.name || '',
+      phone: trackingBranch?.phone || trackingPrint.companyPhone || '',
+      address: trackingBranch?.address || trackingPrint.companyAddress || '',
+    }
+
     return c.json({
       success: true,
       repair: publicRepair,
       businessType: trackingBusinessType,
+      business,
     })
   } catch (error) {
     console.log('Error fetching repair tracking:', error)

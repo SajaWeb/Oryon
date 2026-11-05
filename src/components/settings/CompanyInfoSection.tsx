@@ -1,7 +1,6 @@
-import { Building2 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { Badge } from '../ui/badge'
-import { Alert, AlertDescription } from '../ui/alert'
+import { Alert, Badge, Card, KeyValue } from '../oryon'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { useBusiness } from '../../utils/BusinessContext'
 
 interface Company {
   id: number
@@ -16,56 +15,46 @@ interface CompanyInfoSectionProps {
   licenseInfo: any
 }
 
+const PLAN_LABELS: Record<string, string> = { basico: 'Básico', pyme: 'Pyme', enterprise: 'Enterprise' }
+
+const shortDate = (iso?: string) =>
+  iso ? new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+
+/** Ficha de la empresa: lo que identifica la cuenta, en una línea de datos. */
 export function CompanyInfoSection({ company, licenseInfo }: CompanyInfoSectionProps) {
+  const { isMobile } = useBreakpoint()
+  const { profile } = useBusiness()
   if (!company) return null
 
+  const plan = PLAN_LABELS[licenseInfo?.planId] ?? 'Básico'
+  const expiry = licenseInfo?.licenseExpiry
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Building2 className="text-primary" size={24} />
-            <div>
-              <CardTitle>{company.name}</CardTitle>
-              <p className="text-sm text-ink-secondary">ID: {company.id}</p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 items-start sm:items-end">
-            <Badge className="bg-primary text-on-accent px-4 py-2">
-              Plan {licenseInfo?.planId || 'Básico'}
-            </Badge>
-            {licenseInfo?.inTrial && licenseInfo?.trialEndsAt && (
-              <span className="text-xs text-ink-secondary">
-                Prueba gratis hasta {new Date(licenseInfo.trialEndsAt).toLocaleDateString()}
-              </span>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-ink-secondary">Creada el</p>
-            <p className="text-ink">
-              {new Date(company.createdAt).toLocaleDateString()}
-            </p>
-          </div>
-          <div>
-            <p className="text-ink-secondary">Plan actual</p>
-            <p className="text-ink capitalize">
-              {licenseInfo?.planId || 'Básico'}
-            </p>
-          </div>
-        </div>
-        
-        {licenseInfo?.trialExpired && (
-          <Alert variant="destructive" className="mt-4">
-            <AlertDescription>
-              Tu período de prueba ha expirado. Algunas funcionalidades pueden estar limitadas.
-            </AlertDescription>
-          </Alert>
-        )}
-      </CardContent>
+    <Card
+      title={company.name}
+      subtitle={`Empresa #${company.id} · ${profile.label}`}
+      actions={
+        <Badge tone={licenseInfo?.inTrial ? 'warning' : 'accent'} dot>
+          {licenseInfo?.inTrial ? `Prueba · ${plan}` : `Plan ${plan}`}
+        </Badge>
+      }
+    >
+      <KeyValue
+        columns={isMobile ? 1 : 2}
+        items={[
+          { label: 'Cuenta creada', value: shortDate(company.createdAt), mono: true },
+          {
+            label: licenseInfo?.inTrial ? 'Prueba hasta' : 'Licencia hasta',
+            value: shortDate(licenseInfo?.inTrial ? licenseInfo?.trialEndsAt : expiry),
+            mono: true,
+          },
+        ]}
+      />
+      {licenseInfo?.trialExpired && (
+        <Alert variant="danger" title="Tu período de prueba terminó" style={{ marginTop: 12 }}>
+          Algunas funciones pueden estar limitadas hasta activar un plan.
+        </Alert>
+      )}
     </Card>
   )
 }

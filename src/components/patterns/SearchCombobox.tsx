@@ -247,3 +247,46 @@ export function fold(v?: string | null): string {
     .toLowerCase()
     .trim()
 }
+
+/** Para identificadores (IMEI, placa, teléfono): sin acentos, espacios ni guiones. */
+export function compactKey(v?: string | null): string {
+  return fold(v).replace(/[^a-z0-9]/g, '')
+}
+
+/**
+ * Puntaje de una fila para una búsqueda: 0 si no coincide. Misma regla que el
+ * buscador de los formularios, para que buscar se sienta igual en toda la app.
+ *  - `fields`: texto (nombre, categoría…), sin acentos ni mayúsculas.
+ *  - `keys`: identificadores (teléfono, IMEI, documento), comparados sin
+ *    espacios ni guiones: "300 123-4567" encuentra 3001234567.
+ */
+export function matchScore(query: string, fields: Array<string | undefined | null>, keys: Array<string | undefined | null> = []): number {
+  const q = fold(query)
+  if (!q) return 1
+  let best = 0
+  for (const raw of fields) {
+    const f = fold(raw)
+    if (!f) continue
+    if (f.startsWith(q)) best = Math.max(best, 4)
+    else if (f.includes(` ${q}`)) best = Math.max(best, 3)
+    else if (f.includes(q)) best = Math.max(best, 2)
+  }
+  const qk = compactKey(query)
+  if (qk.length >= 3) {
+    for (const raw of keys) {
+      const k = compactKey(raw)
+      if (k && k.includes(qk)) best = Math.max(best, k.startsWith(qk) ? 4 : 2)
+    }
+  }
+  return best
+}
+
+/** Filtra y, si hay búsqueda, ordena por relevancia (estable: empata en el orden recibido). */
+export function searchRows<T>(rows: T[], query: string, score: (row: T) => number): T[] {
+  if (!fold(query)) return rows
+  return rows
+    .map((row, i) => ({ row, i, s: score(row) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .map((x) => x.row)
+}

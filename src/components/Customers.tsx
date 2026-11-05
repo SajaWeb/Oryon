@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { matchScore, searchRows } from './patterns/SearchCombobox'
 import { projectId } from '../utils/supabase/info'
 import { Plus, Edit, User, Users, Pencil, Phone, RefreshCw, CreditCard, Download } from 'lucide-react'
 import { Button } from './ui/button'
@@ -248,23 +249,15 @@ export function Customers({ accessToken, userRole = 'admin' }: CustomersProps) {
     return (parts[0][0] + parts[1][0]).toUpperCase()
   }
 
+  /* Misma búsqueda que en los formularios: sin acentos, teléfono y documento
+     sin espacios ni guiones, y lo más parecido primero. */
   const filteredCustomers = (() => {
-    const q = searchTerm.trim().toLowerCase()
-    let rows = customers.filter((c) => {
-      if (idTypeFilter && c.identificationType !== idTypeFilter) return false
-      if (!q) return true
-      return (
-        c.name?.toLowerCase().includes(q) ||
-        c.phone?.toLowerCase().includes(q) ||
-        c.email?.toLowerCase().includes(q) ||
-        c.identificationNumber?.toLowerCase().includes(q)
-      )
-    })
+    let rows = customers.filter((c) => !idTypeFilter || c.identificationType === idTypeFilter)
     if (sortBy === 'nombre') rows = [...rows].sort((a, b) => a.name.localeCompare(b.name, 'es'))
     if (sortBy === 'recientes') {
       rows = [...rows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     }
-    return rows
+    return searchRows(rows, searchTerm, (c) => matchScore(searchTerm, [c.name, c.email], [c.phone, c.identificationNumber]))
   })()
 
   const customerColumns: Column<Customer>[] = [
@@ -332,7 +325,7 @@ export function Customers({ accessToken, userRole = 'admin' }: CustomersProps) {
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
-          placeholder: 'Nombre, cédula, teléfono, email…',
+          placeholder: 'Nombre, teléfono, documento o correo',
         }}
         filters={[
           {

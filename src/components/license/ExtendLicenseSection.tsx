@@ -1,11 +1,7 @@
 import { useState } from 'react'
 import { Clock, Zap, Percent, CreditCard, Shield, Info, Loader2 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
-import { Button } from '../ui/button'
-import { Badge } from '../ui/badge'
-import { Alert, AlertDescription } from '../ui/alert'
-import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
-import { Label } from '../ui/label'
+import { Badge as OryonBadge, Button as OryonButton, Card as OryonCard, KeyValue } from '../oryon'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { projectId } from '../../utils/supabase/info'
 import { toast } from 'sonner'
 import { PaymentReceipt } from '../PaymentReceipt'
@@ -69,6 +65,7 @@ export function ExtendLicenseSection({
   currentExpiry,
   onLicenseExtended
 }: ExtendLicenseSectionProps) {
+  const { isMobile } = useBreakpoint()
   const [selectedDuration, setSelectedDuration] = useState<number>(6)
   const [loading, setLoading] = useState(false)
   
@@ -220,174 +217,65 @@ export function ExtendLicenseSection({
   }
 
   return (
-    <Card className="border-border">
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-primary/10 rounded-lg text-primary">
-            <Clock size={22} />
-          </div>
-          <div>
-            <CardTitle>Extender Duración de Licencia</CardTitle>
-            <CardDescription>
-              Añade meses de vigencia a tu plan actual ({currentPlanName}) pagando de forma segura con Wompi (COP)
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Current License Info */}
-        <div className="bg-muted/40 border border-border rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <Info className="text-primary flex-shrink-0 mt-0.5" size={18} />
-            <div className="flex-1 text-sm">
-              <p className="text-foreground">
-                <strong>Plan actual:</strong> {currentPlanName}
-              </p>
-              <p className="text-muted-foreground mt-0.5">
-                <strong>Vencimiento actual:</strong> {formatDate(new Date(currentExpiry))}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Duration Selection */}
-        <div>
-          <Label className="text-sm font-semibold mb-3 block">Selecciona la duración</Label>
-          <RadioGroup
-            value={selectedDuration.toString()}
-            onValueChange={(value) => setSelectedDuration(parseInt(value))}
-            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3"
-          >
-            {durationOptions.map((option) => {
-              const price = calculatePrice(option.months, option.discount)
-              const isSelected = selectedDuration === option.months
-
-              return (
-                <div key={option.months} className="relative">
-                  <RadioGroupItem
-                    value={option.months.toString()}
-                    id={`duration-${option.months}`}
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor={`duration-${option.months}`}
-                    className={`flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                      isSelected
-                        ? 'border-primary bg-primary/5 shadow-sm'
-                        : 'border-border hover:border-border/80 bg-card'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-sm text-foreground">{option.label}</span>
-                      {option.badge && (
-                        <Badge className="bg-success text-on-success text-[10px] px-1.5 py-0.5">
-                          {option.badge}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      {option.discount > 0 && (
-                        <p className="text-xs text-muted-foreground line-through">
-                          {formatPrice(price.totalBeforeDiscount)}
-                        </p>
-                      )}
-                      <p className="text-base font-extrabold text-foreground">
-                        {formatPrice(price.finalPrice)}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {formatPrice(price.perMonth)} / mes
-                      </p>
-                      {option.discount > 0 && (
-                        <p className="text-[11px] text-success font-medium">
-                          Ahorras {formatPrice(price.discountAmount)}
-                        </p>
-                      )}
-                    </div>
-                  </Label>
-                </div>
-              )
-            })}
-          </RadioGroup>
-        </div>
-
-        {/* Summary */}
-        {pricing && newExpiryDate && (
-          <div className="bg-card border border-border rounded-xl p-5 space-y-3">
-            <h4 className="font-semibold text-sm text-foreground">Resumen de Extensión</h4>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Plan:</span>
-                <span className="font-medium text-foreground">{currentPlanName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Duración adicional:</span>
-                <span className="font-medium text-foreground">{selectedOption?.label}</span>
-              </div>
-              {selectedOption && selectedOption.discount > 0 && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Precio sin descuento:</span>
-                    <span className="line-through text-muted-foreground">{formatPrice(pricing.totalBeforeDiscount)}</span>
-                  </div>
-                  <div className="flex justify-between text-success font-medium">
-                    <span>Descuento aplicado ({selectedOption.discount}%):</span>
-                    <span>-{formatPrice(pricing.discountAmount)}</span>
-                  </div>
-                </>
-              )}
-              <div className="border-t border-border pt-2 mt-2"></div>
-              <div className="flex justify-between text-sm">
-                <span className="font-bold text-foreground">Total a pagar:</span>
-                <span className="font-extrabold text-primary">{formatPrice(pricing.finalPrice)}</span>
-              </div>
-              {/* Se dice explícitamente que los días actuales no se pierden: era la
-                  duda razonable al pagar una extensión estando aún vigente. */}
-              {diasActuales > 0 && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Días que conservas:</span>
-                  <span className="font-semibold text-foreground">
-                    {diasActuales} {diasActuales === 1 ? 'día' : 'días'} + {selectedOption.months}{' '}
-                    {selectedOption.months === 1 ? 'mes' : 'meses'}
+    <OryonCard title="Pagar varios meses" subtitle={`Suma meses a tu plan ${currentPlanName}. Entre más meses, mayor descuento.`}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div role="radiogroup" aria-label="Duración" style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0,1fr))' : 'repeat(4, minmax(0,1fr))', gap: 8 }}>
+          {durationOptions.map((option) => {
+            const price = calculatePrice(option.months, option.discount)
+            const on = selectedDuration === option.months
+            return (
+              <label
+                key={option.months}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  padding: '12px 14px',
+                  background: on ? 'var(--accent-subtle)' : 'var(--surface-card)',
+                  border: `var(--border-width) solid ${on ? 'var(--accent-fill)' : 'var(--border-default)'}`,
+                  boxShadow: on ? 'inset 0 0 0 1px var(--accent-fill)' : 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                }}
+              >
+                <input type="radio" name="duration" checked={on} onChange={() => setSelectedDuration(option.months)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                  <span style={{ fontSize: 'var(--text-body)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-primary)' }}>
+                    {option.months} {option.months === 1 ? 'mes' : 'meses'}
                   </span>
-                </div>
-              )}
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Nueva fecha de vencimiento:</span>
-                <span className="font-bold text-success">{formatDate(newExpiryDate)}</span>
-              </div>
-            </div>
-          </div>
+                  {option.discount > 0 && <OryonBadge tone="success">−{option.discount}%</OryonBadge>}
+                </span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-body-lg)', color: 'var(--text-primary)' }}>{formatPrice(price.finalPrice)}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-mono-sm)', color: 'var(--text-tertiary)' }}>{formatPrice(price.perMonth)} / mes</span>
+              </label>
+            )
+          })}
+        </div>
+
+        {pricing && newExpiryDate && (
+          <KeyValue
+            items={[
+              { label: 'Vence hoy', value: formatDate(new Date(currentExpiry)), mono: true },
+              ...(selectedOption && selectedOption.discount > 0
+                ? [{ label: `Descuento (${selectedOption.discount}%)`, value: `−${formatPrice(pricing.discountAmount)}`, mono: true }]
+                : []),
+              ...(diasActuales > 0
+                ? [{ label: 'Días que conservas', value: `${diasActuales} ${diasActuales === 1 ? 'día' : 'días'} + ${selectedOption.months} ${selectedOption.months === 1 ? 'mes' : 'meses'}` }]
+                : []),
+              { label: 'Nuevo vencimiento', value: formatDate(newExpiryDate), mono: true },
+              { label: 'Total a pagar', value: <strong style={{ color: 'var(--text-primary)' }}>{formatPrice(pricing.finalPrice)}</strong>, mono: true },
+            ]}
+          />
         )}
 
-        {/* Purchase Button */}
-        <Button
-          onClick={handleExtendLicense}
-          disabled={loading}
-          className="w-full h-12 text-base font-semibold"
-          size="lg"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Procesando con Wompi...
-            </>
-          ) : (
-            <>
-              <CreditCard className="mr-2" size={18} />
-              Pagar Extensión ({formatPrice(pricing.finalPrice)}) con Wompi
-            </>
-          )}
-        </Button>
-
-        {/* Info Alert */}
-        <Alert className="bg-muted/30 border-border">
-          <Zap className="h-4 w-4 text-primary" />
-          <AlertDescription className="text-xs text-muted-foreground ml-1">
-            Los meses comprados se sumarán al tiempo restante de tu licencia actual. No pierdes días acumulados.
-          </AlertDescription>
-        </Alert>
-      </CardContent>
-    </Card>
+        <OryonButton variant="primary" size="lg" fullWidth iconLeft={Shield} onClick={handleExtendLicense} loading={loading} disabled={loading}>
+          {loading ? 'Abriendo Wompi' : `Pagar ${formatPrice(pricing.finalPrice)} con Wompi`}
+        </OryonButton>
+        <p style={{ margin: 0, textAlign: 'center', fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>
+          Los meses se suman a lo que te queda: no pierdes días.
+        </p>
+      </div>
+    </OryonCard>
   )
 }
 export default ExtendLicenseSection

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, ChevronsDown, Download, Search, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
 import { Button, Card, DataTable, EmptyState, IconButton, Input, Select, type Column, type SelectOption } from '../oryon'
@@ -133,6 +133,37 @@ export function ListPage<T extends Record<string, any>>({
     onClearFilters()
   }
 
+  /* Enter en el buscador abre el primer resultado (el más relevante); Esc
+     limpia. Con un lector de códigos, escanear un IMEI abre ese producto. */
+  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && search.value.trim() && rows.length > 0 && onRowClick) {
+      e.preventDefault()
+      onRowClick(rows[0])
+    } else if (e.key === 'Escape' && search.value) {
+      e.preventDefault()
+      search.onChange('')
+    }
+  }
+
+  /* «/» enfoca el buscador desde cualquier parte de la lista (escritorio). */
+  const searchRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (isMobile) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
+      if (document.querySelector('[role="dialog"]')) return
+      const input = searchRef.current?.querySelector('input')
+      if (!input) return
+      e.preventDefault()
+      input.focus()
+      input.select()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isMobile])
+
   /* ─────────────── MÓVIL ─────────────── */
   if (isMobile) {
     return (
@@ -155,9 +186,11 @@ export function ListPage<T extends Record<string, any>>({
             <Input
               iconLeft={Search}
               size="lg"
+              enterKeyHint="search"
               placeholder={search.placeholder}
               value={search.value}
               onChange={(e) => search.onChange(e.target.value)}
+              onKeyDown={onSearchKeyDown}
               suffix={
                 search.value ? (
                   <button
@@ -327,13 +360,43 @@ export function ListPage<T extends Record<string, any>>({
     <PageBody gap={12}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 260px', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 200px', minWidth: 0, maxWidth: 280 }}>
+          <div ref={searchRef} style={{ flex: '1 1 220px', minWidth: 0, maxWidth: 320 }}>
             <Input
               iconLeft={Search}
               size="sm"
               placeholder={search.placeholder}
               value={search.value}
               onChange={(e) => search.onChange(e.target.value)}
+              onKeyDown={onSearchKeyDown}
+              aria-keyshortcuts="/"
+              title="Atajo: /  ·  Enter abre el primer resultado"
+              suffix={
+                search.value ? (
+                  <button
+                    type="button"
+                    onClick={() => search.onChange('')}
+                    aria-label="Limpiar búsqueda"
+                    style={{ display: 'flex', color: 'var(--text-tertiary)', background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}
+                  >
+                    <X size={14} strokeWidth={2} />
+                  </button>
+                ) : (
+                  <kbd
+                    aria-hidden
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 11,
+                      lineHeight: '16px',
+                      padding: '0 5px',
+                      color: 'var(--text-tertiary)',
+                      border: 'var(--border-width) solid var(--border-default)',
+                      borderRadius: 'var(--radius-xs)',
+                    }}
+                  >
+                    /
+                  </kbd>
+                )
+              }
             />
           </div>
           {filters.map((f) => (

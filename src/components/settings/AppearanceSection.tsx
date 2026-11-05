@@ -1,69 +1,74 @@
-import { Palette, Sun, Moon, Monitor } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { Label } from '../ui/label'
+import { Monitor, Moon, Sun } from 'lucide-react'
+import { Card } from '../oryon'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useTheme } from '../../utils/ThemeContext'
 
+const THEMES = [
+  { value: 'light', label: 'Claro', icon: Sun, desc: 'Para mostradores con mucha luz' },
+  { value: 'dark', label: 'Oscuro', icon: Moon, desc: 'El tema base de Oryon' },
+  { value: 'system', label: 'Sistema', icon: Monitor, desc: 'Sigue la preferencia del dispositivo' },
+] as const
+
+/** Tema de la interfaz. Radios nativos: se navegan con flechas y se anuncian como grupo. */
 export function AppearanceSection() {
   const { theme, setTheme, effectiveTheme } = useTheme()
-  
-  const themes = [
-    { value: 'light', label: 'Claro', icon: Sun, desc: 'Tema claro para entornos luminosos' },
-    { value: 'dark', label: 'Oscuro', icon: Moon, desc: 'Tema oscuro ideal para la noche' },
-    { value: 'system', label: 'Sistema', icon: Monitor, desc: 'Usar preferencia del sistema' }
-  ]
+  const { isMobile } = useBreakpoint()
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <Palette className="text-primary" size={24} />
-          <CardTitle>Apariencia</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div>
-            <Label>Tema de la Aplicación</Label>
-            <p className="text-sm text-ink-tertiary mb-3">
-              Selecciona el tema que prefieras para la interfaz
-              {theme === 'system' && ` (actualmente: ${effectiveTheme === 'dark' ? 'oscuro' : 'claro'})`}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {themes.map((t) => {
-              const Icon = t.icon
-              const isActive = theme === t.value
-              return (
-                <button
-                  key={t.value}
-                  onClick={() => setTheme(t.value as 'light' | 'dark' | 'system')}
-                  className={`relative p-4 rounded-lg border-2 transition-all text-left ${
-                    isActive
-                      ? 'border-[var(--accent-fill)] bg-[var(--accent-subtle)]'
-                      : 'border-line hover:border-[var(--accent-subtle-border)]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className={`p-2 rounded-lg ${isActive ? 'bg-primary text-on-accent' : 'bg-sunken text-ink-secondary'}`}>
-                      <Icon size={20} />
-                    </div>
-                    <span className={`font-medium ${isActive ? 'text-primary' : 'text-ink'}`}>
-                      {t.label}
-                    </span>
-                  </div>
-                  <p className={`text-xs ${isActive ? 'text-primary' : 'text-ink-tertiary'}`}>
-                    {t.desc}
-                  </p>
-                  {isActive && (
-                    <div className="absolute top-3 right-3 w-3 h-3 bg-primary rounded-full"></div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      </CardContent>
+    <Card
+      title="Apariencia"
+      subtitle={theme === 'system' ? `Ahora mismo en ${effectiveTheme === 'dark' ? 'oscuro' : 'claro'}, según tu dispositivo` : 'Tema de la interfaz en este dispositivo'}
+    >
+      <div role="radiogroup" aria-label="Tema" style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : 'repeat(3, minmax(0,1fr))', gap: 8 }}>
+        {THEMES.map((t) => {
+          const Icon = t.icon
+          const on = theme === t.value
+          return (
+            <label
+              key={t.value}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '12px 14px',
+                minHeight: 'var(--tap-target)',
+                background: on ? 'var(--accent-subtle)' : 'var(--surface-card)',
+                border: `var(--border-width) solid ${on ? 'var(--accent-subtle-border)' : 'var(--border-default)'}`,
+                borderRadius: 'var(--radius-md)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="radio"
+                name="theme"
+                value={t.value}
+                checked={on}
+                onChange={() => setTheme(t.value)}
+                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+              />
+              <span
+                aria-hidden
+                style={{
+                  display: 'grid',
+                  placeItems: 'center',
+                  width: 32,
+                  height: 32,
+                  flex: '0 0 auto',
+                  borderRadius: 'var(--radius-sm)',
+                  background: on ? 'var(--accent-fill)' : 'var(--bg-sunken)',
+                  color: on ? 'var(--text-on-accent)' : 'var(--text-secondary)',
+                }}
+              >
+                <Icon size={16} strokeWidth={1.8} />
+              </span>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <span style={{ fontSize: 'var(--text-body)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-primary)' }}>{t.label}</span>
+                <span style={{ fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>{t.desc}</span>
+              </span>
+            </label>
+          )
+        })}
+      </div>
     </Card>
   )
 }

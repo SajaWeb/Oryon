@@ -1,22 +1,22 @@
 import { useState, useEffect } from "react";
 import { projectId } from "../utils/supabase/info";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "./ui/card";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Alert, AlertDescription } from "./ui/alert";
-import { Tabs, Alert as OryonAlert, type TabItem } from "./oryon";
+  Tabs,
+  Alert as OryonAlert,
+  Badge as OryonBadge,
+  Button as OryonButton,
+  Card as OryonCard,
+  KeyValue,
+  MetricCard,
+  type TabItem,
+} from "./oryon";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { PageBody } from "./layout/PageBody";
 import { usePageHeader } from "./layout/PageHeaderContext";
 
 const LICENSE_TABS: TabItem[] = [
-  { id: 'plans', label: 'Planes por sucursales' },
-  { id: 'extend', label: 'Extender duración' },
+  { id: 'plans', label: 'Planes' },
+  { id: 'extend', label: 'Pagar varios meses' },
 ];
 import {
   CreditCard,
@@ -67,7 +67,7 @@ export interface Plan {
 export const plans: Plan[] = [
   {
     id: "basico",
-    name: "Plan Básico (1 Sucursal)",
+    name: "Básico",
     priceCOP: 50000,
     limits: {
       branches: 1,
@@ -77,19 +77,19 @@ export const plans: Plan[] = [
     },
     features: [
       "1 Sucursal incluida",
-      "1 Administrador, 1 Asesor, 2 Técnicos",
+      "1 administrador, 1 asesor o cajero, 2 técnicos",
       "Gestión de inventario y productos",
       "Punto de venta y facturación",
-      "Órdenes de servicio técnico",
+      "Órdenes de servicio y caja diaria",
       "Reportes básicos y clientes",
       "Acceso móvil y PWA",
     ],
   },
   {
     id: "pyme",
-    name: "Plan PYME (2 Sucursales)",
+    name: "Pyme",
     priceCOP: 85000,
-    badge: "Más Popular",
+    badge: "El más elegido",
     limits: {
       branches: 2,
       admins: 2,
@@ -98,8 +98,8 @@ export const plans: Plan[] = [
     },
     features: [
       "2 Sucursales incluidas",
-      "2 Administradores, 4 Asesores, 8 Técnicos",
-      "Todo del Plan Básico",
+      "2 administradores, 4 asesores o cajeros, 8 técnicos",
+      "Todo lo del plan Básico",
       "Transferencias entre sucursales",
       "Reportes avanzados y métricas",
       "Exportación PDF / Excel",
@@ -108,9 +108,9 @@ export const plans: Plan[] = [
   },
   {
     id: "enterprise",
-    name: "Plan Enterprise (4 Sucursales)",
+    name: "Enterprise",
     priceCOP: 140000,
-    badge: "Mejor Valor",
+    badge: "Para crecer",
     limits: {
       branches: 4,
       admins: 4,
@@ -119,8 +119,8 @@ export const plans: Plan[] = [
     },
     features: [
       "4 Sucursales incluidas",
-      "4 Administradores, 8 Asesores, 16 Técnicos",
-      "Todo del Plan PYME",
+      "4 administradores, 8 asesores o cajeros, 16 técnicos",
+      "Todo lo del plan Pyme",
       "Máximo volumen y rendimiento",
       "Auditoría y trazabilidad completa",
       "Integración de recibos digitales",
@@ -136,6 +136,7 @@ export function License({
   onLicenseUpdated,
 }: LicenseProps) {
   const [tab, setTab] = useState('plans');
+  const { isMobile } = useBreakpoint();
   const [selectedPlan, setSelectedPlan] = useState<string>("pyme");
   const [loading, setLoading] = useState(false);
   /** Carga de los datos de la empresa; distinto del `loading` del cobro. */
@@ -245,6 +246,13 @@ export function License({
       console.error("Error parsing date:", error);
       return "Error al cargar fecha";
     }
+  };
+
+  /** "19 nov 2026": cabe en una tarjeta de cifra. La fecha larga va debajo. */
+  const shortRenewalDate = () => {
+    const iso = companyData?.licenseExpiry || licenseInfo?.licenseExpiry;
+    const d = iso ? new Date(iso) : null;
+    return d && !isNaN(d.getTime()) ? d.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" }).replace(/ de /g, " ").replace(".", "") : "—";
   };
 
   const handleValidatePlanChange = async (targetPlanId: string) => {
@@ -446,387 +454,181 @@ export function License({
   const inTrial = isInTrial();
   const licenseExpired = isExpired();
 
+  const PLAN_SHORT: Record<string, string> = { basico: "Básico", pyme: "Pyme", enterprise: "Enterprise" };
+  const limitItems = (p: Plan) => [
+    { label: "Sucursales", value: p.limits.branches },
+    { label: "Administradores", value: p.limits.admins },
+    { label: "Asesores y cajeros", value: p.limits.advisors },
+    { label: "Técnicos", value: p.limits.technicians },
+  ];
+  const statusTone: "success" | "warning" | "danger" = licenseExpired ? "danger" : daysRemaining <= 7 ? "warning" : "success";
+  const isRenewal = selectedPlan === currentPlan?.id && !licenseExpired;
+
   return (
     <PageBody>
-      {/* El título y el botón de recarga los aporta el shell (topbar / header móvil). */}
       {licenseExpired && (
-        <OryonAlert variant="danger" title="Tu licencia ha expirado">
-          Renueva la suscripción o elige un plan para seguir usando las funciones operativas.
+        <OryonAlert variant="danger" title="Tu licencia venció">
+          Elige un plan y paga para volver a usar ventas, órdenes y caja.
         </OryonAlert>
       )}
 
-        {/* Current Plan Status Card */}
-        {currentPlan && (
-          <Card className="mb-8 border-border">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-primary/10 rounded-full text-primary">
-                    <Package size={24} />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl">Plan Activo</CardTitle>
-                    <CardDescription>
-                      {companyData?.name || userProfile?.companyName || "Tu Empresa"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge className="bg-primary text-primary-foreground px-3 py-1 text-sm font-semibold">
-                    {currentPlan.name}
-                  </Badge>
-                  {inTrial && (
-                    <Badge variant="outline" className="border-[var(--warning)] text-warning px-3 py-1">
-                      <Clock size={13} className="mr-1" />
-                      Período de Prueba Activo
-                    </Badge>
-                  )}
-                  {licenseExpired && (
-                    <Badge variant="destructive" className="px-3 py-1">
-                      Licencia Vencida
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Expiry Details Banner */}
-              <div className="bg-muted/50 rounded-xl p-4 sm:p-5 border border-border">
-                <div className="flex items-start gap-4">
-                  <Calendar className="text-primary flex-shrink-0 mt-1" size={24} />
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <p className="text-sm font-semibold text-foreground">
-                        Fecha de Vencimiento:
-                      </p>
-                      <p className="text-base font-bold text-foreground">
-                        {getRenewalDate()}
-                      </p>
-                    </div>
-
-                    <div className="mt-2 flex items-center gap-2">
-                      {daysRemaining > 7 ? (
-                        <>
-                          <CheckCircle2 size={16} className="text-success flex-shrink-0" />
-                          <p className="text-sm text-muted-foreground">
-                            Te quedan <strong className="text-foreground">{daysRemaining} días</strong> de servicio activo.
-                          </p>
-                        </>
-                      ) : daysRemaining > 0 ? (
-                        <>
-                          <AlertCircle size={16} className="text-warning flex-shrink-0" />
-                          <p className="text-sm text-warning font-medium">
-                            ⚠️ Quedan solo <strong>{daysRemaining} días</strong> para el vencimiento. Renueva con anticipación.
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle size={16} className="text-danger flex-shrink-0" />
-                          <p className="text-sm text-danger font-bold">
-                            ⚠️ Tu licencia se encuentra vencida. Realiza el pago para reactivar el servicio.
-                          </p>
-                        </>
-                      )}
-                    </div>
-
-                    {inTrial && (
-                      <p className="mt-2 text-xs text-muted-foreground bg-background/60 p-2 rounded border border-border">
-                        <strong>Período de prueba:</strong> Tienes acceso a las funcionalidades. Al vencer el período de prueba deberás realizar el pago para continuar utilizando el sistema.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Resource Limits */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                  Límites de tu plan actual
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
-                    <Building2 className="text-primary flex-shrink-0" size={20} />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Sucursales</p>
-                      <p className="text-lg font-bold text-foreground">{currentPlan.limits.branches}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
-                    <UserCog className="text-success flex-shrink-0" size={20} />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Administradores</p>
-                      <p className="text-lg font-bold text-foreground">{currentPlan.limits.admins}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
-                    <Users className="text-[var(--state-diagnosis)] flex-shrink-0" size={20} />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Asesores</p>
-                      <p className="text-lg font-bold text-foreground">{currentPlan.limits.advisors}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3.5 bg-muted/40 rounded-lg border border-border">
-                    <Wrench className="text-warning flex-shrink-0" size={20} />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Técnicos</p>
-                      <p className="text-lg font-bold text-foreground">{currentPlan.limits.technicians}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Payment Gateway Badge */}
-        <Card className="mb-8 border-border bg-sunken">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-[color-mix(in_srgb,var(--success)_10%,transparent)] rounded-lg text-success">
-                  <Shield size={22} />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    Pasarela de Pago Segura: Wompi
-                    <Badge variant="outline" className="text-xs font-normal">
-                      PSE, Nequi, Bancolombia, Tarjetas
-                    </Badge>
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Procesamiento instantáneo en pesos colombianos (COP). Tu suscripción se renueva al instante de confirmarse el pago.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <MapPin size={14} className="text-primary" />
-                <span>Colombia (COP)</span>
-              </div>
+      {currentPlan && (
+        <OryonCard
+          title={`Plan ${PLAN_SHORT[currentPlan.id]}`}
+          subtitle={companyData?.name || userProfile?.companyName || "Tu empresa"}
+          actions={
+            <OryonBadge tone={inTrial ? "warning" : statusTone} dot>
+              {licenseExpired ? "Vencida" : inTrial ? "En prueba" : "Activa"}
+            </OryonBadge>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0,1fr)" : "repeat(2, minmax(0,1fr))", gap: 12 }}>
+              <MetricCard label={inTrial ? "La prueba termina" : "Vence"} value={shortRenewalDate()} icon={Calendar} sublabel={getRenewalDate()} />
+              <MetricCard
+                label="Días restantes"
+                value={licenseExpired ? "0" : String(daysRemaining)}
+                unit="días"
+                icon={Clock}
+                delta={licenseExpired ? "Vencida" : daysRemaining <= 7 ? "Renueva pronto" : undefined}
+                deltaTone={licenseExpired || daysRemaining <= 7 ? "down" : "neutral"}
+              />
             </div>
-          </CardContent>
-        </Card>
+            {inTrial && (
+              <OryonAlert variant="info" title="Estás en el período de prueba">
+                Tienes todas las funciones. Al terminar la prueba hay que pagar un plan para seguir.
+              </OryonAlert>
+            )}
+            <div>
+              <div style={{ fontSize: "var(--text-caption)", letterSpacing: "var(--tr-caption)", textTransform: "uppercase", fontWeight: "var(--fw-semibold)", color: "var(--text-tertiary)", marginBottom: 6 }}>
+                Incluye
+              </div>
+              <KeyValue columns={isMobile ? 1 : 2} items={limitItems(currentPlan).map((l) => ({ label: l.label, value: String(l.value), mono: true }))} />
+            </div>
+          </div>
+        </OryonCard>
+      )}
 
-        {/* Tabs: Planes vs Extensión de Tiempo */}
-        <Tabs items={LICENSE_TABS} value={tab} onChange={setTab} />
+      <Tabs items={LICENSE_TABS} value={tab} onChange={setTab} />
 
-          {/* Planes Tab */}
-          {tab === 'plans' && (
-          <div className="space-y-6">
-            {/* Validation Alert */}
-            {showValidation && validationResult && !validationResult.canChange && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <p className="font-semibold mb-2">
-                    No puedes cambiar a este plan porque excedes los límites actuales:
-                  </p>
-                  <ul className="list-disc ml-5 space-y-1 text-sm">
-                    {validationResult.violations?.map((v: any, idx: number) => (
-                      <li key={idx}>{v.message}</li>
+      {tab === "plans" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {showValidation && validationResult && !validationResult.canChange && (
+            <OryonAlert variant="danger" title="No puedes bajar a ese plan todavía">
+              <span style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span>Tu empresa usa más de lo que ese plan permite:</span>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {validationResult.violations?.map((v: any, idx: number) => (
+                    <li key={idx}>{v.message}</li>
+                  ))}
+                </ul>
+                <span>Ajusta usuarios o sucursales en Configuración y vuelve a intentarlo.</span>
+              </span>
+            </OryonAlert>
+          )}
+
+          {/* Elegir plan: tarjetas como radios; el pago está en un solo botón, abajo. */}
+          <div role="radiogroup" aria-label="Plan" style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0,1fr)" : "repeat(3, minmax(0,1fr))", gap: 12 }}>
+            {plans.map((plan) => {
+              const isSelected = selectedPlan === plan.id;
+              const isCurrent = plan.id === currentPlan?.id;
+              return (
+                <label
+                  key={plan.id}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 14,
+                    padding: 16,
+                    background: isSelected ? "var(--accent-subtle)" : "var(--surface-card)",
+                    border: `var(--border-width) solid ${isSelected ? "var(--accent-fill)" : "var(--border-subtle)"}`,
+                    boxShadow: isSelected ? "inset 0 0 0 1px var(--accent-fill)" : "var(--shadow-sm)",
+                    borderRadius: "var(--radius-md)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input type="radio" name="plan" value={plan.id} checked={isSelected} onChange={() => setSelectedPlan(plan.id)} style={{ position: "absolute", opacity: 0, pointerEvents: "none" }} />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 22 }}>
+                    <span style={{ fontSize: "var(--text-h4)", fontWeight: "var(--fw-semibold)", color: "var(--text-primary)" }}>{PLAN_SHORT[plan.id]}</span>
+                    <span style={{ display: "flex", gap: 6 }}>
+                      {isCurrent && <OryonBadge tone="accent">Tu plan</OryonBadge>}
+                      {plan.badge && !isCurrent && <OryonBadge tone="neutral">{plan.badge}</OryonBadge>}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                    <span style={{ fontFamily: "var(--font-display)", fontWeight: "var(--fw-black)", fontSize: 32, letterSpacing: "var(--tr-h1)", color: "var(--text-primary)" }}>
+                      ${plan.priceCOP.toLocaleString("es-CO")}
+                    </span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-mono-sm)", color: "var(--text-tertiary)" }}>COP / 30 días</span>
+                  </div>
+                  <KeyValue items={limitItems(plan).map((l) => ({ label: l.label, value: String(l.value), mono: true }))} />
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {plan.features.slice(2).map((f) => (
+                      <li key={f} style={{ display: "flex", gap: 8, fontSize: "var(--text-small)", color: "var(--text-secondary)" }}>
+                        <CheckCircle2 size={14} color="var(--text-accent)" style={{ flex: "0 0 auto", marginTop: 2 }} />
+                        {f}
+                      </li>
                     ))}
                   </ul>
-                  <p className="mt-3 text-xs">
-                    Ve a <strong>Configuración → Usuarios / Sucursales</strong> para ajustar los recursos antes de cambiar de plan.
-                  </p>
-                </AlertDescription>
-              </Alert>
-            )}
+                </label>
+              );
+            })}
+          </div>
 
-            {/* Plans Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              {plans.map((plan) => {
-                const isSelected = selectedPlan === plan.id;
-                const isCurrent = plan.id === currentPlan?.id;
-
-                return (
-                  <div
-                    key={plan.id}
-                    onClick={() => setSelectedPlan(plan.id)}
-                    className={`relative rounded-xl p-6 cursor-pointer transition-all border-2 flex flex-col justify-between ${
-                      isSelected
-                        ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
-                        : "border-border hover:border-border/80 bg-card hover:shadow-sm"
-                    }`}
-                  >
-                    {plan.badge && (
-                      <Badge className="absolute -top-3 right-4 bg-success text-on-success font-semibold">
-                        {plan.badge}
-                      </Badge>
-                    )}
-
-                    {isCurrent && (
-                      <Badge className="absolute -top-3 left-4 bg-primary text-primary-foreground font-semibold">
-                        Plan Actual
-                      </Badge>
-                    )}
-
-                    <div>
-                      <div className="text-center mb-5 pt-2">
-                        <h3 className="font-bold text-lg text-foreground mb-1">
-                          {plan.name}
-                        </h3>
-                        <div className="my-3">
-                          <p className="text-3xl font-extrabold text-foreground">
-                            ${plan.priceCOP.toLocaleString("es-CO")}
-                          </p>
-                          <p className="text-xs text-muted-foreground font-medium mt-1">
-                            COP / mes (Facturación 30 días)
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Limits list */}
-                      <div className="space-y-2 mb-4 pb-4 border-b border-border text-sm">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground flex items-center gap-1.5">
-                            <Building2 size={14} className="text-primary" />
-                            Sucursales
-                          </span>
-                          <span className="font-semibold text-foreground">{plan.limits.branches}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground flex items-center gap-1.5">
-                            <UserCog size={14} className="text-success" />
-                            Administradores
-                          </span>
-                          <span className="font-semibold text-foreground">{plan.limits.admins}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground flex items-center gap-1.5">
-                            <Users size={14} className="text-[var(--state-diagnosis)]" />
-                            Asesores
-                          </span>
-                          <span className="font-semibold text-foreground">{plan.limits.advisors}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground flex items-center gap-1.5">
-                            <Wrench size={14} className="text-warning" />
-                            Técnicos
-                          </span>
-                          <span className="font-semibold text-foreground">{plan.limits.technicians}</span>
-                        </div>
-                      </div>
-
-                      {/* Features */}
-                      <ul className="space-y-2 text-xs mb-6">
-                        {plan.features.map((feature, idx) => (
-                          <li key={idx} className="flex items-start gap-2 text-muted-foreground">
-                            <CheckCircle2 size={14} className="text-success flex-shrink-0 mt-0.5" />
-                            <span>{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <Button
-                      variant={isSelected ? "default" : "outline"}
-                      className="w-full"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleValidatePlanChange(plan.id);
-                      }}
-                      disabled={loading}
-                    >
-                      {isCurrent && !licenseExpired
-                        ? "Renovar Plan Actual"
-                        : `Seleccionar ${plan.name.split(" ")[1]}`}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Purchase CTA Summary */}
-            <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase font-semibold">Plan seleccionado:</p>
-                  <p className="text-xl font-bold text-foreground">{selectedPlanData?.name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Pasarela: Wompi Colombia (PSE / Bancolombia / Nequi / Tarjetas)
-                  </p>
+          <OryonCard>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span style={{ fontSize: "var(--text-caption)", letterSpacing: "var(--tr-caption)", textTransform: "uppercase", fontWeight: "var(--fw-semibold)", color: "var(--text-tertiary)" }}>
+                    {isRenewal ? "Renovación" : "Cambio de plan"}
+                  </span>
+                  <span style={{ fontSize: "var(--text-h3)", fontWeight: "var(--fw-semibold)", color: "var(--text-primary)" }}>
+                    Plan {PLAN_SHORT[selectedPlan] ?? ""} · 30 días
+                  </span>
                 </div>
-                <div className="text-right">
-                  <p className="text-3xl font-extrabold text-foreground flex items-center gap-1">
-                    <DollarSign size={24} className="text-primary" />
-                    ${selectedPlanData?.priceCOP.toLocaleString("es-CO")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">COP por 30 días</p>
-                </div>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-h3)", color: "var(--text-primary)" }}>
+                  ${selectedPlanData?.priceCOP.toLocaleString("es-CO")} <span style={{ fontSize: "var(--text-mono-sm)", color: "var(--text-tertiary)" }}>COP</span>
+                </span>
               </div>
-
-              <Button
-                onClick={() => handleValidatePlanChange(selectedPlan)}
-                disabled={loading}
-                className="w-full h-12 text-base font-semibold"
-                size="lg"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Procesando con Wompi...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="mr-2" size={18} />
-                    {selectedPlan === currentPlan?.id && !licenseExpired
-                      ? "Pagar Renovación con Wompi"
-                      : "Pagar y Activar Plan con Wompi"}
-                  </>
-                )}
-              </Button>
-
-              <p className="text-center text-xs text-muted-foreground mt-3 flex items-center justify-center gap-1">
-                <Shield size={13} className="text-success" />
-                Transacción segura cifrada y verificada por Wompi Colombia
+              <OryonButton variant="primary" size="lg" fullWidth iconLeft={Shield} onClick={() => handleValidatePlanChange(selectedPlan)} loading={loading} disabled={loading}>
+                {loading ? "Abriendo Wompi" : isRenewal ? "Renovar con Wompi" : "Pagar y activar con Wompi"}
+              </OryonButton>
+              <p style={{ margin: 0, textAlign: "center", fontSize: "var(--text-caption)", color: "var(--text-tertiary)" }}>
+                Pago seguro con Wompi: PSE, Nequi, Bancolombia o tarjeta. El plan se activa al confirmarse el pago.
               </p>
             </div>
-          </div>
-          )}
+          </OryonCard>
+        </div>
+      )}
 
-          {/* Extend License Tab */}
-          {tab === 'extend' && (
-          <div>
-            {currentPlan && companyData?.licenseExpiry && (
-              <ExtendLicenseSection
-                accessToken={accessToken}
-                currentPlanId={currentPlan.id}
-                currentPlanName={currentPlan.name}
-                currentExpiry={companyData.licenseExpiry}
-                onLicenseExtended={() => {
-                  loadCompanyData();
-                  onLicenseUpdated();
-                }}
-              />
-            )}
-          </div>
-          )}
+      {tab === "extend" && currentPlan && companyData?.licenseExpiry && (
+        <ExtendLicenseSection
+          accessToken={accessToken}
+          currentPlanId={currentPlan.id}
+          currentPlanName={currentPlan.name}
+          currentExpiry={companyData.licenseExpiry}
+          onLicenseExtended={() => {
+            loadCompanyData();
+            onLicenseUpdated();
+          }}
+        />
+      )}
 
-        {/* Support Card */}
-        <Card className="border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Info size={18} className="text-primary" />
-              ¿Preguntas sobre licenciamiento o facturación?
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground mb-4">
-              Si requieres soporte con tu pago de Wompi, asesoría sobre el plan para tus sucursales o planes personalizados a gran escala, nuestro equipo de soporte técnico está disponible para atenderte.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  window.open("https://wa.me/573004001077?text=Hola,%20requiero%20soporte%20con%20el%20pago%20de%20mi%20licencia%20Oryon", "_blank");
-                }}
-              >
-                Contactar Soporte vía WhatsApp
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <OryonCard>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={{ fontSize: "var(--text-body)", fontWeight: "var(--fw-semibold)", color: "var(--text-primary)" }}>¿Dudas con tu licencia o un pago?</span>
+            <span style={{ fontSize: "var(--text-small)", color: "var(--text-secondary)" }}>Planes a la medida, pagos que no se reflejan o cambios de plan.</span>
+          </span>
+          <OryonButton
+            size="sm"
+            variant="secondary"
+            onClick={() => window.open("https://wa.me/573004001077?text=Hola,%20necesito%20ayuda%20con%20mi%20licencia%20de%20Oryon", "_blank", "noopener")}
+          >
+            Escribir por WhatsApp
+          </OryonButton>
+        </div>
+      </OryonCard>
     </PageBody>
   );
 }

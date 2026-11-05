@@ -26,6 +26,7 @@ import { ProductTransactionHistory } from './ProductTransactionHistory'
 import { AddStock } from './AddStock'
 import { exportProductsToCSV, canEditProduct, getAvailableBranches, getAvailableStock, isLowStock, formatPrice, getMarginPercentage } from './utils'
 import { productCategoryLabel, productCategoryOptions } from '../../config/businessTypes'
+import { matchScore, searchRows } from '../patterns/SearchCombobox'
 import { useBusiness } from '../../utils/BusinessContext'
 import type { Product, ProductFormData, ProductFilters as FilterState, Branch, UnitFormData, VariantFormData, InventoryAdjustmentData, BranchTransferData, UnitsTransferData, UserProfile, ProductTransaction } from './types'
 
@@ -169,22 +170,10 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
   const filterProducts = () => {
     let filtered = [...products]
 
-    // Search filter
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase()
-      filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchLower) ||
-        product.description.toLowerCase().includes(searchLower) ||
-        product.storage?.toLowerCase().includes(searchLower) ||
-        product.ram?.toLowerCase().includes(searchLower) ||
-        product.color?.toLowerCase().includes(searchLower) ||
-        Object.values(product.specs ?? {}).some((v) => String(v).toLowerCase().includes(searchLower)) ||
-        product.units?.some(unit =>
-          unit.imei?.toLowerCase().includes(searchLower) ||
-          unit.serialNumber?.toLowerCase().includes(searchLower)
-        )
-      )
-    }
+    /* Búsqueda: la misma que en Nueva venta. Sin acentos, por relevancia, y el
+       IMEI/serial de cualquier unidad sin espacios ni guiones (un escáner encuentra
+       el producto). Se aplica al final para que el orden sea el de relevancia. */
+    const q = filters.searchTerm
 
     // Category filter
     if (filters.categoryFilter !== 'all') {
@@ -204,6 +193,28 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
         if (filters.stockFilter === 'low') return stock > 0 && isLowStock(product, lowStockThreshold)
         return stock > 0 && !isLowStock(product, lowStockThreshold)
       })
+    }
+
+    if (q) {
+      filtered = searchRows(filtered, q, (product) =>
+        matchScore(
+          q,
+          [
+            product.name,
+            productCategoryLabel(product.category),
+            product.description,
+            product.storage,
+            product.ram,
+            product.color,
+            ...Object.values(product.specs ?? {}),
+            ...(product.variants ?? []).map((v) => v.name),
+          ],
+          [
+            ...(product.units ?? []).flatMap((u) => [u.imei, u.serialNumber]),
+            ...(product.variants ?? []).map((v) => v.sku),
+          ]
+        )
+      )
     }
 
     setFilteredProducts(filtered)
@@ -1057,7 +1068,7 @@ export function Products({ accessToken, userRole, userProfile }: ProductsProps) 
         search={{
           value: filters.searchTerm,
           onChange: (v) => setFilters({ ...filters, searchTerm: v }),
-          placeholder: 'Nombre, descripción, IMEI, SKU…',
+          placeholder: `Nombre, categoría, ${profile.unitTrackingLabel} o SKU`,
         }}
         filters={[
           {

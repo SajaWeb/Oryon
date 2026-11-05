@@ -354,7 +354,8 @@ function styles(f: FormatSpec): string {
 /** Cabecera común: es lo que hace que los tres se vean de la misma casa. */
 function header(config: PrintConfig, f: FormatSpec): string {
   const datos = [
-    config.taxId ? `${esc(config.taxIdType || 'NIT')} ${esc(config.taxId)}` : '',
+    // 'NIT-CO' → 'NIT': el país es para elegir en Configuración, no para imprimir.
+    config.taxId ? `${esc(String(config.taxIdType || 'NIT').replace(/-[A-Z]{2}$/, ''))} ${esc(config.taxId)}` : '',
     esc(config.companyAddress),
     esc(config.companyPhone),
     esc(config.companyEmail),
