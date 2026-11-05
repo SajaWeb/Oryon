@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { projectId } from '../../../utils/supabase/info'
-import { Customer, RepairFormData } from '../types'
+import { Customer } from '../types'
 
 export function useCustomers(accessToken: string | null) {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -50,76 +50,11 @@ export function useCustomers(accessToken: string | null) {
     }
   }, [accessToken])
 
-  const findOrCreateCustomer = useCallback(async (
-    formData: RepairFormData, 
-    selectedCustomerId: number | null
-  ): Promise<number | null> => {
-    if (!accessToken) {
-      throw new Error('No access token available')
-    }
-
-    // Si se seleccionó un cliente existente, retornar su ID
-    if (selectedCustomerId) {
-      return selectedCustomerId
-    }
-
-    // Buscar cliente existente por nombre, teléfono o documento
-    const existingCustomer = customers.find((c: Customer) => {
-      // Buscar por nombre exacto
-      if (c.name.toLowerCase() === formData.customerName.toLowerCase()) {
-        return true
-      }
-      // Buscar por teléfono
-      if (formData.customerPhone && formData.customerPhone.trim() && c.phone === formData.customerPhone) {
-        return true
-      }
-      // Buscar por número de identificación
-      if (formData.customerIdentificationNumber && formData.customerIdentificationNumber.trim() && 
-          c.identificationNumber && 
-          c.identificationNumber.toLowerCase().trim() === formData.customerIdentificationNumber.toLowerCase().trim()) {
-        return true
-      }
-      return false
-    })
-    
-    if (existingCustomer) {
-      return existingCustomer.id
-    }
-    
-    // Crear nuevo cliente
-    const createResponse = await fetch(
-      `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/customers`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: formData.customerName,
-          email: formData.customerEmail || `${formData.customerName.toLowerCase().replace(/\\s+/g, '.')}@cliente.com`,
-          phone: formData.customerPhone || 'N/A',
-          address: '',
-          identificationType: formData.customerIdentificationType || undefined,
-          identificationNumber: formData.customerIdentificationNumber || undefined
-        })
-      }
-    )
-    
-    const createData = await createResponse.json()
-    if (createData.success) {
-      // Refrescar lista de clientes
-      await fetchCustomers()
-      return createData.customer.id
-    } else {
-      // Error al crear cliente (puede ser duplicado)
-      throw new Error(createData.error || 'Error al crear el cliente')
-    }
-  }, [accessToken, customers, fetchCustomers])
+  /* La búsqueda o creación del cliente al guardar vive en
+     customers/customerDraft.ts (resolveCustomer), compartida con Ventas. */
 
   return {
     customers,
     fetchCustomers,
-    findOrCreateCustomer
   }
 }

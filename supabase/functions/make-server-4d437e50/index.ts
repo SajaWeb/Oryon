@@ -5045,10 +5045,14 @@ app.post('/make-server-4d437e50/customers', async (c) => {
       }
     }
     
-    // Check for duplicate phone number (if provided)
-    if (body.phone && body.phone.trim()) {
+    /* Teléfono duplicado: se compara solo por dígitos ("300 123 4567" es
+       3001234567) y se ignoran los rellenos viejos como 'N/A', que hacían que el
+       segundo cliente sin teléfono chocara con el primero. */
+    const phoneDigits = (v: unknown) => String(v ?? '').replace(/\D/g, '')
+    if (typeof body.phone === 'string' && body.phone.trim().toUpperCase() === 'N/A') delete body.phone
+    if (phoneDigits(body.phone).length >= 7) {
       const duplicatePhone = existingCustomers.find(
-        (c: any) => c.phone && c.phone.trim() === body.phone.trim()
+        (c: any) => phoneDigits(c.phone).length >= 7 && phoneDigits(c.phone) === phoneDigits(body.phone)
       )
       if (duplicatePhone) {
         return c.json({ 
@@ -5117,10 +5121,14 @@ app.put('/make-server-4d437e50/customers/:id', async (c) => {
       }
     }
     
-    // Check for duplicate phone number (if provided)
-    if (body.phone && body.phone.trim()) {
+    /* Teléfono duplicado: se compara solo por dígitos ("300 123 4567" es
+       3001234567) y se ignoran los rellenos viejos como 'N/A', que hacían que el
+       segundo cliente sin teléfono chocara con el primero. */
+    const phoneDigits = (v: unknown) => String(v ?? '').replace(/\D/g, '')
+    if (typeof body.phone === 'string' && body.phone.trim().toUpperCase() === 'N/A') delete body.phone
+    if (phoneDigits(body.phone).length >= 7) {
       const duplicatePhone = existingCustomers.find(
-        (c: any) => c.phone && c.phone.trim() === body.phone.trim()
+        (c: any) => phoneDigits(c.phone).length >= 7 && phoneDigits(c.phone) === phoneDigits(body.phone)
       )
       if (duplicatePhone) {
         return c.json({ 
@@ -5820,7 +5828,7 @@ app.get('/make-server-4d437e50/reports', async (c) => {
     // Most common repair types
     const repairTypes: any = {}
     repairs.forEach((r: any) => {
-      const type = `${r.deviceType} - ${r.reportedIssue?.substring(0, 30) || 'Sin descripción'}`
+      const type = `${r.deviceType} - ${(r.problem || r.reportedIssue)?.substring(0, 40) || 'Sin descripción'}`
       repairTypes[type] = (repairTypes[type] || 0) + 1
     })
     

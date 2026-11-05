@@ -23,6 +23,15 @@ import {
   type Column,
 } from './oryon'
 import { FormDialog } from './layout/FormDialog'
+import { CustomerPicker } from './customers/CustomerPicker'
+import {
+  draftFromCustomer,
+  emptyCustomerDraft,
+  resolveCustomer,
+  validateCustomerDraft,
+  type CustomerDraft,
+  type CustomerErrors,
+} from './customers/customerDraft'
 import { OpenCashDialog } from './cash/OpenCashDialog'
 import { BRANCH_FORBIDDEN, CASH_SESSION_REQUIRED, CASH_SESSION_STALE, openSession } from './cash/api'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -178,13 +187,11 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   const [selectedUnits, setSelectedUnits] = useState<number[]>([])
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null)
   const [variantQuantity, setVariantQuantity] = useState<number>(1)
-  const [customerName, setCustomerName] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
-  const [customerEmail, setCustomerEmail] = useState('')
-  const [customerAddress, setCustomerAddress] = useState('')
-  const [customerIdType, setCustomerIdType] = useState('')
-  const [customerIdNumber, setCustomerIdNumber] = useState('')
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
+  /* El cliente de la venta: el mismo selector y las mismas reglas que en una
+     orden nueva (components/customers). */
+  const [customer, setCustomer] = useState<CustomerDraft>(emptyCustomerDraft)
+  const [customerErrors, setCustomerErrors] = useState<CustomerErrors>({})
+  const [savingSale, setSavingSale] = useState(false)
   const [selectedBranchId, setSelectedBranchId] = useState<string>('')
   const [branches, setBranches] = useState<any[]>([])
   const [paymentMethod, setPaymentMethod] = useState<string>('Efectivo')
@@ -198,9 +205,6 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   const [cancelReason, setCancelReason] = useState('')
   const [customers, setCustomers] = useState<any[]>([])
   const [identificationTypes, setIdentificationTypes] = useState<string[]>(['Cédula', 'NIT', 'Pasaporte'])
-  const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
-  const [customerSearch, setCustomerSearch] = useState('')
-  const [newCustomerDialogOpen, setNewCustomerDialogOpen] = useState(false)
   const [productSearchOpen, setProductSearchOpen] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   
@@ -601,139 +605,6 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
     }
   }
 
-  const findOrCreateCustomer = async () => {
-    // Try to find existing customer
-    const customersResponse = await fetch(
-      `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/customers`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      }
-    )
-    
-    const customersData = await customersResponse.json()
-    if (customersData.success) {
-      const customers = customersData.customers.map((c: string) => JSON.parse(c))
-      const existingCustomer = customers.find((c: any) => {
-        // Buscar por nombre exacto
-        if (c.name.toLowerCase() === customerName.toLowerCase()) {
-          return true
-        }
-        // Buscar por teléfono
-        if (customerPhone && customerPhone.trim() && c.phone === customerPhone) {
-          return true
-        }
-        // Buscar por número de identificación
-        if (customerIdNumber && customerIdNumber.trim() && 
-            c.identificationNumber && 
-            c.identificationNumber.toLowerCase().trim() === customerIdNumber.toLowerCase().trim()) {
-          return true
-        }
-        return false
-      })
-      
-      if (existingCustomer) {
-        return existingCustomer.id
-      }
-    }
-    
-    // Create new customer
-    const createResponse = await fetch(
-      `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/customers`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: customerName,
-          email: customerEmail || `${customerName.toLowerCase().replace(/\s+/g, '.')}@cliente.com`,
-          phone: customerPhone || 'N/A',
-          address: customerAddress || '',
-          identificationType: customerIdType,
-          identificationNumber: customerIdNumber
-        })
-      }
-    )
-    
-    const createData = await createResponse.json()
-    if (createData.success) {
-      return createData.customer.id
-    } else {
-      // Error al crear cliente (puede ser duplicado)
-      throw new Error(createData.error || 'Error al crear el cliente')
-    }
-  }
-
-  const handleSelectCustomer = (customer: any) => {
-    setSelectedCustomerId(customer.id)
-    setCustomerName(customer.name)
-    setCustomerPhone(customer.phone || '')
-    setCustomerEmail(customer.email || '')
-    setCustomerAddress(customer.address || '')
-    setCustomerIdType(customer.identificationType || '')
-    setCustomerIdNumber(customer.identificationNumber || '')
-    setCustomerSearch('')
-    setCustomerSearchOpen(false)
-  }
-
-  const handleCreateNewCustomer = async () => {
-    if (!customerName.trim()) {
-      toast.error('Ingresa el nombre del cliente')
-      return
-    }
-
-    if (!customerIdType || !customerIdNumber) {
-      toast.error('Ingresa el tipo y número de identificación')
-      return
-    }
-
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4d437e50/customers`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            name: customerName,
-            email: customerEmail || `${customerName.toLowerCase().replace(/\s+/g, '.')}@cliente.com`,
-            phone: customerPhone || 'N/A',
-            address: customerAddress || '',
-            identificationType: customerIdType,
-            identificationNumber: customerIdNumber
-          })
-        }
-      )
-
-      const data = await response.json()
-      if (data.success) {
-        setSelectedCustomerId(data.customer.id)
-        fetchCustomers()
-        setNewCustomerDialogOpen(false)
-        toast.success('Cliente creado exitosamente')
-      } else {
-        toast.error('Error al crear cliente: ' + (data.error || 'Error desconocido'))
-      }
-    } catch (error) {
-      console.error('Error creating customer:', error)
-      toast.error('Error al crear cliente')
-    }
-  }
-
-  const clearCustomerForm = () => {
-    setSelectedCustomerId(null)
-    setCustomerName('')
-    setCustomerPhone('')
-    setCustomerEmail('')
-    setCustomerAddress('')
-    setCustomerIdType('')
-    setCustomerIdNumber('')
-    setCustomerSearch('')
-  }
-
   const handleOpenCashFromSale = async (targetBranch: string, baseAmount: number) => {
     setOpeningCash(true)
     try {
@@ -761,8 +632,10 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
       return
     }
 
-    if (!customerName.trim()) {
-      toast.error('Ingresa el nombre del cliente')
+    const custErrors = validateCustomerDraft(customer)
+    setCustomerErrors(custErrors)
+    if (Object.keys(custErrors).length > 0) {
+      toast.error(custErrors.customer ?? 'Completa los datos del cliente')
       return
     }
 
@@ -776,16 +649,25 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
       return
     }
 
+    setSavingSale(true)
     try {
-      const customerId = await findOrCreateCustomer()
-      
+      /* El cliente elegido es ese; uno nuevo se crea (o se reusa si ya existía).
+         Queda fijado como existente: si la venta se reintenta tras abrir la caja,
+         no se intenta crear otra vez. */
+      const { customer: resolved, created } = await resolveCustomer(accessToken, customer, customers)
+      if (created) await fetchCustomers()
+      setCustomer(draftFromCustomer(resolved))
+      const customerName = resolved.name
+      const customerPhone = resolved.phone || customer.phone
+
       const saleData: any = {
         items: cart,
         total: calculateTotal(),
         totalCost: calculateTotalCost(),
         customerName,
         customerPhone,
-        customerId,
+        customerEmail: resolved.email || customer.email || undefined,
+        customerId: resolved.id,
         paymentMethod,
         status: 'active',
         type: 'product',
@@ -853,9 +735,9 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
         }
         
         setCart([])
-        setCustomerName('')
-        setCustomerPhone('')
-        setCustomerEmail('')
+        // Antes quedaba el id del cliente anterior pegado a la venta siguiente.
+        setCustomer(emptyCustomerDraft())
+        setCustomerErrors({})
         setPaymentMethod('Efectivo')
         setCreditDays(0)
         setDialogOpen(false)
@@ -884,6 +766,8 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
       console.error('Error completing sale:', error)
       const errorMessage = error instanceof Error ? error.message : 'Error al completar la venta'
       toast.error(errorMessage)
+    } finally {
+      setSavingSale(false)
     }
   }
 
@@ -1071,17 +955,6 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
   /* Coincidencias de los dos buscadores del punto de venta. Antes el de clientes
      repetía el mismo filter tres veces en el JSX y el de productos vivía dentro de
      un Command dentro de un Popover dentro del modal. */
-  const matchingCustomers = useMemo(() => {
-    const q = customerSearch.trim().toLowerCase()
-    if (!q) return []
-    return customers.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.phone?.includes(q) ||
-        c.identificationNumber?.includes(q) ||
-        c.email?.toLowerCase().includes(q)
-    )
-  }, [customers, customerSearch])
 
   const productsForSelectedBranch = selectedBranchId 
     ? products.filter(p => (p as any).branchId === selectedBranchId)
@@ -1117,7 +990,8 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
               variant="primary"
               iconLeft={ShoppingCart}
               onClick={completeSale}
-              disabled={!selectedCustomerId || cart.length === 0}
+              loading={savingSale}
+              disabled={savingSale || cart.length === 0}
             >
               {cart.length > 0 ? `Cobrar ${formatMoney(calculateTotal())}` : 'Cobrar'}
             </OryonButton>
@@ -1135,106 +1009,18 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
           {/* ── Se arma la venta ─────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22, minWidth: 0 }}>
             <FieldGroup title="Cliente">
-              {selectedCustomerId ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    padding: '10px 12px',
-                    background: 'var(--bg-sunken)',
-                    border: 'var(--border-width) solid var(--border-default)',
-                    borderRadius: 'var(--radius-md)',
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                    <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)' }}>{customerName}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-mono-sm)', color: 'var(--text-secondary)' }}>
-                      {[customerIdType, customerIdNumber].filter(Boolean).join(' ')}
-                      {customerPhone ? ` · ${customerPhone}` : ''}
-                    </span>
-                    {customerEmail && (
-                      <span style={{ fontSize: 'var(--text-caption)', color: 'var(--text-tertiary)' }}>{customerEmail}</span>
-                    )}
-                  </div>
-                  <OryonButton size="sm" variant="ghost" onClick={clearCustomerForm}>
-                    Cambiar
-                  </OryonButton>
-                </div>
-              ) : (
-                <>
-                  <OryonInput
-                    size={controlSize}
-                    value={customerSearch}
-                    onChange={(e) => {
-                      setCustomerSearch(e.target.value)
-                      setCustomerSearchOpen(e.target.value.length > 0)
-                    }}
-                    placeholder="Nombre, teléfono o identificación"
-                    iconLeft={Search}
-                    aria-label="Buscar cliente"
-                  />
-
-                  {customerSearch && (
-                    <div
-                      style={{
-                        maxHeight: 180,
-                        overflowY: 'auto',
-                        background: 'var(--bg-sunken)',
-                        border: 'var(--border-width) solid var(--border-default)',
-                        borderRadius: 'var(--radius-md)',
-                      }}
-                    >
-                      {matchingCustomers.length > 0 ? (
-                        matchingCustomers.map((customer, i) => (
-                          <button
-                            key={customer.id}
-                            type="button"
-                            onClick={() => handleSelectCustomer(customer)}
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 2,
-                              width: '100%',
-                              padding: '10px 12px',
-                              minHeight: 'var(--tap-target)',
-                              textAlign: 'left',
-                              background: 'transparent',
-                              border: 0,
-                              borderTop: i === 0 ? 0 : 'var(--border-width) solid var(--border-subtle)',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <span style={{ fontSize: 'var(--text-body)', color: 'var(--text-primary)' }}>{customer.name}</span>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-mono-sm)', color: 'var(--text-secondary)' }}>
-                              {[customer.identificationType, customer.identificationNumber].filter(Boolean).join(' ')}
-                              {customer.phone ? ` · ${customer.phone}` : ''}
-                            </span>
-                          </button>
-                        ))
-                      ) : (
-                        <p style={{ margin: 0, padding: 16, textAlign: 'center', fontSize: 'var(--text-small)', color: 'var(--text-tertiary)' }}>
-                          Ningún cliente coincide.
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  <OryonButton
-                    variant="secondary"
-                    size={controlSize}
-                    iconLeft={Plus}
-                    fullWidth
-                    onClick={() => {
-                      setNewCustomerDialogOpen(true)
-                      setCustomerSearchOpen(false)
-                    }}
-                  >
-                    Crear cliente nuevo
-                  </OryonButton>
-                </>
-              )}
+              <CustomerPicker
+                customers={customers}
+                identificationTypes={identificationTypes}
+                value={customer}
+                onChange={(next) => {
+                  setCustomer(next)
+                  setCustomerErrors({})
+                }}
+                errors={customerErrors}
+                showAddress
+                disabled={savingSale}
+              />
             </FieldGroup>
 
             <FieldGroup title="Condiciones">
@@ -1519,7 +1305,7 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
                 </>
               )}
 
-              {cart.length > 0 && !selectedCustomerId && (
+              {cart.length > 0 && customer.mode === 'existing' && !customer.customerId && (
                 <p style={{ margin: 0, fontSize: 'var(--text-small)', color: 'var(--warning)' }}>
                   Falta elegir el cliente para poder cobrar.
                 </p>
@@ -1930,103 +1716,6 @@ export function Sales({ accessToken, userName, userRole, userProfile }: SalesPro
       >
         {detailSale && <SaleDetailPanel sale={detailSale} columns={compact ? 1 : 2} creditStatus={getCreditStatus(detailSale)} />}
       </ResponsiveDetail>
-
-      {/* New Customer Dialog */}
-      <Dialog open={newCustomerDialogOpen} onOpenChange={setNewCustomerDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Crear Nuevo Cliente</DialogTitle>
-            <DialogDescription>
-              Ingresa los datos del cliente para poder facturar
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="newCustomerName">Nombre Completo *</Label>
-                <Input
-                  id="newCustomerName"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Juan Pérez"
-                />
-              </div>
-              <div>
-                <Label htmlFor="newCustomerPhone">Teléfono *</Label>
-                <Input
-                  id="newCustomerPhone"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="3001234567"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="newCustomerIdType">Tipo de Identificación *</Label>
-                <Select value={customerIdType} onValueChange={setCustomerIdType}>
-                  <SelectTrigger id="newCustomerIdType">
-                    <SelectValue placeholder="Selecciona..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {identificationTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="newCustomerIdNumber">Número de Identificación *</Label>
-                <Input
-                  id="newCustomerIdNumber"
-                  value={customerIdNumber}
-                  onChange={(e) => setCustomerIdNumber(e.target.value)}
-                  placeholder="1234567890"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="newCustomerEmail">Email</Label>
-              <Input
-                id="newCustomerEmail"
-                type="email"
-                value={customerEmail}
-                onChange={(e) => setCustomerEmail(e.target.value)}
-                placeholder="cliente@email.com"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="newCustomerAddress">Dirección</Label>
-              <Input
-                id="newCustomerAddress"
-                value={customerAddress}
-                onChange={(e) => setCustomerAddress(e.target.value)}
-                placeholder="Calle 123 #45-67"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setNewCustomerDialogOpen(false)
-                  clearCustomerForm()
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button onClick={handleCreateNewCustomer}>
-                Crear Cliente
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Cancel Sale Dialog */}
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
